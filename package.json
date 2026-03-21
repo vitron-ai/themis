@@ -1,0 +1,90 @@
+{
+  "name": "@vitron-ai/themis",
+  "version": "0.1.0-alpha.1",
+  "description": "Intent-first unit test framework for AI agents in Node.js and TypeScript, powered by an AI verdict engine",
+  "license": "MIT",
+  "author": "Vitron AI",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vitron-ai/themis.git"
+  },
+  "homepage": "https://github.com/vitron-ai/themis#readme",
+  "bugs": {
+    "url": "https://github.com/vitron-ai/themis/issues"
+  },
+  "keywords": [
+    "testing",
+    "unit-test",
+    "test-runner",
+    "ai",
+    "agents",
+    "ai-agents",
+    "agentic",
+    "nodejs",
+    "typescript",
+    "tsx",
+    "esm",
+    "jsdom",
+    "react-testing",
+    "html-report",
+    "json-report",
+    "cli",
+    "verdict-engine",
+    "deterministic",
+    "rerun-failed",
+    "intent-dsl",
+    "node-test-runner"
+  ],
+  "type": "commonjs",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "require": "./index.js",
+      "default": "./index.js"
+    },
+    "./globals": {
+      "types": "./globals.d.ts",
+      "require": "./globals.js",
+      "default": "./globals.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "bin",
+    "src/*.js",
+    "src/assets/*",
+    "docs",
+    "index.js",
+    "index.d.ts",
+    "globals.js",
+    "globals.d.ts",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE",
+    "benchmark-gate.json"
+  ],
+  "bin": {
+    "themis": "bin/themis.js"
+  },
+  "scripts": {
+    "test": "node bin/themis.js test",
+    "validate": "npm test && npm run typecheck && npm run benchmark:gate",
+    "typecheck": "tsc -p tsconfig.json --pretty false",
+    "benchmark": "node scripts/benchmark.js",
+    "benchmark:gate": "node scripts/benchmark-gate.js",
+    "pack:check": "npm pack --dry-run",
+    "prepublishOnly": "npm test && npm run typecheck"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "jsdom": "^26.1.0",
+    "typescript": "^5.9.3"
+  }
+}

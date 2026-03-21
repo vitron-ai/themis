@@ -1,0 +1,10 @@
+{
+  "profile": {
+    "files": 40,
+    "testsPerFile": 25,
+    "repeats": 3,
+    "workers": 4,
+    "includeExternal": false
+  },
+  "maxThemisAvgMs": 1500
+}
