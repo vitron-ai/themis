@@ -9,6 +9,12 @@ It is built to be the best test loop for agent workflows: deterministic reruns, 
 </p>
 
 <p align="center">
+  <a href="https://github.com/vitron-ai/themis/actions/workflows/ci.yml">
+    <img src="https://img.shields.io/github/actions/workflow/status/vitron-ai/themis/ci.yml?branch=main&style=for-the-badge&label=Themis%20CI" alt="Themis CI status">
+  </a>
+</p>
+
+<p align="center">
   <img src="src/assets/themisReport.png" alt="Themis HTML verdict report" width="960">
 </p>
 
