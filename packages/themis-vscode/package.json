@@ -1,0 +1,114 @@
+{
+  "name": "themis-vscode",
+  "displayName": "Themis",
+  "description": "View Themis test results, rerun suites, and open the HTML verdict report inside VS Code.",
+  "version": "0.1.0-alpha.1",
+  "license": "MIT",
+  "publisher": "vitron-ai",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vitron-ai/themis.git"
+  },
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Testing"
+  ],
+  "keywords": [
+    "themis",
+    "testing",
+    "unit-test",
+    "ai",
+    "agents",
+    "html-report"
+  ],
+  "main": "./src/extension.js",
+  "activationEvents": [
+    "onView:themis.results",
+    "onCommand:themis.runTests",
+    "onCommand:themis.rerunFailed",
+    "onCommand:themis.openHtmlReport",
+    "onCommand:themis.refreshResults"
+  ],
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "themis",
+          "title": "Themis",
+          "icon": "resources/themis-icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "themis": [
+        {
+          "id": "themis.results",
+          "name": "Results"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "themis.runTests",
+        "title": "Themis: Run Tests",
+        "category": "Themis"
+      },
+      {
+        "command": "themis.rerunFailed",
+        "title": "Themis: Rerun Failed",
+        "category": "Themis"
+      },
+      {
+        "command": "themis.openHtmlReport",
+        "title": "Themis: Open HTML Report",
+        "category": "Themis"
+      },
+      {
+        "command": "themis.refreshResults",
+        "title": "Themis: Refresh Results",
+        "category": "Themis"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "themis.runTests",
+          "when": "view == themis.results",
+          "group": "navigation@1"
+        },
+        {
+          "command": "themis.rerunFailed",
+          "when": "view == themis.results",
+          "group": "navigation@2"
+        },
+        {
+          "command": "themis.openHtmlReport",
+          "when": "view == themis.results",
+          "group": "navigation@3"
+        },
+        {
+          "command": "themis.refreshResults",
+          "when": "view == themis.results",
+          "group": "navigation@4"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Themis",
+      "properties": {
+        "themis.command": {
+          "type": "string",
+          "default": "npx themis test",
+          "description": "Command used by the Themis extension to run the full suite."
+        },
+        "themis.rerunFailedCommand": {
+          "type": "string",
+          "default": "npx themis test --rerun-failed",
+          "description": "Command used by the Themis extension to rerun failures from the latest artifact."
+        }
+      }
+    }
+  }
+}
