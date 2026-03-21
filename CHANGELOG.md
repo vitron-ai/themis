@@ -6,6 +6,7 @@ All notable changes to this project are documented in this file.
 
 ### Changed
 
+- Moved the package line from alpha to beta and defined beta compatibility expectations for CLI, artifacts, and the JS/TS package surface.
 - Tightened npm/package positioning around Themis as an intent-first unit test framework for AI agents in Node.js and TypeScript.
 - Updated publish-facing docs to consistently frame Themis as an AI verdict engine for human and agent review loops.
 - Added `npm run pack:check` for npm publish payload validation.

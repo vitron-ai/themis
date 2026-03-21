@@ -1,6 +1,6 @@
 # Themis API Reference
 
-This document defines the public API surface for Themis `0.1.0-alpha.1`.
+This document defines the public API surface for Themis `0.1.0-beta.0`.
 
 ## CLI
 

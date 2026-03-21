@@ -2,7 +2,7 @@
   "name": "themis-vscode",
   "displayName": "Themis",
   "description": "View Themis test results, rerun suites, and open the HTML verdict report inside VS Code.",
-  "version": "0.1.0-alpha.1",
+  "version": "0.1.0-beta.0",
   "license": "MIT",
   "publisher": "vitron-ai",
   "repository": {
