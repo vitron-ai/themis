@@ -1,0 +1,277 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/vitron-ai/themis/docs/schemas/agent-result.v1.json",
+  "title": "Themis Agent Result v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "meta", "summary", "failures", "artifacts", "analysis", "hints"],
+  "properties": {
+    "schema": {
+      "type": "string",
+      "const": "themis.agent.result.v1"
+    },
+    "meta": {
+      "$ref": "#/$defs/meta"
+    },
+    "summary": {
+      "$ref": "#/$defs/summary"
+    },
+    "failures": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/failure"
+      }
+    },
+    "artifacts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["lastRun", "failedTests", "runDiff", "runHistory"],
+      "properties": {
+        "lastRun": {
+          "type": "string"
+        },
+        "failedTests": {
+          "type": "string"
+        },
+        "runDiff": {
+          "type": "string"
+        },
+        "runHistory": {
+          "type": "string"
+        }
+      }
+    },
+    "analysis": {
+      "$ref": "#/$defs/analysis"
+    },
+    "hints": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["rerunFailed", "targetedRerun", "updateSnapshots", "diffLastRun"],
+      "properties": {
+        "rerunFailed": {
+          "type": "string"
+        },
+        "targetedRerun": {
+          "type": "string"
+        },
+        "updateSnapshots": {
+          "type": "string"
+        },
+        "diffLastRun": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  "$defs": {
+    "meta": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["startedAt", "finishedAt", "maxWorkers"],
+      "properties": {
+        "startedAt": {
+          "type": "string"
+        },
+        "finishedAt": {
+          "type": "string"
+        },
+        "maxWorkers": {
+          "type": "number"
+        }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["total", "passed", "failed", "skipped", "durationMs"],
+      "properties": {
+        "total": {
+          "type": "number"
+        },
+        "passed": {
+          "type": "number"
+        },
+        "failed": {
+          "type": "number"
+        },
+        "skipped": {
+          "type": "number"
+        },
+        "durationMs": {
+          "type": "number"
+        }
+      }
+    },
+    "failure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["file", "testName", "fullName", "durationMs", "message", "stack", "fingerprint"],
+      "properties": {
+        "file": {
+          "type": "string"
+        },
+        "testName": {
+          "type": "string"
+        },
+        "fullName": {
+          "type": "string"
+        },
+        "durationMs": {
+          "type": "number"
+        },
+        "message": {
+          "type": "string"
+        },
+        "stack": {
+          "type": "string"
+        },
+        "fingerprint": {
+          "type": "string"
+        }
+      }
+    },
+    "analysis": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["fingerprintVersion", "failureClusters", "stability", "comparison"],
+      "properties": {
+        "fingerprintVersion": {
+          "type": "string",
+          "const": "fnv1a32-message-v1"
+        },
+        "failureClusters": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/failureCluster"
+          }
+        },
+        "stability": {
+          "$ref": "#/$defs/stability"
+        },
+        "comparison": {
+          "$ref": "#/$defs/comparison"
+        }
+      }
+    },
+    "failureCluster": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["fingerprint", "count", "message", "tests"],
+      "properties": {
+        "fingerprint": {
+          "type": "string"
+        },
+        "count": {
+          "type": "number"
+        },
+        "message": {
+          "type": "string"
+        },
+        "tests": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "stability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["runs", "summary", "tests"],
+      "properties": {
+        "runs": {
+          "type": "number"
+        },
+        "summary": {
+          "$ref": "#/$defs/stabilitySummary"
+        },
+        "tests": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/stabilityTest"
+          }
+        }
+      }
+    },
+    "stabilitySummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["stablePass", "stableFail", "unstable"],
+      "properties": {
+        "stablePass": {
+          "type": "number"
+        },
+        "stableFail": {
+          "type": "number"
+        },
+        "unstable": {
+          "type": "number"
+        }
+      }
+    },
+    "stabilityTest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["file", "testName", "fullName", "statuses", "classification"],
+      "properties": {
+        "file": {
+          "type": "string"
+        },
+        "testName": {
+          "type": "string"
+        },
+        "fullName": {
+          "type": "string"
+        },
+        "statuses": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["passed", "failed", "missing"]
+          }
+        },
+        "classification": {
+          "type": "string",
+          "enum": ["stable_pass", "stable_fail", "unstable"]
+        }
+      }
+    },
+    "comparison": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "previousRunId", "previousRunAt", "currentRunAt", "delta", "newFailures", "resolvedFailures"],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["baseline", "changed"]
+        },
+        "previousRunId": {
+          "type": "string"
+        },
+        "previousRunAt": {
+          "type": "string"
+        },
+        "currentRunAt": {
+          "type": "string"
+        },
+        "delta": {
+          "$ref": "#/$defs/summary"
+        },
+        "newFailures": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "resolvedFailures": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

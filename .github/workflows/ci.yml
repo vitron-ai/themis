@@ -1,0 +1,125 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  compatibility:
+    name: Compatibility (Node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node:
+          - '18'
+          - '20'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run test suite
+        run: npm test
+
+  release-surface:
+    name: Release Surface (Node 20)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs:
+      - compatibility
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Check npm package payload
+        run: npm run pack:check
+
+      - name: Verify VS Code extension scaffold
+        run: |
+          node -e "const pkg=require('./packages/themis-vscode/package.json'); if (pkg.main !== './src/extension.js') throw new Error('Unexpected VS Code extension entrypoint'); if (!pkg.contributes?.views?.themis?.length) throw new Error('Missing Themis results view'); console.log('VS Code extension scaffold looks valid.');"
+
+      - name: Generate human HTML report and agent payload
+        run: |
+          NO_COLOR=1 node bin/themis.js test --reporter html
+          NO_COLOR=1 node bin/themis.js test --agent > .themis/agent-result.json
+          test -f .themis/report.html
+          test -f .themis/agent-result.json
+          test -f .themis/last-run.json
+          test -f .themis/run-diff.json
+
+      - name: Upload showcase artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: themis-showcase-node20
+          retention-days: 14
+          path: |
+            .themis/report.html
+            .themis/themis-bg.png
+            .themis/themis-report.png
+            .themis/agent-result.json
+            .themis/last-run.json
+            .themis/failed-tests.json
+            .themis/run-diff.json
+            .themis/run-history.json
+            packages/themis-vscode/package.json
+            packages/themis-vscode/README.md
+
+  perf-gate:
+    name: Perf Gate (Node 20)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs:
+      - compatibility
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Benchmark regression gate
+        env:
+          BENCH_MAX_AVG_MS: '2500'
+        run: npm run benchmark:gate

@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/vitron-ai/themis/docs/schemas/failures.v1.json",
+  "title": "Themis Failures Artifact v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "runId", "createdAt", "summary", "failedTests"],
+  "properties": {
+    "schema": {
+      "type": "string",
+      "const": "themis.failures.v1"
+    },
+    "runId": {
+      "type": "string"
+    },
+    "createdAt": {
+      "type": "string"
+    },
+    "summary": {
+      "$ref": "#/$defs/summary"
+    },
+    "failedTests": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/failedTest"
+      }
+    }
+  },
+  "$defs": {
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["total", "passed", "failed", "skipped", "durationMs"],
+      "properties": {
+        "total": {
+          "type": "number"
+        },
+        "passed": {
+          "type": "number"
+        },
+        "failed": {
+          "type": "number"
+        },
+        "skipped": {
+          "type": "number"
+        },
+        "durationMs": {
+          "type": "number"
+        }
+      }
+    },
+    "failedTest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["file", "name", "fullName", "durationMs", "message", "stack"],
+      "properties": {
+        "file": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "fullName": {
+          "type": "string"
+        },
+        "durationMs": {
+          "type": "number"
+        },
+        "message": {
+          "type": "string"
+        },
+        "stack": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}
