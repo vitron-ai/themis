@@ -4,7 +4,7 @@
 
 Do not open a public GitHub issue for security-sensitive reports.
 
-Instead, report vulnerabilities privately to `security@vitron.ai` and include:
+Instead, report vulnerabilities privately to `gatekeeper@vitron.ai` and include:
 
 - affected package or surface area
 - reproduction steps or proof of concept
