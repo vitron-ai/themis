@@ -1,22 +1,15 @@
 # Themis
 
 <p align="center">
+  <img src="src/assets/themisLogo.png" alt="Themis logo mark" width="42" valign="middle">
   <a href="https://github.com/vitron-ai/themis/actions/workflows/ci.yml">
-    <img src="https://img.shields.io/github/actions/workflow/status/vitron-ai/themis/ci.yml?branch=main&style=for-the-badge&label=THEMIS%20VERDICT%20PIPELINE&labelColor=111827&color=16a34a" alt="Themis verdict pipeline status">
+    <img src="https://img.shields.io/github/actions/workflow/status/vitron-ai/themis/ci.yml?branch=main&style=for-the-badge&label=THEMIS%20VERDICT%20PIPELINE&labelColor=111827&color=16a34a" alt="Themis verdict pipeline status" valign="middle">
   </a>
-  <a href="https://www.npmjs.com/package/@vitronai/themis">
-    <img src="https://img.shields.io/npm/v/@vitronai/themis?style=for-the-badge&label=NPM%20BETA&labelColor=111827&color=0f766e" alt="Themis npm version">
-  </a>
-  <img src="https://img.shields.io/badge/NODE-18%20%7C%2020-0f172a?style=for-the-badge&labelColor=111827" alt="Node 18 and 20 support">
 </p>
 
 Themis is an intent-first unit test framework for AI agents in Node.js and TypeScript.
 
 It is built to be the best test loop for agent workflows: deterministic reruns, machine-readable outputs, strict phase semantics, and a branded AI verdict engine for humans.
-
-<p align="center">
-  <img src="src/assets/themisLogo.png" alt="Themis logo" width="220">
-</p>
 
 <p align="center">
   <img src="src/assets/themisReport.png" alt="Themis HTML verdict report" width="960">
