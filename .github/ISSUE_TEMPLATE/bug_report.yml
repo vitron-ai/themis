@@ -1,0 +1,41 @@
+name: Bug report
+description: Report a defect in Themis behavior, CLI output, artifacts, or docs.
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: Describe the problem and the behavior you expected.
+      placeholder: Themis should..., but instead...
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction
+      description: Provide steps, fixture snippets, or commands to reproduce the issue.
+      placeholder: |
+        1. Run ...
+        2. Create ...
+        3. Observe ...
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Include Node version, OS, Themis version, and relevant config.
+      placeholder: |
+        Node:
+        OS:
+        Themis:
+        Reporter:
+        Environment:
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant output
+      description: Paste trimmed logs, JSON payload excerpts, or screenshots if useful.

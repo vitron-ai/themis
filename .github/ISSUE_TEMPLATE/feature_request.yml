@@ -1,0 +1,31 @@
+name: Feature request
+description: Propose a new capability or improvement for Themis.
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: Describe the workflow problem or limitation you are trying to solve.
+      placeholder: I want Themis to support...
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed approach
+      description: Describe the behavior, API, CLI flag, or artifact shape you want.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Describe workarounds or alternative approaches you considered.
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Add examples, prior art, or product context if helpful.

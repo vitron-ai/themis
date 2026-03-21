@@ -77,6 +77,7 @@ See [`docs/why-themis.md`](docs/why-themis.md) for positioning, differentiators,
 - Failures artifact schema: [`docs/schemas/failures.v1.json`](docs/schemas/failures.v1.json)
 - Changelog: [`CHANGELOG.md`](CHANGELOG.md)
 - Contributing: [`CONTRIBUTING.md`](CONTRIBUTING.md)
+- Security: [`SECURITY.md`](SECURITY.md)
 
 ## Commands
 
