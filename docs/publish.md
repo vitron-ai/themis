@@ -4,7 +4,7 @@ This guide covers publishing Themis to npm.
 
 ## Preconditions
 
-- npm account has publish access for scope `@vitron-ai`
+- npm account has publish access for scope `@vitronai`
 - you are logged in (`npm login`)
 - working tree is clean
 - quality checks pass
@@ -27,7 +27,7 @@ npm run pack:check
 
 ```bash
 npm pack --dry-run
-tar -tf vitron-ai-themis-*.tgz
+tar -tf vitronai-themis-*.tgz
 ```
 
 6. Publish:
@@ -41,13 +41,13 @@ npm publish --access public
 Verify installation:
 
 ```bash
-npx @vitron-ai/themis test --help
+npx @vitronai/themis test --help
 ```
 
 If needed, deprecate a release:
 
 ```bash
-npm deprecate @vitron-ai/themis@<version> "<message>"
+npm deprecate @vitronai/themis@<version> "<message>"
 ```
 
 ## VS Code Extension

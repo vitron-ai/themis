@@ -1,5 +1,5 @@
 {
-  "name": "@vitron-ai/themis",
+  "name": "@vitronai/themis",
   "version": "0.1.0-beta.0",
   "description": "Intent-first unit test framework for AI agents in Node.js and TypeScript, powered by an AI verdict engine",
   "license": "MIT",

@@ -86,7 +86,7 @@ Agent payload details:
 Import:
 
 ```js
-const themis = require('@vitron-ai/themis');
+const themis = require('@vitronai/themis');
 ```
 
 ## `main(argv: string[]): Promise<void>`

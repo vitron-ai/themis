@@ -45,7 +45,7 @@ Before publishing:
 
 ## Publishing Policy
 
-- Publish target: npm public package `@vitron-ai/themis`.
+- Publish target: npm public package `@vitronai/themis`.
 - Required metadata: license, repository, bugs URL, homepage.
 - Recommended command:
 

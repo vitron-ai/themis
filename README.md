@@ -40,7 +40,7 @@ Themis is built for modern Node.js and TypeScript projects:
 ## Quickstart
 
 ```bash
-npm install -D @vitron-ai/themis
+npm install -D @vitronai/themis
 npx themis init
 npx themis test
 ```
@@ -223,7 +223,7 @@ Use the global types in your project with:
 ```json
 {
   "compilerOptions": {
-    "types": ["@vitron-ai/themis/globals"]
+    "types": ["@vitronai/themis/globals"]
   }
 }
 ```
