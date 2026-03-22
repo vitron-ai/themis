@@ -45,6 +45,15 @@ jobs:
           THEMIS_CI_DEBUG_OUTPUT: ci-failure.json
         run: npm test
 
+      - name: Upload CI failure payload
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: themis-ci-debug
+          retention-days: 7
+          path: .themis/ci-failure.json
+          if-no-files-found: ignore
+
   release-surface:
     name: Release Surface (Node 20)
     runs-on: ubuntu-latest
