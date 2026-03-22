@@ -62,6 +62,7 @@ export interface RunResult {
   files: FileResult[];
   summary: RunSummary;
   stability?: StabilityReport;
+  artifacts?: RunArtifacts;
 }
 
 export type TestEnvironment = 'node' | 'jsdom';
@@ -164,6 +165,30 @@ export interface GenerateHintFiles {
   unchanged: string[];
 }
 
+export interface RunArtifactPaths {
+  lastRun: string;
+  failedTests: string;
+  runDiff: string;
+  runHistory: string;
+  fixHandoff: string;
+}
+
+export interface RunComparison {
+  status: 'baseline' | 'changed';
+  previousRunId: string;
+  previousRunAt: string;
+  currentRunAt: string;
+  delta: RunSummary;
+  newFailures: string[];
+  resolvedFailures: string[];
+}
+
+export interface RunArtifacts {
+  runId: string;
+  comparison: RunComparison;
+  paths: RunArtifactPaths;
+}
+
 export interface GenerateGateFailure {
   code: string;
   count: number;
@@ -222,6 +247,47 @@ export interface GeneratePromptReady {
   unresolved: GenerateBacklogItem[];
   nextActions: string[];
   prompt: string;
+}
+
+export type FixHandoffCategory = 'source-drift' | 'snapshot-drift' | 'generated-contract-failure';
+
+export interface FixHandoffItem {
+  file: string;
+  name: string;
+  fullName: string;
+  message: string;
+  testFile: string;
+  sourceFile: string;
+  moduleKind: string | null;
+  confidence: string | null;
+  scenarios: string[];
+  hintsFile: string | null;
+  category: FixHandoffCategory;
+  failureCount: number;
+  failedTests: string[];
+  suggestedAction: string;
+  suggestedCommand: string | null;
+}
+
+export interface FixHandoffPayload {
+  schema: 'themis.fix.handoff.v1';
+  runId: string;
+  createdAt: string;
+  summary: {
+    totalFailures: number;
+    generatedFailures: number;
+    staleSources: number;
+    snapshotMismatches: number;
+    contractFailures: number;
+  };
+  artifacts: {
+    failedTests: string;
+    generateMap: string;
+    generateBacklog: string;
+    fixHandoff: string;
+  };
+  items: FixHandoffItem[];
+  nextActions: string[];
 }
 
 export interface GeneratePayload {

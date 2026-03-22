@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/vitron-ai/themis/docs/schemas/fix-handoff.v1.json",
+  "title": "Themis Fix Handoff v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "runId", "createdAt", "summary", "artifacts", "items", "nextActions"],
+  "properties": {
+    "schema": {
+      "type": "string",
+      "const": "themis.fix.handoff.v1"
+    },
+    "runId": {
+      "type": "string"
+    },
+    "createdAt": {
+      "type": "string"
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["totalFailures", "generatedFailures", "staleSources", "snapshotMismatches", "contractFailures"],
+      "properties": {
+        "totalFailures": { "type": "number" },
+        "generatedFailures": { "type": "number" },
+        "staleSources": { "type": "number" },
+        "snapshotMismatches": { "type": "number" },
+        "contractFailures": { "type": "number" }
+      }
+    },
+    "artifacts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["failedTests", "generateMap", "generateBacklog", "fixHandoff"],
+      "properties": {
+        "failedTests": { "type": "string" },
+        "generateMap": { "type": "string" },
+        "generateBacklog": { "type": "string" },
+        "fixHandoff": { "type": "string" }
+      }
+    },
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "file",
+          "name",
+          "fullName",
+          "message",
+          "testFile",
+          "sourceFile",
+          "moduleKind",
+          "confidence",
+          "scenarios",
+          "hintsFile",
+          "category",
+          "failureCount",
+          "failedTests",
+          "suggestedAction",
+          "suggestedCommand"
+        ],
+        "properties": {
+          "file": { "type": "string" },
+          "name": { "type": "string" },
+          "fullName": { "type": "string" },
+          "message": { "type": "string" },
+          "testFile": { "type": "string" },
+          "sourceFile": { "type": "string" },
+          "moduleKind": { "type": ["string", "null"] },
+          "confidence": { "type": ["string", "null"] },
+          "scenarios": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "hintsFile": { "type": ["string", "null"] },
+          "category": {
+            "type": "string",
+            "enum": ["source-drift", "snapshot-drift", "generated-contract-failure"]
+          },
+          "failureCount": { "type": "number" },
+          "failedTests": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "suggestedAction": { "type": "string" },
+          "suggestedCommand": { "type": ["string", "null"] }
+        }
+      }
+    },
+    "nextActions": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  }
+}

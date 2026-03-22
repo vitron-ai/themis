@@ -11,6 +11,7 @@ const GENERATE_SCHEMA_PATH = path.join(__dirname, '..', 'docs', 'schemas', 'gene
 const GENERATE_MAP_SCHEMA_PATH = path.join(__dirname, '..', 'docs', 'schemas', 'generate-map.v1.json');
 const GENERATE_HANDOFF_SCHEMA_PATH = path.join(__dirname, '..', 'docs', 'schemas', 'generate-handoff.v1.json');
 const GENERATE_BACKLOG_SCHEMA_PATH = path.join(__dirname, '..', 'docs', 'schemas', 'generate-backlog.v1.json');
+const FIX_HANDOFF_SCHEMA_PATH = path.join(__dirname, '..', 'docs', 'schemas', 'fix-handoff.v1.json');
 const CLI_PATH = path.join(__dirname, '..', 'bin', 'themis.js');
 
 describe('schema contracts', () => {
@@ -187,6 +188,8 @@ describe('schema contracts', () => {
     expect(payload.analysis.stability.summary.unstable).toBe(0);
     expect(payload.analysis.comparison.status).toBe('baseline');
     expect(payload.artifacts.runDiff).toBe('.themis/run-diff.json');
+    expect(payload.artifacts.fixHandoff).toBe('.themis/fix-handoff.json');
+    expect(payload.hints.repairGenerated).toBe('cat .themis/fix-handoff.json');
   });
 
   test('failed-tests artifact output matches docs schema contract', () => {
@@ -369,6 +372,54 @@ describe('schema contracts', () => {
       assertMatchesSchema(backlogPayload, schema, schema);
       expect(backlogPayload.schema).toBe('themis.generate.backlog.v1');
       expect(backlogPayload.summary.total).toBe(2);
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  test('fix handoff artifact matches docs schema contract', () => {
+    const schema = loadSchema(FIX_HANDOFF_SCHEMA_PATH);
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'themis-fix-handoff-schema-'));
+
+    try {
+      fs.mkdirSync(path.join(tempDir, 'src'), { recursive: true });
+      fs.writeFileSync(
+        path.join(tempDir, 'src', 'math.js'),
+        `module.exports = {\n  add(a, b) {\n    return a + b;\n  }\n};\n`,
+        'utf8'
+      );
+
+      let proc = spawnSync(process.execPath, [CLI_PATH, 'generate', 'src'], {
+        cwd: tempDir,
+        encoding: 'utf8',
+        env: {
+          ...process.env,
+          NO_COLOR: '1'
+        }
+      });
+      expect(proc.status).toBe(0);
+
+      fs.writeFileSync(
+        path.join(tempDir, 'src', 'math.js'),
+        `module.exports = {\n  subtract(a, b) {\n    return a - b;\n  }\n};\n`,
+        'utf8'
+      );
+
+      proc = spawnSync(process.execPath, [CLI_PATH, 'test', '--json'], {
+        cwd: tempDir,
+        encoding: 'utf8',
+        env: {
+          ...process.env,
+          NO_COLOR: '1'
+        }
+      });
+
+      expect(proc.status).toBe(1);
+      const fixPayload = JSON.parse(fs.readFileSync(path.join(tempDir, '.themis', 'fix-handoff.json'), 'utf8'));
+      assertMatchesSchema(fixPayload, schema, schema);
+      expect(fixPayload.schema).toBe('themis.fix.handoff.v1');
+      expect(fixPayload.summary.generatedFailures).toBe(1);
+      expect(fixPayload.items[0].category).toBe('source-drift');
     } finally {
       fs.rmSync(tempDir, { recursive: true, force: true });
     }

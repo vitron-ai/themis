@@ -31,6 +31,7 @@ Default behavior:
 - generated tests snapshot normalized runtime export contracts
 - scenario adapters cover React components, React hooks, Next app components, Next route handlers, generic route handlers, and Node service functions when inputs can be inferred or hinted
 - React component and hook adapters also snapshot inferred interaction/state contracts when event handlers or zero-argument stateful methods are available
+- project-level providers from `themis.generate.js` / `themis.generate.cjs` can match source files, inject shared fixture data, and register runtime mocks for generated adapters
 - `.themis/generate-map.json` records source-to-generated-test mappings plus scenario metadata
 - `.themis/generate-last.json` stores the full machine-readable generate payload
 - `.themis/generate-handoff.json` stores a compact prompt-ready handoff payload for agents
@@ -64,7 +65,9 @@ Default behavior:
 Per-file hint sidecars are supported via `<source>.themis.json`. These can provide:
 
 - `componentProps`
+- `componentInteractions`
 - `hookArgs`
+- `hookInteractions`
 - `serviceArgs`
 - `routeRequests`
 - `routeContext`
@@ -73,6 +76,21 @@ Per-file hint sidecars are supported via `<source>.themis.json`. These can provi
 - `scenarios`
 
 `componentProps` and `routeRequests`/`routeContext` also steer Next app component and Next route handler adapters.
+
+Project-level provider modules are supported via `themis.generate.js` or `themis.generate.cjs` at the repo root. A provider can expose:
+
+- `include` / `exclude` / `files`: source matching rules
+- any of the same static fixture keys as sidecars (`componentProps`, `componentInteractions`, `hookArgs`, `hookInteractions`, `serviceArgs`, `routeRequests`, `routeContext`, `scenarios`)
+- `applyMocks(context)`: runtime mock registration for generated tests
+
+`applyMocks(context)` receives:
+
+- `sourceFile`
+- `sourcePath`
+- `exportName`
+- `scenario`
+- `mock`
+- `fn`
 
 ## `themis test` options
 
@@ -112,6 +130,7 @@ Each run writes to `.themis/`:
 - `failed-tests.json`: failed subset (`themis.failures.v1`)
 - `run-diff.json`: diff against the previous run
 - `run-history.json`: rolling recent-run history
+- `fix-handoff.json`: deduped repair artifact for generated test failures (`themis.fix.handoff.v1`)
 
 Formal schemas:
 
@@ -120,6 +139,7 @@ Formal schemas:
 - `docs/schemas/generate-map.v1.json`
 - `docs/schemas/generate-handoff.v1.json`
 - `docs/schemas/generate-backlog.v1.json`
+- `docs/schemas/fix-handoff.v1.json`
 - `docs/schemas/failures.v1.json`
 
 Human-facing artifact:
@@ -132,6 +152,7 @@ Agent payload details:
 - `analysis.failureClusters` groups failures by shared fingerprint
 - `analysis.stability` captures multi-run classifications and per-test status sequences
 - `analysis.comparison` reports delta stats plus new and resolved failures against the previous run
+- `artifacts.fixHandoff` points to `.themis/fix-handoff.json` for generated failure repair loops
 
 ## Config File (`themis.config.json`)
 
@@ -218,6 +239,8 @@ Options:
 - `matchExport?: string | null`
 - `include?: string | null`
 - `exclude?: string | null`
+
+Generated tests can consume repo-level providers from `themis.generate.js` / `themis.generate.cjs` automatically. No extra flag is required.
 
 Returns absolute paths for scanned files, selected generated files, removed stale generated files, skipped files, detailed per-entry actions, prompt text, and artifact locations.
 

@@ -186,6 +186,21 @@ describe('code scan generation', () => {
     };
   }
 
+  function createProviderDrivenFixture() {
+    return {
+      'package.json': `{\n  "name": "themis-provider-driven-fixture",\n  "private": true,\n  "version": "0.0.0"\n}\n`,
+      'tsconfig.json': `{\n  "compilerOptions": {\n    "target": "ES2020",\n    "module": "CommonJS",\n    "jsx": "react-jsx"\n  }\n}\n`,
+      'themis.generate.js': `module.exports = {\n  providers: [\n    {\n      include: /src\\/components\\//,\n      componentProps: {\n        GreetingButton: [{ label: 'Launch' }]\n      },\n      componentInteractions: {\n        GreetingButton: [{ event: 'onClick', repeat: 2 }]\n      }\n    },\n    {\n      include: /src\\/services\\//,\n      serviceArgs: {\n        loadGreeting: [[]]\n      },\n      applyMocks({ scenario, mock, fn }) {\n        if (scenario !== 'node-service' || !mock || !fn) {\n          return;\n        }\n\n        mock('./src/services/greeter.ts', () => ({\n          getGreeting: fn(() => 'Mock hi')\n        }));\n      }\n    },\n    {\n      include: /src\\/hooks\\//,\n      hookArgs: {\n        useRemoteToggle: [[false]]\n      },\n      hookInteractions: {\n        useRemoteToggle: [{ method: 'toggle', repeat: 2 }, { method: 'enable' }]\n      },\n      applyMocks({ scenario, mock, fn }) {\n        if (scenario !== 'react-hook' || !mock || !fn) {\n          return;\n        }\n\n        mock('./src/services/analytics.ts', () => ({\n          track: fn(() => 'tracked')\n        }));\n      }\n    }\n  ]\n};\n`,
+      'node_modules/react/index.js': REACT_INDEX_SOURCE,
+      'node_modules/react/jsx-runtime.js': REACT_JSX_RUNTIME_SOURCE,
+      'src/components/GreetingButton.tsx': `import { useState } from 'react';\nimport { getGreeting } from '../services/greeter.ts';\n\nexport function GreetingButton({ label = 'Load' }) {\n  const [message, setMessage] = useState('idle');\n\n  return <button onClick={() => setMessage(getGreeting())}>{label}: {message}</button>;\n}\n`,
+      'src/hooks/useRemoteToggle.ts': `import { useState } from 'react';\nimport { track } from '../services/analytics.ts';\n\nexport function useRemoteToggle(initial = false) {\n  const [value, setValue] = useState(initial);\n\n  return {\n    value,\n    toggle() {\n      track('toggle');\n      setValue((current) => !current);\n    },\n    enable() {\n      track('enable');\n      setValue(true);\n    }\n  };\n}\n`,
+      'src/services/greeter.ts': `export function getGreeting() {\n  return 'real greeting';\n}\n`,
+      'src/services/loadGreeting.ts': `import { getGreeting } from './greeter.ts';\n\nexport function loadGreeting() {\n  return getGreeting();\n}\n`,
+      'src/services/analytics.ts': `export function track(name) {\n  return name;\n}\n`
+    };
+  }
+
   test('generates deterministic tests, writes a source map artifact, and removes stale generated files', async () => {
     await withProjectFixture(
       {
@@ -516,6 +531,70 @@ describe('code scan generation', () => {
         expect(allTestNames.some((name) => name.includes('next app component adapter'))).toBe(true);
         expect(allTestNames.some((name) => name.includes('next interaction contract'))).toBe(true);
         expect(allTestNames.some((name) => name.includes('next route handler adapter'))).toBe(true);
+      }
+    );
+  });
+
+  test('uses project-level fixture and mock providers from themis.generate.js', async () => {
+    await withProjectFixture(
+      createProviderDrivenFixture(),
+      async ({ tempDir, resolvePath }) => {
+        const generated = runCli(tempDir, ['generate', 'src', '--json']);
+        expect(generated.status).toBe(0);
+        const payload = parseJsonOutput(generated);
+
+        expect(payload.summary.generated).toBe(5);
+        const componentTestPath = resolvePath('tests', 'generated', 'components', 'GreetingButton.generated.test.js');
+        const componentSource = fs.readFileSync(componentTestPath, 'utf8');
+        expect(componentSource).toContain('PROJECT_PROVIDER_IMPORT');
+        expect(componentSource).toContain('applyProjectProviderMocks');
+
+        const run = runCli(tempDir, ['test', '--json']);
+        expect(run.status).toBe(0);
+        const runPayload = JSON.parse(run.output);
+        expect(runPayload.summary.failed).toBe(0);
+
+        const snapshotPath = resolvePath(
+          'tests',
+          'generated',
+          'services',
+          '__snapshots__',
+          'loadGreeting.generated.test.js.snapshots.json'
+        );
+        const snapshots = fs.readFileSync(snapshotPath, 'utf8');
+        expect(snapshots).toContain('Mock hi');
+      }
+    );
+  });
+
+  test('writes a structured fix handoff artifact for failed generated tests', async () => {
+    await withProjectFixture(
+      {
+        'src/math.js': `module.exports = {\n  add(a, b) {\n    return a + b;\n  }\n};\n`
+      },
+      async ({ tempDir, resolvePath }) => {
+        const generated = runCli(tempDir, ['generate', 'src']);
+        expect(generated.status).toBe(0);
+
+        fs.writeFileSync(
+          resolvePath('src', 'math.js'),
+          `module.exports = {\n  subtract(a, b) {\n    return a - b;\n  }\n};\n`,
+          'utf8'
+        );
+
+        const run = runCli(tempDir, ['test', '--agent']);
+        expect(run.status).toBe(1);
+
+        const agentPayload = JSON.parse(run.output);
+        expect(agentPayload.artifacts.fixHandoff).toBe('.themis/fix-handoff.json');
+        expect(agentPayload.hints.repairGenerated).toBe('cat .themis/fix-handoff.json');
+
+        const fixHandoff = JSON.parse(fs.readFileSync(resolvePath('.themis', 'fix-handoff.json'), 'utf8'));
+        expect(fixHandoff.schema).toBe('themis.fix.handoff.v1');
+        expect(fixHandoff.summary.generatedFailures).toBe(1);
+        expect(fixHandoff.items[0].category).toBe('source-drift');
+        expect(fixHandoff.items[0].sourceFile).toBe('src/math.js');
+        expect(fixHandoff.items[0].suggestedCommand).toBe('npx themis generate src/math.js --update');
       }
     );
   });

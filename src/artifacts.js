@@ -6,6 +6,9 @@ const LAST_RUN_FILE = 'last-run.json';
 const FAILED_TESTS_FILE = 'failed-tests.json';
 const RUN_DIFF_FILE = 'run-diff.json';
 const RUN_HISTORY_FILE = 'run-history.json';
+const FIX_HANDOFF_FILE = 'fix-handoff.json';
+const GENERATE_MAP_FILE = 'generate-map.json';
+const GENERATE_BACKLOG_FILE = 'generate-backlog.json';
 
 function writeRunArtifacts(cwd, result) {
   const artifactDir = path.join(cwd, ARTIFACT_DIR);
@@ -19,7 +22,8 @@ function writeRunArtifacts(cwd, result) {
     lastRun: path.join(ARTIFACT_DIR, LAST_RUN_FILE),
     failedTests: path.join(ARTIFACT_DIR, FAILED_TESTS_FILE),
     runDiff: path.join(ARTIFACT_DIR, RUN_DIFF_FILE),
-    runHistory: path.join(ARTIFACT_DIR, RUN_HISTORY_FILE)
+    runHistory: path.join(ARTIFACT_DIR, RUN_HISTORY_FILE),
+    fixHandoff: path.join(ARTIFACT_DIR, FIX_HANDOFF_FILE)
   };
 
   result.artifacts = {
@@ -79,13 +83,26 @@ function writeRunArtifacts(cwd, result) {
   });
   fs.writeFileSync(historyPath, `${stringifyArtifact(nextHistory)}\n`, 'utf8');
 
+  const fixHandoffPath = path.join(artifactDir, FIX_HANDOFF_FILE);
+  let fixHandoff = null;
+  if (failedTests.length > 0) {
+    fixHandoff = buildFixHandoffPayload(cwd, result, {
+      runId,
+      failedTests,
+      relativePaths
+    });
+    fs.writeFileSync(fixHandoffPath, `${stringifyArtifact(fixHandoff)}\n`, 'utf8');
+  }
+
   return {
     runPath,
     failuresPath,
     diffPath,
     historyPath,
+    fixHandoffPath,
     failuresPayload,
-    comparison
+    comparison,
+    fixHandoff
   };
 }
 
@@ -191,6 +208,138 @@ function readJsonIfExists(filePath) {
   } catch (error) {
     return null;
   }
+}
+
+function buildFixHandoffPayload(cwd, result, context) {
+  const generateMap = readJsonIfExists(path.join(cwd, ARTIFACT_DIR, GENERATE_MAP_FILE));
+  const generateBacklog = readJsonIfExists(path.join(cwd, ARTIFACT_DIR, GENERATE_BACKLOG_FILE));
+  const mapEntries = Array.isArray(generateMap && generateMap.entries) ? generateMap.entries : [];
+  const backlogItems = Array.isArray(generateBacklog && generateBacklog.items) ? generateBacklog.items : [];
+  const byGeneratedTest = new Map();
+
+  for (const entry of mapEntries) {
+    if (!entry || !entry.testFile) {
+      continue;
+    }
+    byGeneratedTest.set(path.resolve(cwd, entry.testFile), entry);
+  }
+
+  const groupedItems = new Map();
+  for (const failedTest of context.failedTests) {
+    const generatedEntry = byGeneratedTest.get(path.resolve(failedTest.file));
+    if (!generatedEntry) {
+      continue;
+    }
+
+    const reason = String(failedTest.message || '');
+    const category = classifyFixCategory(reason);
+    const backlogMatch = backlogItems.find((item) => item && item.sourceFile === generatedEntry.sourceFile);
+    const groupKey = `${generatedEntry.testFile}:${category}`;
+    if (groupedItems.has(groupKey)) {
+      const existing = groupedItems.get(groupKey);
+      existing.failureCount += 1;
+      existing.failedTests.push(failedTest.fullName);
+      continue;
+    }
+
+    groupedItems.set(groupKey, {
+      file: failedTest.file,
+      name: failedTest.name,
+      fullName: failedTest.fullName,
+      message: reason,
+      testFile: generatedEntry.testFile,
+      sourceFile: generatedEntry.sourceFile,
+      moduleKind: generatedEntry.moduleKind,
+      confidence: generatedEntry.confidence,
+      scenarios: Array.isArray(generatedEntry.scenarios) ? generatedEntry.scenarios.map((scenario) => scenario.kind) : [],
+      hintsFile: generatedEntry.hintsFile || (backlogMatch ? backlogMatch.hintsFile : null),
+      category,
+      failureCount: 1,
+      failedTests: [failedTest.fullName],
+      suggestedAction: resolveFixAction(category, generatedEntry, backlogMatch),
+      suggestedCommand: resolveFixCommand(category, generatedEntry, backlogMatch)
+    });
+  }
+
+  const items = [...groupedItems.values()];
+
+  const summary = {
+    totalFailures: Number(result.summary?.failed || 0),
+    generatedFailures: items.length,
+    staleSources: items.filter((item) => item.category === 'source-drift').length,
+    snapshotMismatches: items.filter((item) => item.category === 'snapshot-drift').length,
+    contractFailures: items.filter((item) => item.category === 'generated-contract-failure').length
+  };
+
+  return {
+    schema: 'themis.fix.handoff.v1',
+    runId: context.runId,
+    createdAt: new Date().toISOString(),
+    summary,
+    artifacts: {
+      failedTests: context.relativePaths.failedTests,
+      generateMap: path.join(ARTIFACT_DIR, GENERATE_MAP_FILE),
+      generateBacklog: path.join(ARTIFACT_DIR, GENERATE_BACKLOG_FILE),
+      fixHandoff: context.relativePaths.fixHandoff
+    },
+    items,
+    nextActions: buildFixNextActions(summary)
+  };
+}
+
+function classifyFixCategory(message) {
+  const lower = String(message || '').toLowerCase();
+  if (
+    lower.includes('generated from source file has changed since scan')
+    || (lower.includes('stale') && lower.includes('npx themis generate'))
+  ) {
+    return 'source-drift';
+  }
+  if (lower.includes('snapshot')) {
+    return 'snapshot-drift';
+  }
+  return 'generated-contract-failure';
+}
+
+function resolveFixAction(category, entry, backlogMatch) {
+  if (category === 'source-drift') {
+    return `Regenerate the generated test for ${entry.sourceFile}.`;
+  }
+  if (category === 'snapshot-drift') {
+    return `Review the generated snapshot expectations for ${entry.sourceFile}.`;
+  }
+  if (backlogMatch && backlogMatch.suggestedAction) {
+    return backlogMatch.suggestedAction;
+  }
+  return `Inspect the generated contract and supporting hints for ${entry.sourceFile}.`;
+}
+
+function resolveFixCommand(category, entry, backlogMatch) {
+  if (backlogMatch && backlogMatch.suggestedCommand) {
+    return backlogMatch.suggestedCommand;
+  }
+  if (category === 'snapshot-drift') {
+    return 'npx themis test -u';
+  }
+  if (entry && entry.sourceFile) {
+    return `npx themis generate ${entry.sourceFile} --update`;
+  }
+  return null;
+}
+
+function buildFixNextActions(summary) {
+  const actions = [];
+  if (summary.generatedFailures > 0) {
+    actions.push('Review .themis/fix-handoff.json and start with source-drift items.');
+    actions.push('Regenerate narrow targets before rerunning the full suite.');
+  }
+  if (summary.snapshotMismatches > 0) {
+    actions.push('Only update snapshots after reviewing generated behavior changes.');
+  }
+  if (summary.generatedFailures === 0) {
+    actions.push('No generated-test repair work was detected in this run.');
+  }
+  return actions;
 }
 
 function roundDuration(value) {

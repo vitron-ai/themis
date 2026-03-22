@@ -108,6 +108,8 @@ Generated files land under `tests/generated` by default. Each generated test:
 
 Themis also supports per-file generation hints with sidecars like `src/components/Button.themis.json` so humans and agents can provide props, args, route requests, and route context. When those sidecars do not exist yet, `--write-hints` can scaffold them automatically from the current source analysis.
 
+For repo-wide generation defaults, add `themis.generate.js` or `themis.generate.cjs` at the project root. Providers in that file can match source paths, supply shared props/args/interaction plans, and register runtime mocks for generated React, route, and service adapters.
+
 For CI and agent loops, Themis can also enforce generation quality instead of only writing files. Strict runs emit a structured backlog, fail on unresolved scan debt, and hand back exact remediation commands.
 
 Use these flags to control the generation loop:
@@ -135,6 +137,10 @@ Every generation run also writes:
 - `.themis/generate-handoff.json`: a compact agent handoff artifact with prompt-ready next actions
 - `.themis/generate-backlog.json`: unresolved skips, conflicts, and confidence debt with suggested fixes
 
+When generated tests fail, Themis also writes:
+
+- `.themis/fix-handoff.json`: a deduped failure-to-fix artifact that maps generated failures back to source files, categories, and remediation commands
+
 ## Why Themis
 
 See [`docs/why-themis.md`](docs/why-themis.md) for positioning, differentiators, and community messaging.
@@ -150,6 +156,7 @@ See [`docs/why-themis.md`](docs/why-themis.md) for positioning, differentiators,
 - Generate map schema: [`docs/schemas/generate-map.v1.json`](docs/schemas/generate-map.v1.json)
 - Generate handoff schema: [`docs/schemas/generate-handoff.v1.json`](docs/schemas/generate-handoff.v1.json)
 - Generate backlog schema: [`docs/schemas/generate-backlog.v1.json`](docs/schemas/generate-backlog.v1.json)
+- Fix handoff schema: [`docs/schemas/fix-handoff.v1.json`](docs/schemas/fix-handoff.v1.json)
 - Failures artifact schema: [`docs/schemas/failures.v1.json`](docs/schemas/failures.v1.json)
 - Changelog: [`CHANGELOG.md`](CHANGELOG.md)
 - Contributing: [`CONTRIBUTING.md`](CONTRIBUTING.md)
@@ -204,9 +211,10 @@ Each run writes artifacts to `.themis/`:
 - `failed-tests.json`: compact failure list for retry loops.
 - `run-diff.json`: diff against the previous run, including new and resolved failures.
 - `run-history.json`: rolling recent-run history for agent comparison loops.
+- `fix-handoff.json`: source-oriented repair handoff for generated test failures.
 - `report.html`: interactive HTML verdict report.
 
-`--agent` output includes deterministic failure fingerprints, grouped `analysis.failureClusters`, stability classifications, and previous-run comparison data to help AI agents deduplicate and prioritize failures.
+`--agent` output includes deterministic failure fingerprints, grouped `analysis.failureClusters`, stability classifications, previous-run comparison data, and a direct pointer to `.themis/fix-handoff.json` so AI agents can jump from generated failures to exact regeneration commands.
 
 Machine-facing reporters intentionally emit compact JSON. Agents and tooling should parse the payloads rather than depend on whitespace formatting.
 

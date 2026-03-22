@@ -10,6 +10,7 @@ const GENERATED_MAP_ARTIFACT = path.join('.themis', 'generate-map.json');
 const GENERATED_RESULT_ARTIFACT = path.join('.themis', 'generate-last.json');
 const GENERATED_HANDOFF_ARTIFACT = path.join('.themis', 'generate-handoff.json');
 const GENERATED_BACKLOG_ARTIFACT = path.join('.themis', 'generate-backlog.json');
+const PROJECT_PROVIDER_CANDIDATES = ['themis.generate.js', 'themis.generate.cjs'];
 const SOURCE_EXTENSIONS = new Set(['.js', '.jsx', '.ts', '.tsx']);
 const TEST_FILE_PATTERN = /\.(test|spec)\.(js|jsx|ts|tsx)$/;
 const HTTP_METHOD_EXPORTS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', 'HEAD'];
@@ -325,33 +326,48 @@ function normalizeElementType(type) {
 }
 
 function loadModuleWithReactHarness(sourceFile, run) {
-  const harness = { stateRecords: [] };
+  const harness = { stateRecords: [], stateSlots: [], cursor: 0 };
 
   return withPatchedModule(sourceFile, 'react', (actualReact) => {
     const base = actualReact && (typeof actualReact === 'object' || typeof actualReact === 'function')
       ? actualReact
       : {};
 
-    function useState(initialValue) {
-      let currentValue = typeof initialValue === 'function' ? initialValue() : initialValue;
-      const record = {
-        initial: normalizeBehaviorValue(currentValue),
-        updates: []
-      };
-      harness.stateRecords.push(record);
+    function beginRender() {
+      harness.cursor = 0;
+    }
 
-      function setValue(nextValue) {
-        currentValue = typeof nextValue === 'function' ? nextValue(currentValue) : nextValue;
-        record.updates.push(normalizeBehaviorValue(currentValue));
-        return currentValue;
+    function useState(initialValue) {
+      const slotIndex = harness.cursor;
+      harness.cursor += 1;
+      let slot = harness.stateSlots[slotIndex];
+
+      if (!slot) {
+        const startingValue = typeof initialValue === 'function' ? initialValue() : initialValue;
+        slot = {
+          currentValue: startingValue,
+          record: {
+            initial: normalizeBehaviorValue(startingValue),
+            updates: []
+          }
+        };
+        harness.stateSlots[slotIndex] = slot;
+        harness.stateRecords.push(slot.record);
       }
 
-      return [currentValue, setValue];
+      function setValue(nextValue) {
+        slot.currentValue = typeof nextValue === 'function' ? nextValue(slot.currentValue) : nextValue;
+        slot.record.updates.push(normalizeBehaviorValue(slot.currentValue));
+        return slot.currentValue;
+      }
+
+      return [slot.currentValue, setValue];
     }
 
     return {
       ...base,
-      useState
+      useState,
+      __THEMIS_BEGIN_RENDER__: beginRender
     };
   }, () => {
     const resolvedSource = require.resolve(sourceFile);
@@ -359,7 +375,10 @@ function loadModuleWithReactHarness(sourceFile, run) {
     const moduleExports = require(sourceFile);
     return run({
       moduleExports,
-      stateRecords: harness.stateRecords
+      stateRecords: harness.stateRecords,
+      beginRender() {
+        harness.cursor = 0;
+      }
     });
   });
 }
@@ -396,13 +415,21 @@ function withPatchedModule(sourceFile, request, buildExports, run) {
   }
 }
 
-function runComponentInteractionContract(sourceFile, exportName, props) {
-  return loadModuleWithReactHarness(sourceFile, ({ moduleExports, stateRecords } = {}) => {
+function runComponentInteractionContract(sourceFile, exportName, props, interactionPlan = []) {
+  return loadModuleWithReactHarness(sourceFile, ({ moduleExports, stateRecords, beginRender } = {}) => {
     const component = readExportValue(moduleExports || require(sourceFile), exportName);
-    const rendered = component(props);
-    const interactions = collectElementInteractions(rendered).slice(0, 4).map((interaction) => {
+    function render() {
+      beginRender();
+      return component(props);
+    }
+
+    let rendered = render();
+    const availableInteractions = collectElementInteractions(rendered);
+    const interactions = resolvePlannedElementInteractions(availableInteractions, interactionPlan).map((interaction) => {
       const beforeState = normalizeBehaviorValue(stateRecords);
+      const beforeRendered = normalizeBehaviorValue(rendered);
       const result = interaction.invoke();
+      rendered = render();
       return {
         label: interaction.label,
         eventName: interaction.eventName,
@@ -410,40 +437,161 @@ function runComponentInteractionContract(sourceFile, exportName, props) {
         syntheticEvent: interaction.syntheticEvent,
         result: normalizeBehaviorValue(result),
         beforeState,
-        afterState: normalizeBehaviorValue(stateRecords)
+        afterState: normalizeBehaviorValue(stateRecords),
+        beforeRendered,
+        afterRendered: normalizeBehaviorValue(rendered)
       };
     });
 
     return {
       rendered: normalizeBehaviorValue(rendered),
       state: normalizeBehaviorValue(stateRecords),
+      plan: normalizeBehaviorValue(interactionPlan),
       interactions
     };
   });
 }
 
-function runHookInteractionContract(sourceFile, exportName, args) {
-  return loadModuleWithReactHarness(sourceFile, ({ moduleExports, stateRecords } = {}) => {
+function runHookInteractionContract(sourceFile, exportName, args, interactionPlan = []) {
+  return loadModuleWithReactHarness(sourceFile, ({ moduleExports, stateRecords, beginRender } = {}) => {
     const hook = readExportValue(moduleExports || require(sourceFile), exportName);
-    const result = hook(...args);
-    const interactions = collectStatefulMethodInteractions(result).slice(0, 6).map((interaction) => {
+    function render() {
+      beginRender();
+      return hook(...args);
+    }
+
+    let result = render();
+    const availableInteractions = collectStatefulMethodInteractions(result);
+    const interactions = resolvePlannedHookInteractions(availableInteractions, interactionPlan).map((interaction) => {
       const beforeState = normalizeBehaviorValue(stateRecords);
+      const beforeResult = normalizeBehaviorValue(result);
       const returnValue = interaction.invoke();
+      result = render();
       return {
         label: interaction.label,
         methodName: interaction.methodName,
         returnValue: normalizeBehaviorValue(returnValue),
         beforeState,
-        afterState: normalizeBehaviorValue(stateRecords)
+        afterState: normalizeBehaviorValue(stateRecords),
+        beforeResult,
+        afterResult: normalizeBehaviorValue(result)
       };
     });
 
     return {
       result: normalizeBehaviorValue(result),
       state: normalizeBehaviorValue(stateRecords),
+      plan: normalizeBehaviorValue(interactionPlan),
       interactions
     };
   });
+}
+
+function resolvePlannedElementInteractions(interactions, plan) {
+  if (!Array.isArray(interactions) || interactions.length === 0) {
+    return [];
+  }
+
+  const steps = normalizeComponentInteractionPlan(plan);
+  if (steps.length === 0) {
+    return interactions.slice(0, 4);
+  }
+
+  return materializeInteractionSteps(interactions, steps, findMatchingElementInteraction);
+}
+
+function resolvePlannedHookInteractions(interactions, plan) {
+  if (!Array.isArray(interactions) || interactions.length === 0) {
+    return [];
+  }
+
+  const steps = normalizeHookInteractionPlan(plan);
+  if (steps.length === 0) {
+    return interactions.slice(0, 6);
+  }
+
+  return materializeInteractionSteps(interactions, steps, findMatchingHookInteraction);
+}
+
+function materializeInteractionSteps(interactions, steps, matcher) {
+  const resolved = [];
+
+  for (const step of steps) {
+    const matched = matcher(interactions, step);
+    if (!matched) {
+      continue;
+    }
+
+    const repeat = Math.max(1, Number(step.repeat || 1));
+    for (let count = 0; count < repeat; count += 1) {
+      resolved.push(matched);
+    }
+  }
+
+  return resolved;
+}
+
+function normalizeComponentInteractionPlan(plan) {
+  if (!Array.isArray(plan)) {
+    return [];
+  }
+
+  return plan
+    .map((step) => {
+      if (typeof step === 'string') {
+        return { event: step };
+      }
+      if (!step || typeof step !== 'object') {
+        return null;
+      }
+      return {
+        event: typeof step.event === 'string' ? step.event : null,
+        labelIncludes: typeof step.labelIncludes === 'string' ? step.labelIncludes : null,
+        elementType: typeof step.elementType === 'string' ? step.elementType : null,
+        repeat: Number(step.repeat || 1)
+      };
+    })
+    .filter(Boolean);
+}
+
+function normalizeHookInteractionPlan(plan) {
+  if (!Array.isArray(plan)) {
+    return [];
+  }
+
+  return plan
+    .map((step) => {
+      if (typeof step === 'string') {
+        return { method: step };
+      }
+      if (!step || typeof step !== 'object') {
+        return null;
+      }
+      return {
+        method: typeof step.method === 'string' ? step.method : null,
+        repeat: Number(step.repeat || 1)
+      };
+    })
+    .filter(Boolean);
+}
+
+function findMatchingElementInteraction(interactions, step) {
+  return interactions.find((interaction) => {
+    if (step.event && interaction.eventName !== step.event) {
+      return false;
+    }
+    if (step.elementType && interaction.elementType !== step.elementType) {
+      return false;
+    }
+    if (step.labelIncludes && !interaction.label.includes(step.labelIncludes)) {
+      return false;
+    }
+    return true;
+  }) || null;
+}
+
+function findMatchingHookInteraction(interactions, step) {
+  return interactions.find((interaction) => interaction.methodName === step.method) || null;
 }
 
 function collectElementInteractions(node, ancestry = []) {
@@ -644,6 +792,7 @@ module.exports = {
 function generateTestsFromSource(cwd, options = {}) {
   const projectRoot = path.resolve(cwd || process.cwd());
   const normalizedOptions = normalizeGenerateOptions(projectRoot, options);
+  const projectProviders = loadProjectProviders(projectRoot);
   const scanTarget = resolveScanTarget(projectRoot, normalizedOptions.targetDir || 'src');
   const outputDir = path.resolve(projectRoot, normalizedOptions.outputDir || path.join('tests', 'generated'));
   const helperFile = path.join(outputDir, GENERATED_HELPER_NAME);
@@ -670,10 +819,17 @@ function generateTestsFromSource(cwd, options = {}) {
   const hasSelectionFilters = hasTargetedSelection(normalizedOptions, scanTarget);
 
   for (const file of candidateFiles) {
-    const hints = readHintFile(file);
+    const sidecarHints = readHintFile(file);
     const analysis = analyzeSourceFile(file);
-    analysis.hints = hints;
-    analysis.hintsFile = hints ? resolveHintFilePath(file) : null;
+    analysis.sidecarHints = sidecarHints;
+    const matchedProviders = matchProjectProviders(projectProviders, file, projectRoot);
+    analysis.projectProviders = matchedProviders;
+    analysis.projectProviderFile = projectProviders ? projectProviders.file : null;
+    analysis.providerRuntimeIndexes = matchedProviders
+      .filter((provider) => typeof provider.applyMocks === 'function')
+      .map((provider) => provider.index);
+    analysis.hints = mergeHintSources(buildProviderHints(matchedProviders), sidecarHints);
+    analysis.hintsFile = sidecarHints ? resolveHintFilePath(file) : null;
     analysis.sourceHash = createSourceHash(analysis.source);
     analysis.relativeFile = formatPathForDisplay(projectRoot, file);
 
@@ -1696,7 +1852,11 @@ function analyzeRuntimeFunction(node, typeIndex) {
       parameterCount: constructorDeclaration ? constructorDeclaration.parameters.length : 0,
       parameters: constructorDeclaration ? constructorDeclaration.parameters.map((parameter, index) => analyzeParameter(parameter, typeIndex, index)) : [],
       usesJsx: false,
-      classLike: true
+      classLike: true,
+      instanceMethods: node.members
+        .filter((member) => ts.isMethodDeclaration(member) && member.name)
+        .map((member) => getPropertyName(member.name))
+        .filter(Boolean)
     };
   }
 
@@ -1708,7 +1868,9 @@ function analyzeFunctionLike(node, typeIndex) {
     async: hasModifier(node, ts.SyntaxKind.AsyncKeyword),
     parameterCount: node.parameters.length,
     parameters: node.parameters.map((parameter, index) => analyzeParameter(parameter, typeIndex, index)),
-    usesJsx: containsJsx(node.body || node)
+    usesJsx: containsJsx(node.body || node),
+    eventHandlers: collectJsxEventHandlers(node.body || node),
+    instanceMethods: []
   };
 }
 
@@ -1793,6 +1955,37 @@ function containsJsx(node) {
   return found;
 }
 
+function collectJsxEventHandlers(node) {
+  const handlers = new Set();
+
+  walkNode(node, (current) => {
+    if (!ts.isJsxAttribute(current) || !current.name) {
+      return false;
+    }
+
+    const attributeName = current.name.text;
+    if (!/^on[A-Z]/.test(attributeName)) {
+      return false;
+    }
+
+    handlers.add(attributeName);
+    return false;
+  });
+
+  return [...handlers].sort((left, right) => {
+    const leftIndex = INTERACTION_EVENT_PRIORITY.indexOf(left);
+    const rightIndex = INTERACTION_EVENT_PRIORITY.indexOf(right);
+    if (leftIndex !== -1 || rightIndex !== -1) {
+      const safeLeft = leftIndex === -1 ? INTERACTION_EVENT_PRIORITY.length : leftIndex;
+      const safeRight = rightIndex === -1 ? INTERACTION_EVENT_PRIORITY.length : rightIndex;
+      if (safeLeft !== safeRight) {
+        return safeLeft - safeRight;
+      }
+    }
+    return left.localeCompare(right);
+  });
+}
+
 function walkNode(node, visit) {
   if (!node || visit(node) === true) {
     return;
@@ -1809,6 +2002,8 @@ function buildExportEntry(entry) {
     declarationKind: entry.declarationKind,
     runtimeKind: entry.runtimeKind || 'unknown',
     functionInfo: entry.functionInfo || null,
+    eventHandlers: entry.functionInfo && Array.isArray(entry.functionInfo.eventHandlers) ? [...entry.functionInfo.eventHandlers] : [],
+    instanceMethods: entry.functionInfo && Array.isArray(entry.functionInfo.instanceMethods) ? [...entry.functionInfo.instanceMethods] : [],
     localName: entry.localName || null
   };
 }
@@ -2107,6 +2302,7 @@ function resolveNextAppComponentCases(analysis) {
       displayName: resolveDisplayExportName(analysis, entry),
       caseName: propsSamples.hinted ? 'renders a hinted next app contract' : 'renders an inferred next app contract',
       props: propsSamples.props,
+      interactions: resolveComponentInteractionSamples(analysis, entry),
       confidence: propsSamples.confidence
     });
   }
@@ -2143,6 +2339,7 @@ function resolveReactComponentCases(analysis, reservedExports = new Set()) {
       displayName: resolveDisplayExportName(analysis, entry),
       caseName: propsSamples.hinted ? 'renders with hinted props' : 'renders with inferred props',
       props: propsSamples.props,
+      interactions: resolveComponentInteractionSamples(analysis, entry),
       confidence: propsSamples.confidence
     });
   }
@@ -2169,6 +2366,7 @@ function resolveReactHookCases(analysis) {
       displayName: resolveDisplayExportName(analysis, entry),
       caseName: argsSamples.hinted ? 'returns a hinted hook contract' : 'returns an inferred hook contract',
       args: argsSamples.args,
+      interactions: resolveHookInteractionSamples(analysis, entry),
       confidence: argsSamples.confidence
     });
   }
@@ -2377,6 +2575,38 @@ function resolveArgsSamples(analysis, entry, hintKey) {
   };
 }
 
+function resolveComponentInteractionSamples(analysis, entry) {
+  const hinted = resolveHintCollection(analysis.hints, 'componentInteractions', entry.exportedName);
+  if (Array.isArray(hinted)) {
+    return cloneSerializable(hinted);
+  }
+
+  return inferComponentInteractionPlan(entry);
+}
+
+function resolveHookInteractionSamples(analysis, entry) {
+  const hinted = resolveHintCollection(analysis.hints, 'hookInteractions', entry.exportedName);
+  if (Array.isArray(hinted)) {
+    return cloneSerializable(hinted);
+  }
+
+  return inferHookInteractionPlan(entry);
+}
+
+function inferComponentInteractionPlan(entry) {
+  const events = Array.isArray(entry.eventHandlers) ? entry.eventHandlers : [];
+  return [...new Set(events)]
+    .slice(0, 4)
+    .map((eventName) => ({ event: eventName, repeat: 1 }));
+}
+
+function inferHookInteractionPlan(entry) {
+  const methods = Array.isArray(entry.instanceMethods) ? entry.instanceMethods : [];
+  return [...new Set(methods.filter((methodName) => STATEFUL_METHOD_PRIORITY.includes(methodName)))]
+    .slice(0, 4)
+    .map((methodName) => ({ method: methodName, repeat: 1 }));
+}
+
 function inferSampleFromParameter(parameter, entry, index) {
   if (parameter.defaultValue !== undefined) {
     return cloneSerializable(parameter.defaultValue);
@@ -2533,7 +2763,7 @@ function isScaffoldHintPayload(hints) {
 function planHintScaffold(analysis, projectRoot) {
   const hintFile = resolveHintFilePath(analysis.file);
   const scaffold = buildHintScaffold(analysis);
-  const existingHints = analysis.hints;
+  const existingHints = analysis.sidecarHints;
 
   if (!scaffold) {
     return null;
@@ -2610,6 +2840,7 @@ function buildHintScaffold(analysis) {
 
   if (nextAppCases.length > 0) {
     scaffold.componentProps = buildNamedHintMap(nextAppCases, (entry) => [cloneSerializable(entry.props) || {}]);
+    scaffold.componentInteractions = buildNamedHintMap(nextAppCases, (entry) => cloneSerializable(entry.interactions) || []);
     scenarioNames.push('next-app-component');
   }
 
@@ -2624,11 +2855,16 @@ function buildHintScaffold(analysis) {
       ...(isPlainObject(scaffold.componentProps) ? scaffold.componentProps : {}),
       ...buildNamedHintMap(componentCases, (entry) => [cloneSerializable(entry.props) || {}])
     };
+    scaffold.componentInteractions = {
+      ...(isPlainObject(scaffold.componentInteractions) ? scaffold.componentInteractions : {}),
+      ...buildNamedHintMap(componentCases, (entry) => cloneSerializable(entry.interactions) || [])
+    };
     scenarioNames.push('react-component');
   }
 
   if (hookCases.length > 0) {
     scaffold.hookArgs = buildNamedHintMap(hookCases, (entry) => [cloneSerializable(entry.args) || []]);
+    scaffold.hookInteractions = buildNamedHintMap(hookCases, (entry) => cloneSerializable(entry.interactions) || []);
     scenarioNames.push('react-hook');
   }
 
@@ -2676,7 +2912,9 @@ function mergeScaffoldHints(existingHints, scaffold) {
   };
 
   mergeHintCollection(merged, scaffold, 'componentProps');
+  mergeHintCollection(merged, scaffold, 'componentInteractions');
   mergeHintCollection(merged, scaffold, 'hookArgs');
+  mergeHintCollection(merged, scaffold, 'hookInteractions');
   mergeHintCollection(merged, scaffold, 'serviceArgs');
   mergeHintCollection(merged, scaffold, 'routeRequests');
   mergeHintCollection(merged, scaffold, 'routeContext');
@@ -2770,6 +3008,158 @@ function pickHighestConfidence(confidences) {
   }
 
   return current;
+}
+
+function loadProjectProviders(projectRoot) {
+  const providerFile = PROJECT_PROVIDER_CANDIDATES
+    .map((candidate) => path.join(projectRoot, candidate))
+    .find((candidate) => fs.existsSync(candidate));
+
+  if (!providerFile) {
+    return null;
+  }
+
+  const resolved = require.resolve(providerFile);
+  delete require.cache[resolved];
+  const loaded = require(resolved);
+  const rawProviders = Array.isArray(loaded)
+    ? loaded
+    : Array.isArray(loaded && loaded.providers)
+      ? loaded.providers
+      : loaded
+        ? [loaded]
+        : [];
+
+  return {
+    file: providerFile,
+    providers: rawProviders
+      .filter((provider) => provider && typeof provider === 'object')
+      .map((provider, index) => ({ ...provider, index }))
+  };
+}
+
+function matchProjectProviders(projectProviders, filePath, projectRoot) {
+  if (!projectProviders || !Array.isArray(projectProviders.providers)) {
+    return [];
+  }
+
+  const relativeFile = formatPathForDisplay(projectRoot, filePath);
+  return projectProviders.providers.filter((provider) => providerMatchesSource(provider, filePath, relativeFile, projectRoot));
+}
+
+function providerMatchesSource(provider, filePath, relativeFile, projectRoot) {
+  if (!provider) {
+    return false;
+  }
+
+  const absoluteFile = path.resolve(filePath);
+  const relative = normalizePath(relativeFile);
+  const requestedFiles = Array.isArray(provider.files) ? provider.files : null;
+  if (requestedFiles && requestedFiles.length > 0) {
+    const normalizedFiles = requestedFiles.map((entry) => normalizePath(formatPathForDisplay(projectRoot, path.resolve(projectRoot, entry))));
+    if (!normalizedFiles.includes(relative)) {
+      return false;
+    }
+  }
+
+  if ((provider.include || provider.match) && !matchesProviderSelector(provider.include || provider.match, absoluteFile, relative)) {
+    return false;
+  }
+
+  if (matchesProviderSelector(provider.exclude, absoluteFile, relative)) {
+    return false;
+  }
+
+  return true;
+}
+
+function matchesProviderSelector(selector, absoluteFile, relativeFile) {
+  if (!selector) {
+    return false;
+  }
+
+  const selectors = Array.isArray(selector) ? selector : [selector];
+  for (const entry of selectors) {
+    if (entry instanceof RegExp && (entry.test(relativeFile) || entry.test(absoluteFile))) {
+      return true;
+    }
+    if (typeof entry === 'string' && (relativeFile.includes(normalizePath(entry)) || absoluteFile.includes(entry))) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function buildProviderHints(providers) {
+  if (!Array.isArray(providers) || providers.length === 0) {
+    return null;
+  }
+
+  const merged = {};
+  for (const provider of providers) {
+    mergeHintCollectionValue(merged, provider, 'componentProps');
+    mergeHintCollectionValue(merged, provider, 'componentInteractions');
+    mergeHintCollectionValue(merged, provider, 'hookArgs');
+    mergeHintCollectionValue(merged, provider, 'hookInteractions');
+    mergeHintCollectionValue(merged, provider, 'serviceArgs');
+    mergeHintCollectionValue(merged, provider, 'routeRequests');
+    mergeHintCollectionValue(merged, provider, 'routeContext');
+    if (Array.isArray(provider.scenarios) && provider.scenarios.length > 0) {
+      merged.scenarios = [...new Set([...(merged.scenarios || []), ...provider.scenarios])].sort();
+    }
+  }
+
+  return Object.keys(merged).length > 0 ? merged : null;
+}
+
+function mergeHintCollectionValue(target, source, key) {
+  if (!source || !Object.prototype.hasOwnProperty.call(source, key)) {
+    return;
+  }
+
+  const value = source[key];
+  if (Array.isArray(value)) {
+    target[key] = cloneSerializable(value);
+    return;
+  }
+
+  if (isPlainObject(value)) {
+    const existing = isPlainObject(target[key]) ? { ...target[key] } : {};
+    for (const [entryKey, entryValue] of Object.entries(value)) {
+      existing[entryKey] = cloneSerializable(entryValue);
+    }
+    target[key] = existing;
+  }
+}
+
+function mergeHintSources(baseHints, overlayHints) {
+  if (!baseHints && !overlayHints) {
+    return null;
+  }
+
+  const merged = cloneSerializable(baseHints) || {};
+  if (!overlayHints) {
+    return merged;
+  }
+
+  mergeHintCollectionValue(merged, overlayHints, 'componentProps');
+  mergeHintCollectionValue(merged, overlayHints, 'componentInteractions');
+  mergeHintCollectionValue(merged, overlayHints, 'hookArgs');
+  mergeHintCollectionValue(merged, overlayHints, 'hookInteractions');
+  mergeHintCollectionValue(merged, overlayHints, 'serviceArgs');
+  mergeHintCollectionValue(merged, overlayHints, 'routeRequests');
+  mergeHintCollectionValue(merged, overlayHints, 'routeContext');
+
+  if (Array.isArray(overlayHints.scenarios) && overlayHints.scenarios.length > 0) {
+    merged.scenarios = [...new Set([...(merged.scenarios || []), ...overlayHints.scenarios])].sort();
+  }
+
+  if (overlayHints.$meta && !merged.$meta) {
+    merged.$meta = cloneSerializable(overlayHints.$meta);
+  }
+
+  return merged;
 }
 
 function readHintFile(filePath) {
@@ -3368,6 +3758,9 @@ function renderGeneratedTest({ projectRoot, helperFile, outputFile, analysis }) 
   const helperImport = normalizeRelativeModule(path.relative(path.dirname(outputFile), helperFile));
   const sourceImport = normalizeRelativeModule(path.relative(path.dirname(outputFile), analysis.file));
   const sourceAbsolutePath = normalizePath(path.relative(path.dirname(outputFile), analysis.file));
+  const providerImport = analysis.projectProviderFile
+    ? normalizeRelativeModule(path.relative(path.dirname(outputFile), analysis.projectProviderFile))
+    : null;
   const suiteName = `generated contract > ${relativeSourcePath}`;
   const exactExportBlock = analysis.exactExports
     ? `test('matches scanned export names', () => {\n    const moduleExports = loadModuleExports();\n    expect(listExportNames(moduleExports)).toEqual(SCANNED_EXPORTS);\n  });`
@@ -3395,6 +3788,8 @@ const SOURCE_FILE = path.resolve(__dirname, ${JSON.stringify(sourceAbsolutePath)
 const SOURCE_HASH = ${JSON.stringify(analysis.sourceHash)};
 const REGENERATE_COMMAND = ${JSON.stringify(`npx themis generate ${relativeSourcePath}`)};
 const SCANNED_EXPORTS = ${analysis.exactExports ? JSON.stringify(analysis.exportNames, null, 2) : 'null'};
+const PROJECT_PROVIDER_IMPORT = ${providerImport ? JSON.stringify(providerImport) : 'null'};
+const PROJECT_PROVIDER_INDEXES = ${JSON.stringify(analysis.providerRuntimeIndexes || [], null, 2)};
 const NEXT_APP_CASES = ${JSON.stringify(flattenScenarioCases(analysis.scenarios, 'next-app-component'), null, 2)};
 const NEXT_ROUTE_CASES = ${JSON.stringify(flattenScenarioCases(analysis.scenarios, 'next-route-handler'), null, 2)};
 const COMPONENT_CASES = ${JSON.stringify(flattenScenarioCases(analysis.scenarios, 'react-component'), null, 2)};
@@ -3407,6 +3802,37 @@ function loadModuleExports() {
   const resolved = require.resolve(SOURCE_IMPORT);
   delete require.cache[resolved];
   return require(SOURCE_IMPORT);
+}
+
+function applyProjectProviderMocks(exportName, scenarioName) {
+  if (!PROJECT_PROVIDER_IMPORT || PROJECT_PROVIDER_INDEXES.length === 0) {
+    return;
+  }
+
+  const loaded = require(PROJECT_PROVIDER_IMPORT);
+  const providers = Array.isArray(loaded)
+    ? loaded
+    : Array.isArray(loaded && loaded.providers)
+      ? loaded.providers
+      : loaded
+        ? [loaded]
+        : [];
+
+  for (const providerIndex of PROJECT_PROVIDER_INDEXES) {
+    const provider = providers[providerIndex];
+    if (!provider || typeof provider.applyMocks !== 'function') {
+      continue;
+    }
+
+    provider.applyMocks({
+      sourceFile: SOURCE_FILE,
+      sourcePath: SOURCE_PATH,
+      exportName,
+      scenario: scenarioName,
+      mock: typeof mock === 'function' ? mock : null,
+      fn: typeof fn === 'function' ? fn : null
+    });
+  }
 }
 
 describe(${JSON.stringify(suiteName)}, () => {
@@ -3425,6 +3851,7 @@ describe(${JSON.stringify(suiteName)}, () => {
     describe('next app component adapter', () => {
       for (const testCase of NEXT_APP_CASES) {
         test(testCase.exportName + ' ' + testCase.caseName, () => {
+          applyProjectProviderMocks(testCase.exportName, 'next-app-component');
           const moduleExports = loadModuleExports();
           const component = readExportValue(moduleExports, testCase.exportName);
           const rendered = component(testCase.props);
@@ -3439,13 +3866,14 @@ describe(${JSON.stringify(suiteName)}, () => {
         });
 
         test(testCase.exportName + ' next interaction contract', () => {
+          applyProjectProviderMocks(testCase.exportName, 'next-app-component');
           expect({
             source: SOURCE_PATH,
             scenario: 'next-app-component',
             confidence: testCase.confidence,
             exportName: testCase.exportName,
             props: testCase.props,
-            interaction: runComponentInteractionContract(SOURCE_FILE, testCase.exportName, testCase.props)
+            interaction: runComponentInteractionContract(SOURCE_FILE, testCase.exportName, testCase.props, testCase.interactions)
           }).toMatchSnapshot();
         });
       }
@@ -3456,6 +3884,7 @@ describe(${JSON.stringify(suiteName)}, () => {
     describe('react component adapter', () => {
       for (const testCase of COMPONENT_CASES) {
         test(testCase.exportName + ' ' + testCase.caseName, () => {
+          applyProjectProviderMocks(testCase.exportName, 'react-component');
           const moduleExports = loadModuleExports();
           const component = readExportValue(moduleExports, testCase.exportName);
           const rendered = component(testCase.props);
@@ -3470,13 +3899,14 @@ describe(${JSON.stringify(suiteName)}, () => {
         });
 
         test(testCase.exportName + ' interaction contract', () => {
+          applyProjectProviderMocks(testCase.exportName, 'react-component');
           expect({
             source: SOURCE_PATH,
             scenario: 'react-component',
             confidence: testCase.confidence,
             exportName: testCase.exportName,
             props: testCase.props,
-            interaction: runComponentInteractionContract(SOURCE_FILE, testCase.exportName, testCase.props)
+            interaction: runComponentInteractionContract(SOURCE_FILE, testCase.exportName, testCase.props, testCase.interactions)
           }).toMatchSnapshot();
         });
       }
@@ -3487,6 +3917,7 @@ describe(${JSON.stringify(suiteName)}, () => {
     describe('react hook adapter', () => {
       for (const testCase of HOOK_CASES) {
         test(testCase.exportName + ' ' + testCase.caseName, () => {
+          applyProjectProviderMocks(testCase.exportName, 'react-hook');
           const moduleExports = loadModuleExports();
           const hook = readExportValue(moduleExports, testCase.exportName);
           const result = hook(...testCase.args);
@@ -3501,13 +3932,14 @@ describe(${JSON.stringify(suiteName)}, () => {
         });
 
         test(testCase.exportName + ' interaction contract', () => {
+          applyProjectProviderMocks(testCase.exportName, 'react-hook');
           expect({
             source: SOURCE_PATH,
             scenario: 'react-hook',
             confidence: testCase.confidence,
             exportName: testCase.exportName,
             args: testCase.args,
-            interaction: runHookInteractionContract(SOURCE_FILE, testCase.exportName, testCase.args)
+            interaction: runHookInteractionContract(SOURCE_FILE, testCase.exportName, testCase.args, testCase.interactions)
           }).toMatchSnapshot();
         });
       }
@@ -3518,6 +3950,7 @@ describe(${JSON.stringify(suiteName)}, () => {
     describe('next route handler adapter', () => {
       for (const testCase of NEXT_ROUTE_CASES) {
         test(testCase.exportName + ' ' + testCase.caseName, async () => {
+          applyProjectProviderMocks(testCase.exportName, 'next-route-handler');
           const moduleExports = loadModuleExports();
           const handler = readExportValue(moduleExports, testCase.exportName);
           const request = createRequestFromSpec(testCase.request);
@@ -3540,6 +3973,7 @@ describe(${JSON.stringify(suiteName)}, () => {
     describe('route handler adapter', () => {
       for (const testCase of ROUTE_CASES) {
         test(testCase.exportName + ' ' + testCase.caseName, async () => {
+          applyProjectProviderMocks(testCase.exportName, 'route-handler');
           const moduleExports = loadModuleExports();
           const handler = readExportValue(moduleExports, testCase.exportName);
           const request = createRequestFromSpec(testCase.request);
@@ -3562,6 +3996,7 @@ describe(${JSON.stringify(suiteName)}, () => {
     describe('node service adapter', () => {
       for (const testCase of SERVICE_CASES) {
         test(testCase.exportName + ' ' + testCase.caseName, async () => {
+          applyProjectProviderMocks(testCase.exportName, 'node-service');
           const moduleExports = loadModuleExports();
           const service = readExportValue(moduleExports, testCase.exportName);
           const result = await Promise.resolve(service(...testCase.args));

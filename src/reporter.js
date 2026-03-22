@@ -66,7 +66,8 @@ function printAgent(result) {
     lastRun: '.themis/last-run.json',
     failedTests: '.themis/failed-tests.json',
     runDiff: '.themis/run-diff.json',
-    runHistory: '.themis/run-history.json'
+    runHistory: '.themis/run-history.json',
+    fixHandoff: '.themis/fix-handoff.json'
   };
 
   const payload = {
@@ -85,7 +86,8 @@ function printAgent(result) {
       rerunFailed: 'npx themis test --rerun-failed',
       targetedRerun: 'npx themis test --match "<regex>"',
       updateSnapshots: 'npx themis test -u',
-      diffLastRun: 'cat .themis/run-diff.json'
+      diffLastRun: 'cat .themis/run-diff.json',
+      repairGenerated: 'cat .themis/fix-handoff.json'
     }
   };
 

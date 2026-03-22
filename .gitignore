@@ -1,3 +1,4 @@
 node_modules/
 .themis-bench/
 .themis/
+.DS_Store
