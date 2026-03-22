@@ -4,7 +4,13 @@ const { runTests } = require('./src/runner');
 const { discoverTests } = require('./src/discovery');
 const { loadConfig, initConfig, DEFAULT_CONFIG } = require('./src/config');
 const { expect } = require('./src/expect');
-const { generateTestsFromSource, buildGeneratePayload, buildGenerateHandoff, writeGenerateArtifacts } = require('./src/generate');
+const {
+  generateTestsFromSource,
+  buildGeneratePayload,
+  buildGenerateBacklogPayload,
+  buildGenerateHandoff,
+  writeGenerateArtifacts
+} = require('./src/generate');
 
 module.exports = {
   main,
@@ -16,6 +22,7 @@ module.exports = {
   DEFAULT_CONFIG,
   generateTestsFromSource,
   buildGeneratePayload,
+  buildGenerateBacklogPayload,
   buildGenerateHandoff,
   writeGenerateArtifacts,
   expect

@@ -1,14 +1,14 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/vitron-ai/themis/docs/schemas/generate-handoff.v1.json",
-  "title": "Themis Generate Handoff v1",
+  "$id": "https://github.com/vitron-ai/themis/docs/schemas/generate-backlog.v1.json",
+  "title": "Themis Generate Backlog v1",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema", "source", "filters", "gates", "summary", "artifacts", "targets", "unresolved", "backlog", "nextActions", "prompt"],
+  "required": ["schema", "source", "filters", "gates", "summary", "items"],
   "properties": {
     "schema": {
       "type": "string",
-      "const": "themis.generate.handoff.v1"
+      "const": "themis.generate.backlog.v1"
     },
     "source": {
       "type": "object",
@@ -57,58 +57,19 @@
     "summary": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["scanned", "generated", "created", "updated", "unchanged", "removed", "skipped", "conflicts"],
+      "required": ["total", "errors", "warnings", "skipped", "conflicts", "confidence"],
       "properties": {
-        "scanned": { "type": "number" },
-        "generated": { "type": "number" },
-        "created": { "type": "number" },
-        "updated": { "type": "number" },
-        "unchanged": { "type": "number" },
-        "removed": { "type": "number" },
+        "total": { "type": "number" },
+        "errors": { "type": "number" },
+        "warnings": { "type": "number" },
         "skipped": { "type": "number" },
-        "conflicts": { "type": "number" }
+        "conflicts": { "type": "number" },
+        "confidence": { "type": "number" }
       }
     },
-    "artifacts": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["generateMap", "generateResult", "generateBacklog"],
-      "properties": {
-        "generateMap": { "type": "string" },
-        "generateResult": { "type": "string" },
-        "generateBacklog": { "type": "string" }
-      }
-    },
-    "targets": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": ["action", "sourceFile", "testFile", "moduleKind", "confidence", "scenarios"],
-        "properties": {
-          "action": { "type": "string" },
-          "sourceFile": { "type": "string" },
-          "testFile": { "type": ["string", "null"] },
-          "moduleKind": { "type": "string" },
-          "confidence": { "type": "string" },
-          "scenarios": {
-            "type": "array",
-            "items": { "type": "string" }
-          }
-        }
-      }
-    },
-    "unresolved": {
+    "items": {
       "type": "array",
       "items": { "$ref": "#/$defs/backlogItem" }
-    },
-    "backlog": { "$ref": "#/$defs/backlogSummary" },
-    "nextActions": {
-      "type": "array",
-      "items": { "type": "string" }
-    },
-    "prompt": {
-      "type": "string"
     }
   },
   "$defs": {
@@ -120,19 +81,6 @@
         "code": { "type": "string" },
         "count": { "type": "number" },
         "message": { "type": "string" }
-      }
-    },
-    "backlogSummary": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["total", "errors", "warnings", "skipped", "conflicts", "confidence"],
-      "properties": {
-        "total": { "type": "number" },
-        "errors": { "type": "number" },
-        "warnings": { "type": "number" },
-        "skipped": { "type": "number" },
-        "conflicts": { "type": "number" },
-        "confidence": { "type": "number" }
       }
     },
     "backlogItem": {

@@ -9,6 +9,7 @@
     "mode",
     "source",
     "filters",
+    "gates",
     "summary",
     "scannedFiles",
     "generatedFiles",
@@ -16,6 +17,7 @@
     "skippedFiles",
     "conflictFiles",
     "entries",
+    "backlog",
     "artifacts",
     "promptReady",
     "hints"
@@ -63,6 +65,22 @@
         "matchExport": { "type": ["string", "null"] },
         "include": { "type": ["string", "null"] },
         "exclude": { "type": ["string", "null"] }
+      }
+    },
+    "gates": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["strict", "failOnSkips", "failOnConflicts", "requireConfidence", "failed", "failures"],
+      "properties": {
+        "strict": { "type": "boolean" },
+        "failOnSkips": { "type": "boolean" },
+        "failOnConflicts": { "type": "boolean" },
+        "requireConfidence": { "type": ["string", "null"] },
+        "failed": { "type": "boolean" },
+        "failures": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/gateFailure" }
+        }
       }
     },
     "summary": {
@@ -113,26 +131,43 @@
       "type": "array",
       "items": { "$ref": "#/$defs/generateEntry" }
     },
+    "backlog": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["summary", "items"],
+      "properties": {
+        "summary": { "$ref": "#/$defs/backlogSummary" },
+        "items": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/backlogItem" }
+        }
+      }
+    },
     "artifacts": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["generateMap", "helperFile", "generateResult", "generateHandoff"],
+      "required": ["generateMap", "helperFile", "generateResult", "generateHandoff", "generateBacklog"],
       "properties": {
         "generateMap": { "type": "string" },
         "helperFile": { "type": "string" },
         "generateResult": { "type": "string" },
-        "generateHandoff": { "type": "string" }
+        "generateHandoff": { "type": "string" },
+        "generateBacklog": { "type": "string" }
       }
     },
     "promptReady": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["summary", "targets", "nextActions", "prompt"],
+      "required": ["summary", "targets", "unresolved", "nextActions", "prompt"],
       "properties": {
         "summary": { "type": "string" },
         "targets": {
           "type": "array",
           "items": { "$ref": "#/$defs/promptTarget" }
+        },
+        "unresolved": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/backlogItem" }
         },
         "nextActions": {
           "type": "array",
@@ -144,7 +179,7 @@
     "hints": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["runTests", "plan", "review", "updateOnly", "clean", "changed", "fileTarget"],
+      "required": ["runTests", "plan", "review", "updateOnly", "clean", "changed", "strict", "fileTarget"],
       "properties": {
         "runTests": { "type": "string" },
         "plan": { "type": "string" },
@@ -152,11 +187,22 @@
         "updateOnly": { "type": "string" },
         "clean": { "type": "string" },
         "changed": { "type": "string" },
+        "strict": { "type": "string" },
         "fileTarget": { "type": "string" }
       }
     }
   },
   "$defs": {
+    "gateFailure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "count", "message"],
+      "properties": {
+        "code": { "type": "string" },
+        "count": { "type": "number" },
+        "message": { "type": "string" }
+      }
+    },
     "generateEntry": {
       "type": "object",
       "additionalProperties": false,
@@ -205,6 +251,49 @@
           "items": { "type": "string" }
         },
         "caseCount": { "type": "number" }
+      }
+    },
+    "backlogSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["total", "errors", "warnings", "skipped", "conflicts", "confidence"],
+      "properties": {
+        "total": { "type": "number" },
+        "errors": { "type": "number" },
+        "warnings": { "type": "number" },
+        "skipped": { "type": "number" },
+        "conflicts": { "type": "number" },
+        "confidence": { "type": "number" }
+      }
+    },
+    "backlogItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "severity",
+        "sourceFile",
+        "testFile",
+        "moduleKind",
+        "confidence",
+        "stage",
+        "hintsFile",
+        "reason",
+        "suggestedAction",
+        "suggestedCommand"
+      ],
+      "properties": {
+        "type": { "type": "string" },
+        "severity": { "type": "string", "enum": ["warning", "error"] },
+        "sourceFile": { "type": "string" },
+        "testFile": { "type": ["string", "null"] },
+        "moduleKind": { "type": ["string", "null"] },
+        "confidence": { "type": ["string", "null"] },
+        "stage": { "type": ["string", "null"] },
+        "hintsFile": { "type": ["string", "null"] },
+        "reason": { "type": "string" },
+        "suggestedAction": { "type": "string" },
+        "suggestedCommand": { "type": ["string", "null"] }
       }
     },
     "promptTarget": {

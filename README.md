@@ -107,6 +107,8 @@ Generated files land under `tests/generated` by default. Each generated test:
 
 Themis also supports per-file generation hints with sidecars like `src/components/Button.themis.json` so humans and agents can provide props, args, route requests, and route context.
 
+For CI and agent loops, Themis can also enforce generation quality instead of only writing files. Strict runs emit a structured backlog, fail on unresolved scan debt, and hand back exact remediation commands.
+
 Use these flags to control the generation loop:
 
 - `--json`: machine-readable payload for agents, including prompt-ready next steps
@@ -117,6 +119,9 @@ Use these flags to control the generation loop:
 - `--changed`: target changed files in a git worktree
 - `--scenario`: limit generation to one adapter family such as `react-hook` or `route-handler`
 - `--min-confidence`: keep only entries at or above a confidence threshold
+- `--strict`: fail the generate run on skips, conflicts, or entries below `high` confidence
+- `--fail-on-skips`, `--fail-on-conflicts`: turn unresolved scan debt into a non-zero exit code
+- `--require-confidence`: fail if selected generated tests fall below a confidence threshold
 - `--files`, `--match-source`, `--match-export`, `--include`, `--exclude`: narrow the scan scope
 - `--force`: replace a conflicting non-Themis file
 - `--output <dir>`: change the generated test directory
@@ -126,6 +131,7 @@ Every generation run also writes:
 - `.themis/generate-map.json`: source-to-generated-test mapping plus scenario/confidence metadata
 - `.themis/generate-last.json`: the full machine-readable generate payload
 - `.themis/generate-handoff.json`: a compact agent handoff artifact with prompt-ready next actions
+- `.themis/generate-backlog.json`: unresolved skips, conflicts, and confidence debt with suggested fixes
 
 ## Why Themis
 
@@ -141,6 +147,7 @@ See [`docs/why-themis.md`](docs/why-themis.md) for positioning, differentiators,
 - Generate result schema: [`docs/schemas/generate-result.v1.json`](docs/schemas/generate-result.v1.json)
 - Generate map schema: [`docs/schemas/generate-map.v1.json`](docs/schemas/generate-map.v1.json)
 - Generate handoff schema: [`docs/schemas/generate-handoff.v1.json`](docs/schemas/generate-handoff.v1.json)
+- Generate backlog schema: [`docs/schemas/generate-backlog.v1.json`](docs/schemas/generate-backlog.v1.json)
 - Failures artifact schema: [`docs/schemas/failures.v1.json`](docs/schemas/failures.v1.json)
 - Changelog: [`CHANGELOG.md`](CHANGELOG.md)
 - Contributing: [`CONTRIBUTING.md`](CONTRIBUTING.md)
@@ -153,10 +160,12 @@ See [`docs/why-themis.md`](docs/why-themis.md) for positioning, differentiators,
 - `npx themis generate src --json`: emits a machine-readable generation payload for agents and automation.
 - `npx themis generate src --plan`: emits a planning payload and handoff artifact without writing generated tests.
 - `npx themis generate src --review --json`: previews create/update/remove decisions without writing files.
+- `npx themis generate src --review --strict --json`: fails fast on unresolved generation debt while still emitting a machine-readable plan.
 - `npx themis generate src --update`: refreshes existing generated tests only.
 - `npx themis generate src --clean`: removes generated tests for the selected scope.
 - `npx themis generate src --changed`: regenerates against changed files in the current git worktree.
 - `npx themis generate src --scenario react-hook --min-confidence high`: targets one adapter family at a confidence threshold.
+- `npx themis generate src --require-confidence high`: enforces a quality bar for all selected generated tests.
 - `npx themis generate src --files src/routes/ping.ts`: targets one or more explicit source files.
 - `npx themis generate src --match-source "routes/" --match-export "GET|POST"`: narrows generation by source path and exported symbol.
 - `npx themis generate src --output tests/contracts`: writes generated tests to a custom directory.

@@ -10,6 +10,7 @@ const FAILURES_SCHEMA_PATH = path.join(__dirname, '..', 'docs', 'schemas', 'fail
 const GENERATE_SCHEMA_PATH = path.join(__dirname, '..', 'docs', 'schemas', 'generate-result.v1.json');
 const GENERATE_MAP_SCHEMA_PATH = path.join(__dirname, '..', 'docs', 'schemas', 'generate-map.v1.json');
 const GENERATE_HANDOFF_SCHEMA_PATH = path.join(__dirname, '..', 'docs', 'schemas', 'generate-handoff.v1.json');
+const GENERATE_BACKLOG_SCHEMA_PATH = path.join(__dirname, '..', 'docs', 'schemas', 'generate-backlog.v1.json');
 const CLI_PATH = path.join(__dirname, '..', 'bin', 'themis.js');
 
 describe('schema contracts', () => {
@@ -259,6 +260,7 @@ describe('schema contracts', () => {
       assertMatchesSchema(payload, schema, schema);
       expect(payload.summary.generated).toBe(1);
       expect(payload.generatedFiles[0]).toBe('tests/generated/math.generated.test.js');
+      expect(payload.artifacts.generateBacklog).toBe('.themis/generate-backlog.json');
     } finally {
       fs.rmSync(tempDir, { recursive: true, force: true });
     }
@@ -321,6 +323,49 @@ describe('schema contracts', () => {
       assertMatchesSchema(handoffPayload, schema, schema);
       expect(handoffPayload.schema).toBe('themis.generate.handoff.v1');
       expect(handoffPayload.targets[0].sourceFile).toBe('src/math.js');
+      expect(handoffPayload.artifacts.generateBacklog).toBe('.themis/generate-backlog.json');
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  test('generate backlog artifact matches docs schema contract', () => {
+    const schema = loadSchema(GENERATE_BACKLOG_SCHEMA_PATH);
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'themis-generate-backlog-schema-'));
+
+    try {
+      fs.mkdirSync(path.join(tempDir, 'src'), { recursive: true });
+      fs.writeFileSync(
+        path.join(tempDir, 'src', 'math.js'),
+        `module.exports = {\n  add(a, b) {\n    return a + b;\n  }\n};\n`,
+        'utf8'
+      );
+      fs.writeFileSync(
+        path.join(tempDir, 'src', 'format.js'),
+        `module.exports = {\n  formatStatus(status) {\n    return String(status).toUpperCase();\n  }\n};\n`,
+        'utf8'
+      );
+      fs.mkdirSync(path.join(tempDir, 'tests', 'generated'), { recursive: true });
+      fs.writeFileSync(
+        path.join(tempDir, 'tests', 'generated', 'math.generated.test.js'),
+        `test('user test', () => {\n  expect(true).toBe(true);\n});\n`,
+        'utf8'
+      );
+
+      const proc = spawnSync(process.execPath, [CLI_PATH, 'generate', 'src', '--review', '--strict', '--json'], {
+        cwd: tempDir,
+        encoding: 'utf8',
+        env: {
+          ...process.env,
+          NO_COLOR: '1'
+        }
+      });
+
+      expect(proc.status).toBe(1);
+      const backlogPayload = JSON.parse(fs.readFileSync(path.join(tempDir, '.themis', 'generate-backlog.json'), 'utf8'));
+      assertMatchesSchema(backlogPayload, schema, schema);
+      expect(backlogPayload.schema).toBe('themis.generate.backlog.v1');
+      expect(backlogPayload.summary.total).toBe(2);
     } finally {
       fs.rmSync(tempDir, { recursive: true, force: true });
     }

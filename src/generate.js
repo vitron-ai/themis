@@ -9,6 +9,7 @@ const GENERATED_HELPER_NAME = '_themis.contract-runtime.js';
 const GENERATED_MAP_ARTIFACT = path.join('.themis', 'generate-map.json');
 const GENERATED_RESULT_ARTIFACT = path.join('.themis', 'generate-last.json');
 const GENERATED_HANDOFF_ARTIFACT = path.join('.themis', 'generate-handoff.json');
+const GENERATED_BACKLOG_ARTIFACT = path.join('.themis', 'generate-backlog.json');
 const SOURCE_EXTENSIONS = new Set(['.js', '.jsx', '.ts', '.tsx']);
 const TEST_FILE_PATTERN = /\.(test|spec)\.(js|jsx|ts|tsx)$/;
 const HTTP_METHOD_EXPORTS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', 'HEAD'];
@@ -398,6 +399,7 @@ function generateTestsFromSource(cwd, options = {}) {
   const mapFile = path.resolve(projectRoot, GENERATED_MAP_ARTIFACT);
   const resultArtifactFile = path.resolve(projectRoot, GENERATED_RESULT_ARTIFACT);
   const handoffArtifactFile = path.resolve(projectRoot, GENERATED_HANDOFF_ARTIFACT);
+  const backlogArtifactFile = path.resolve(projectRoot, GENERATED_BACKLOG_ARTIFACT);
   const existingMap = readGenerateMap(mapFile, projectRoot);
   const changedSet = normalizedOptions.changed ? collectChangedPaths(projectRoot) : null;
   const candidateFiles = selectSourceFiles({
@@ -531,14 +533,8 @@ function generateTestsFromSource(cwd, options = {}) {
     }
 
     if (existingContent !== null && !existingContent.startsWith(GENERATED_MARKER) && !normalizedOptions.force) {
-      if (normalizedOptions.review) {
-        plans.push(buildConflictPlan(analysis, content, action, projectRoot));
-        continue;
-      }
-
-      throw new Error(
-        `Refusing to overwrite non-Themis file: ${analysis.outputFile}. Use --force to replace it.`
-      );
+      plans.push(buildConflictPlan(analysis, content, action, projectRoot));
+      continue;
     }
 
     plans.push(buildPlan(analysis, content, action, existing, projectRoot));
@@ -656,28 +652,28 @@ function generateTestsFromSource(cwd, options = {}) {
     changed: normalizedOptions.changed,
     plan: normalizedOptions.plan,
     filters: buildFilterSummary(normalizedOptions, projectRoot),
+    gateOptions: {
+      strict: normalizedOptions.strict,
+      failOnSkips: normalizedOptions.failOnSkips,
+      failOnConflicts: normalizedOptions.failOnConflicts,
+      requireConfidence: normalizedOptions.requireConfidence
+    },
     artifacts: {
       generateMap: mapFile,
       helperFile,
       generateResult: resultArtifactFile,
-      generateHandoff: handoffArtifactFile
+      generateHandoff: handoffArtifactFile,
+      generateBacklog: backlogArtifactFile
     },
-    prompt: buildPromptSummary({
-      projectRoot,
-      plan: normalizedOptions.plan,
-      review: normalizedOptions.review,
-      update: normalizedOptions.update,
-      clean: normalizedOptions.clean,
-      createdFiles,
-      updatedFiles,
-      unchangedFiles,
-      removedFiles,
-      skippedFiles,
-      conflictFiles,
-      targetDir: scanTarget.requestedPath
-    }),
+    gates: null,
+    backlog: null,
+    prompt: '',
     helperRemoved
   };
+
+  summary.gates = buildGenerateGateSummary(summary);
+  summary.backlog = buildGenerateBacklog(summary, projectRoot);
+  summary.prompt = buildPromptSummary(summary, projectRoot);
 
   return summary;
 }
@@ -700,6 +696,7 @@ function buildGeneratePayload(summary, cwd) {
       outputDir: formatPathForDisplay(projectRoot, summary.outputDir)
     },
     filters: summary.filters,
+    gates: summary.gates,
     summary: {
       scanned: summary.scannedFiles.length,
       generated: summary.generatedFiles.length,
@@ -737,11 +734,13 @@ function buildGeneratePayload(summary, cwd) {
       })),
       reason: entry.reason || null
     })),
+    backlog: formatGenerateBacklog(summary.backlog, projectRoot),
     artifacts: {
       generateMap: formatPathForDisplay(projectRoot, summary.artifacts.generateMap),
       helperFile: formatPathForDisplay(projectRoot, summary.artifacts.helperFile),
       generateResult: formatPathForDisplay(projectRoot, summary.artifacts.generateResult),
-      generateHandoff: formatPathForDisplay(projectRoot, summary.artifacts.generateHandoff)
+      generateHandoff: formatPathForDisplay(projectRoot, summary.artifacts.generateHandoff),
+      generateBacklog: formatPathForDisplay(projectRoot, summary.artifacts.generateBacklog)
     },
     promptReady,
     hints: {
@@ -751,6 +750,7 @@ function buildGeneratePayload(summary, cwd) {
       updateOnly: `npx themis generate ${formatPathForDisplay(projectRoot, summary.targetDir)} --update`,
       clean: `npx themis generate ${formatPathForDisplay(projectRoot, summary.targetDir)} --clean`,
       changed: `npx themis generate ${formatPathForDisplay(projectRoot, summary.targetDir)} --changed`,
+      strict: `npx themis generate ${formatPathForDisplay(projectRoot, summary.targetDir)} --strict`,
       fileTarget: 'npx themis generate src/path/to/file.ts'
     }
   };
@@ -761,14 +761,35 @@ function buildGenerateHandoff(payload) {
     schema: 'themis.generate.handoff.v1',
     source: payload.source,
     filters: payload.filters,
+    gates: payload.gates,
     summary: payload.summary,
     artifacts: {
       generateMap: payload.artifacts.generateMap,
-      generateResult: payload.artifacts.generateResult
+      generateResult: payload.artifacts.generateResult,
+      generateBacklog: payload.artifacts.generateBacklog
     },
     targets: payload.promptReady.targets,
+    unresolved: payload.promptReady.unresolved,
+    backlog: payload.backlog.summary,
     nextActions: payload.promptReady.nextActions,
     prompt: payload.promptReady.prompt
+  };
+}
+
+function buildGenerateBacklogPayload(summary, cwd) {
+  const projectRoot = path.resolve(cwd || process.cwd());
+  const backlog = formatGenerateBacklog(summary.backlog, projectRoot);
+
+  return {
+    schema: 'themis.generate.backlog.v1',
+    source: {
+      targetDir: formatPathForDisplay(projectRoot, summary.targetDir),
+      outputDir: formatPathForDisplay(projectRoot, summary.outputDir)
+    },
+    filters: summary.filters,
+    gates: summary.gates,
+    summary: backlog.summary,
+    items: backlog.items
   };
 }
 
@@ -776,26 +797,36 @@ function writeGenerateArtifacts(summary, cwd) {
   const projectRoot = path.resolve(cwd || process.cwd());
   const payload = buildGeneratePayload(summary, projectRoot);
   const handoff = buildGenerateHandoff(payload);
+  const backlog = buildGenerateBacklogPayload(summary, projectRoot);
 
   fs.mkdirSync(path.dirname(summary.artifacts.generateResult), { recursive: true });
   fs.writeFileSync(summary.artifacts.generateResult, `${JSON.stringify(payload, null, 2)}\n`, 'utf8');
   fs.writeFileSync(summary.artifacts.generateHandoff, `${JSON.stringify(handoff, null, 2)}\n`, 'utf8');
+  fs.writeFileSync(summary.artifacts.generateBacklog, `${JSON.stringify(backlog, null, 2)}\n`, 'utf8');
 
-  return { payload, handoff };
+  return { payload, handoff, backlog };
 }
 
 function normalizeGenerateOptions(projectRoot, options) {
   const outputDir = options.outputDir ? path.resolve(projectRoot, options.outputDir) : undefined;
+  const requestedConfidence = normalizeConfidenceOption(options.requireConfidence);
+  const strict = Boolean(options.strict);
 
   return {
     targetDir: options.targetDir || 'src',
     outputDir,
     force: Boolean(options.force),
+    strict,
     review: Boolean(options.review || options.plan),
     update: Boolean(options.update),
     clean: Boolean(options.clean),
     changed: Boolean(options.changed),
     plan: Boolean(options.plan),
+    failOnSkips: Boolean(strict || options.failOnSkips),
+    failOnConflicts: Boolean(!Boolean(options.review || options.plan) || strict || options.failOnConflicts),
+    requireConfidence: strict
+      ? pickHigherConfidence(requestedConfidence, 'high')
+      : requestedConfidence,
     scenario: normalizeScenarioOption(options.scenario),
     minConfidence: normalizeConfidenceOption(options.minConfidence),
     matchSource: compileOptionalRegex(options.matchSource, '--match-source'),
@@ -867,6 +898,16 @@ function normalizeConfidenceOption(value) {
 
 function isConfidenceAtLeast(confidence, minimum) {
   return CONFIDENCE_PRIORITY.indexOf(confidence) >= CONFIDENCE_PRIORITY.indexOf(minimum);
+}
+
+function pickHigherConfidence(left, right) {
+  if (!left) {
+    return right || null;
+  }
+  if (!right) {
+    return left;
+  }
+  return isConfidenceAtLeast(left, right) ? left : right;
 }
 
 function resolveScanTarget(projectRoot, targetDir) {
@@ -2160,7 +2201,7 @@ function buildConflictPlan(analysis, content, action, projectRoot) {
     exactExports: analysis.exactExports,
     exportNames: [...analysis.exportNames],
     hintsFile: analysis.hintsFile,
-    reason: 'Conflicting non-Themis file requires --force.',
+    reason: 'Refusing to overwrite non-Themis file without --force.',
     scenarios: analysis.scenarios.map((scenario) => ({
       kind: scenario.kind,
       confidence: scenario.confidence,
@@ -2365,29 +2406,192 @@ function buildFilterSummary(options, projectRoot) {
   };
 }
 
-function buildPromptSummary({
-  projectRoot,
-  plan,
-  review,
-  update,
-  clean,
-  createdFiles,
-  updatedFiles,
-  unchangedFiles,
-  removedFiles,
-  skippedFiles,
-  conflictFiles,
-  targetDir
-}) {
-  const mode = clean ? 'clean' : plan ? 'plan' : review ? 'review' : update ? 'update' : 'generate';
-  const target = formatPathForDisplay(projectRoot, targetDir);
+function buildGenerateGateSummary(summary) {
+  const failures = [];
 
-  return [
+  if (summary.gateOptions.failOnSkips && summary.skippedFiles.length > 0) {
+    failures.push({
+      code: 'skips',
+      count: summary.skippedFiles.length,
+      message: `${summary.skippedFiles.length} skipped source file${summary.skippedFiles.length === 1 ? '' : 's'} blocked strict generation.`
+    });
+  }
+
+  if (summary.gateOptions.failOnConflicts && summary.conflictFiles.length > 0) {
+    failures.push({
+      code: 'conflicts',
+      count: summary.conflictFiles.length,
+      message: `${summary.conflictFiles.length} conflicting output file${summary.conflictFiles.length === 1 ? '' : 's'} require resolution.`
+    });
+  }
+
+  if (summary.gateOptions.requireConfidence) {
+    const belowThreshold = summary.entries.filter((entry) => (
+      entry.action !== 'remove'
+      && entry.action !== 'conflict'
+      && !isConfidenceAtLeast(entry.confidence, summary.gateOptions.requireConfidence)
+    ));
+
+    if (belowThreshold.length > 0) {
+      failures.push({
+        code: 'confidence',
+        count: belowThreshold.length,
+        message: `${belowThreshold.length} generated file${belowThreshold.length === 1 ? '' : 's'} fell below required confidence ${summary.gateOptions.requireConfidence}.`
+      });
+    }
+  }
+
+  return {
+    strict: summary.gateOptions.strict,
+    failOnSkips: summary.gateOptions.failOnSkips,
+    failOnConflicts: summary.gateOptions.failOnConflicts,
+    requireConfidence: summary.gateOptions.requireConfidence,
+    failed: failures.length > 0,
+    failures
+  };
+}
+
+function buildGenerateBacklog(summary, projectRoot) {
+  const items = [];
+
+  for (const skipped of summary.skippedFiles) {
+    items.push({
+      type: 'skipped',
+      severity: summary.gates.failOnSkips ? 'error' : 'warning',
+      sourceFile: skipped.file,
+      testFile: null,
+      moduleKind: null,
+      confidence: null,
+      stage: skipped.stage,
+      hintsFile: null,
+      reason: skipped.reason,
+      suggestedAction: 'Add runtime exports, narrow the scan selection, or intentionally exclude this file from generation.',
+      suggestedCommand: null
+    });
+  }
+
+  for (const entry of summary.entries) {
+    if (entry.action === 'conflict') {
+      const relativeSource = formatPathForDisplay(projectRoot, entry.sourceFile);
+      items.push({
+        type: 'conflict',
+        severity: summary.gates.failOnConflicts ? 'error' : 'warning',
+        sourceFile: entry.sourceFile,
+        testFile: entry.testFile,
+        moduleKind: entry.moduleKind,
+        confidence: entry.confidence,
+        stage: null,
+        hintsFile: entry.hintsFile,
+        reason: entry.reason || 'Conflicting non-Themis output file requires --force.',
+        suggestedAction: 'Use --force only if this path should become Themis-managed, or move the existing file out of the generated output tree.',
+        suggestedCommand: `npx themis generate ${relativeSource} --force`
+      });
+      continue;
+    }
+
+    if (entry.action === 'remove') {
+      continue;
+    }
+
+    const belowRequired = summary.gates.requireConfidence
+      ? !isConfidenceAtLeast(entry.confidence, summary.gates.requireConfidence)
+      : false;
+    const shouldTrackLowConfidence = entry.confidence === 'low';
+
+    if (!belowRequired && !shouldTrackLowConfidence) {
+      continue;
+    }
+
+    const hintPath = entry.hintsFile || resolveHintFilePath(entry.sourceFile);
+    items.push({
+      type: 'confidence',
+      severity: belowRequired ? 'error' : 'warning',
+      sourceFile: entry.sourceFile,
+      testFile: entry.testFile,
+      moduleKind: entry.moduleKind,
+      confidence: entry.confidence,
+      stage: null,
+      hintsFile: hintPath,
+      reason: belowRequired
+        ? `Confidence ${entry.confidence} is below required ${summary.gates.requireConfidence}.`
+        : `Confidence ${entry.confidence} needs stronger sample data for a higher-signal generated test.`,
+      suggestedAction: entry.hintsFile
+        ? `Expand ${formatPathForDisplay(projectRoot, hintPath)} with more representative inputs and rerun a targeted refresh.`
+        : `Add ${formatPathForDisplay(projectRoot, hintPath)} with representative inputs and rerun a targeted refresh.`,
+      suggestedCommand: `npx themis generate ${formatPathForDisplay(projectRoot, entry.sourceFile)} --update`
+    });
+  }
+
+  const summaryCounts = {
+    total: items.length,
+    errors: items.filter((item) => item.severity === 'error').length,
+    warnings: items.filter((item) => item.severity === 'warning').length,
+    skipped: items.filter((item) => item.type === 'skipped').length,
+    conflicts: items.filter((item) => item.type === 'conflict').length,
+    confidence: items.filter((item) => item.type === 'confidence').length
+  };
+
+  return {
+    summary: summaryCounts,
+    items
+  };
+}
+
+function formatGenerateBacklog(backlog, projectRoot) {
+  return {
+    summary: backlog.summary,
+    items: backlog.items.map((item) => ({
+      type: item.type,
+      severity: item.severity,
+      sourceFile: formatPathForDisplay(projectRoot, item.sourceFile),
+      testFile: item.testFile ? formatPathForDisplay(projectRoot, item.testFile) : null,
+      moduleKind: item.moduleKind,
+      confidence: item.confidence,
+      stage: item.stage,
+      hintsFile: item.hintsFile ? formatPathForDisplay(projectRoot, item.hintsFile) : null,
+      reason: item.reason,
+      suggestedAction: item.suggestedAction,
+      suggestedCommand: item.suggestedCommand
+    }))
+  };
+}
+
+function buildPromptSummary(summary, projectRoot) {
+  const mode = summary.clean ? 'clean' : summary.plan ? 'plan' : summary.review ? 'review' : summary.update ? 'update' : 'generate';
+  const target = formatPathForDisplay(projectRoot, summary.targetDir);
+  const backlogSummary = summary.backlog.summary;
+
+  const lines = [
     `Mode: ${mode}.`,
     `Target: ${target}.`,
-    `Actions: create ${createdFiles.length}, update ${updatedFiles.length}, unchanged ${unchangedFiles.length}, remove ${removedFiles.length}, skip ${skippedFiles.length}, conflict ${conflictFiles.length}.`,
-    review ? `${plan ? 'Plan' : 'Review'} mode made no filesystem changes.` : 'Run npx themis test to validate the generated unit layer.'
-  ].join(' ');
+    `Actions: create ${summary.createdFiles.length}, update ${summary.updatedFiles.length}, unchanged ${summary.unchangedFiles.length}, remove ${summary.removedFiles.length}, skip ${summary.skippedFiles.length}, conflict ${summary.conflictFiles.length}.`
+  ];
+
+  if (backlogSummary.total > 0) {
+    lines.push(`Backlog: ${backlogSummary.total} unresolved item(s) (${backlogSummary.errors} error, ${backlogSummary.warnings} warning).`);
+  }
+
+  if (summary.gates.failed) {
+    lines.push(`Gates: failed (${summary.gates.failures.map((failure) => failure.code).join(', ')}).`);
+  } else if (
+    summary.gates.failOnSkips
+    || summary.gates.failOnConflicts
+    || summary.gates.requireConfidence
+  ) {
+    lines.push('Gates: passed.');
+  }
+
+  if (summary.review) {
+    lines.push(`${summary.plan ? 'Plan' : 'Review'} mode made no filesystem changes.`);
+  } else if (summary.gates.failed) {
+    lines.push('Resolve the generation backlog before treating this unit layer as stable.');
+  } else if (backlogSummary.total > 0) {
+    lines.push('Resolve the remaining backlog to strengthen the generated unit layer, then run npx themis test.');
+  } else {
+    lines.push('Run npx themis test to validate the generated unit layer.');
+  }
+
+  return lines.join(' ');
 }
 
 function buildPromptReadyPayload(summary, projectRoot) {
@@ -2401,22 +2605,43 @@ function buildPromptReadyPayload(summary, projectRoot) {
       confidence: entry.confidence,
       scenarios: entry.scenarios.map((scenario) => scenario.kind)
     }));
+  const unresolved = formatGenerateBacklog(summary.backlog, projectRoot).items;
+  const nextActions = [];
+
+  if (summary.review) {
+    nextActions.push('Review planned create/update/remove actions.');
+    nextActions.push(`Run ${summary.plan ? 'npx themis generate <target>' : 'npx themis generate <target> without --review'} when ready.`);
+  } else {
+    nextActions.push('Review generated test diffs.');
+  }
+
+  if (summary.backlog.summary.total > 0) {
+    nextActions.push(`Resolve ${summary.backlog.summary.total} backlog item(s) from ${formatPathForDisplay(projectRoot, summary.artifacts.generateBacklog)}.`);
+  }
+
+  if (summary.gates.failed) {
+    nextActions.push('Rerun generate with the same strict settings until all active gates pass.');
+  }
+
+  nextActions.push(summary.review ? 'Run npx themis test after generation.' : 'Run npx themis test.');
+
+  if (!summary.review) {
+    nextActions.push('Use npx themis generate <file> --update for narrow refreshes.');
+  }
 
   return {
     summary: summary.prompt,
     targets,
-    nextActions: summary.review
-      ? [
-          'Review planned create/update/remove actions.',
-          `Run ${summary.plan ? 'npx themis generate <target>' : 'npx themis generate <target> without --review'} when ready.`,
-          'Run npx themis test after generation.'
-        ]
-      : ['Review generated test diffs.', 'Run npx themis test.', 'Use npx themis generate <file> --update for narrow refreshes.'],
+    unresolved,
+    nextActions,
     prompt: [
       'Review the following Themis generation result and act on the mapped source/test pairs.',
       summary.prompt,
       ...targets.map((target) => `- ${target.action.toUpperCase()} ${target.sourceFile} -> ${target.testFile || '(no file)'}`),
-      'Then run: npx themis test'
+      ...unresolved.slice(0, 10).map((item) => `- ${item.severity.toUpperCase()} ${item.type}: ${item.sourceFile} (${item.reason})`),
+      summary.review
+        ? `Then run: npx themis generate ${formatPathForDisplay(projectRoot, summary.targetDir)}${summary.gates.strict ? ' --strict' : ''}`
+        : 'Then run: npx themis test'
     ].join('\n')
   };
 }
@@ -2902,11 +3127,13 @@ function formatPathForDisplay(projectRoot, targetPath) {
 module.exports = {
   generateTestsFromSource,
   buildGeneratePayload,
+  buildGenerateBacklogPayload,
   buildGenerateHandoff,
   writeGenerateArtifacts,
   GENERATED_MARKER,
   GENERATED_HELPER_NAME,
   GENERATED_MAP_ARTIFACT,
   GENERATED_RESULT_ARTIFACT,
-  GENERATED_HANDOFF_ARTIFACT
+  GENERATED_HANDOFF_ARTIFACT,
+  GENERATED_BACKLOG_ARTIFACT
 };

@@ -33,11 +33,15 @@ async function main(argv) {
       targetDir: flags.targetDir || 'src',
       outputDir: flags.outputDir,
       force: Boolean(flags.force),
+      strict: Boolean(flags.strict),
       review: Boolean(flags.review),
       update: Boolean(flags.update),
       clean: Boolean(flags.clean),
       changed: Boolean(flags.changed),
       plan: Boolean(flags.plan),
+      failOnSkips: Boolean(flags.failOnSkips),
+      failOnConflicts: Boolean(flags.failOnConflicts),
+      requireConfidence: flags.requireConfidence || null,
       scenario: flags.scenario || null,
       minConfidence: flags.minConfidence || null,
       files: flags.files || null,
@@ -49,9 +53,15 @@ async function main(argv) {
     const { payload } = writeGenerateArtifacts(summary, cwd);
     if (flags.json) {
       console.log(JSON.stringify(payload));
+      if (summary.gates.failed) {
+        process.exitCode = 1;
+      }
       return;
     }
     printGenerateSummary(summary, cwd);
+    if (summary.gates.failed) {
+      process.exitCode = 1;
+    }
     return;
   }
 
@@ -315,6 +325,11 @@ function parseGenerateFlags(args) {
       i += 1;
       continue;
     }
+    if (token === '--require-confidence') {
+      flags.requireConfidence = requireFlagValue(args, i, '--require-confidence');
+      i += 1;
+      continue;
+    }
     if (token === '--min-confidence') {
       flags.minConfidence = requireFlagValue(args, i, '--min-confidence');
       i += 1;
@@ -332,6 +347,18 @@ function parseGenerateFlags(args) {
     }
     if (token === '--force') {
       flags.force = true;
+      continue;
+    }
+    if (token === '--strict') {
+      flags.strict = true;
+      continue;
+    }
+    if (token === '--fail-on-skips') {
+      flags.failOnSkips = true;
+      continue;
+    }
+    if (token === '--fail-on-conflicts') {
+      flags.failOnConflicts = true;
       continue;
     }
     if (token === '--review') {
@@ -353,7 +380,7 @@ function parseGenerateFlags(args) {
     if (token.startsWith('--')) {
       throw new Error(
         'Unsupported generate option: ' + token +
-        '. Use --json, --plan, --output <dir>, --files <paths>, --match-source <regex>, --match-export <regex>, --scenario <name>, --min-confidence <level>, --include <regex>, --exclude <regex>, --force, --review, --update, --clean, or --changed.'
+        '. Use --json, --plan, --output <dir>, --files <paths>, --match-source <regex>, --match-export <regex>, --scenario <name>, --min-confidence <level>, --require-confidence <level>, --include <regex>, --exclude <regex>, --force, --strict, --fail-on-skips, --fail-on-conflicts, --review, --update, --clean, or --changed.'
       );
     }
     if (flags.targetDir) {
@@ -450,7 +477,7 @@ function printUsage() {
   console.log('Commands:');
   console.log('  init                    Create themis.config.json and sample tests');
   console.log('  generate [path]         Scan source files and generate Themis contract tests');
-  console.log('                         Options: [--json] [--plan] [--output path] [--files a,b] [--match-source regex] [--match-export regex] [--scenario name] [--min-confidence level] [--include regex] [--exclude regex] [--review] [--update] [--clean] [--changed] [--force]');
+  console.log('                         Options: [--json] [--plan] [--output path] [--files a,b] [--match-source regex] [--match-export regex] [--scenario name] [--min-confidence level] [--require-confidence level] [--include regex] [--exclude regex] [--review] [--update] [--clean] [--changed] [--force] [--strict] [--fail-on-skips] [--fail-on-conflicts]');
   console.log('  scan [path]             Alias for generate');
   console.log('  test [--json] [--agent] [--next] [--reporter spec|next|json|agent|html] [--workers N] [--stability N] [--environment node|jsdom] [-w|--watch] [-u|--update-snapshots] [--html-output path] [--match regex] [--rerun-failed] [--no-memes] [--lexicon classic|themis]');
 }
@@ -485,6 +512,16 @@ function printGenerateSummary(summary, cwd) {
     console.log('Steering');
     console.log(`  scenario: ${summary.filters.scenario || '(any)'}`);
     console.log(`  min-confidence: ${summary.filters.minConfidence || '(any)'}`);
+  }
+
+  if (summary.gates.failed || summary.gates.strict || summary.gates.failOnSkips || summary.gates.requireConfidence) {
+    console.log('');
+    console.log('Gates');
+    console.log(`  strict: ${summary.gates.strict ? 'yes' : 'no'}`);
+    console.log(`  fail-on-skips: ${summary.gates.failOnSkips ? 'yes' : 'no'}`);
+    console.log(`  fail-on-conflicts: ${summary.gates.failOnConflicts ? 'yes' : 'no'}`);
+    console.log(`  require-confidence: ${summary.gates.requireConfidence || '(none)'}`);
+    console.log(`  status: ${summary.gates.failed ? 'failed' : 'passed'}`);
   }
 
   if (summary.generatedFiles.length > 0) {
@@ -531,6 +568,28 @@ function printGenerateSummary(summary, cwd) {
     }
   }
 
+  if (summary.backlog.summary.total > 0) {
+    console.log('');
+    console.log('Backlog');
+    console.log(`  total: ${summary.backlog.summary.total}`);
+    console.log(`  errors: ${summary.backlog.summary.errors}`);
+    console.log(`  warnings: ${summary.backlog.summary.warnings}`);
+    for (const item of summary.backlog.items.slice(0, 5)) {
+      console.log(`  ${item.severity.toUpperCase()} ${formatCliPath(cwd, item.sourceFile)} (${item.reason})`);
+    }
+    if (summary.backlog.items.length > 5) {
+      console.log(`  ... ${summary.backlog.items.length - 5} more`);
+    }
+  }
+
+  if (summary.gates.failed) {
+    console.log('');
+    console.log('Gate Failures');
+    for (const failure of summary.gates.failures) {
+      console.log(`  ${failure.code}: ${failure.message}`);
+    }
+  }
+
   console.log('');
   console.log('Prompt');
   console.log(`  ${summary.prompt}`);
@@ -539,11 +598,12 @@ function printGenerateSummary(summary, cwd) {
   console.log('Artifacts');
   console.log(`  ${formatCliPath(cwd, summary.artifacts.generateResult)}`);
   console.log(`  ${formatCliPath(cwd, summary.artifacts.generateHandoff)}`);
+  console.log(`  ${formatCliPath(cwd, summary.artifacts.generateBacklog)}`);
   console.log(`  ${formatCliPath(cwd, summary.artifacts.generateMap)}`);
 
   console.log('');
   console.log('Next Step');
-  console.log(`  Run: ${summary.review ? 'npx themis generate ' + target + ' && npx themis test' : 'npx themis test'}`);
+  console.log(`  Run: ${summary.review ? summary.gates.failed ? 'resolve backlog items, rerun generate, then npx themis test' : 'npx themis generate ' + target + ' && npx themis test' : summary.gates.failed ? 'resolve backlog items, rerun generate, then npx themis test' : 'npx themis test'}`);
 }
 
 function formatCliPath(cwd, targetPath) {

@@ -33,6 +33,7 @@ Default behavior:
 - `.themis/generate-map.json` records source-to-generated-test mappings plus scenario metadata
 - `.themis/generate-last.json` stores the full machine-readable generate payload
 - `.themis/generate-handoff.json` stores a compact prompt-ready handoff payload for agents
+- `.themis/generate-backlog.json` stores unresolved skips, conflicts, and confidence debt with suggested remediation
 
 ## `themis generate` options
 
@@ -44,9 +45,13 @@ Default behavior:
 | `--update` | flag | Refresh existing generated files only. |
 | `--clean` | flag | Remove generated files for the selected scope. |
 | `--changed` | flag | Limit selection to changed files in the current git worktree. |
+| `--strict` | flag | Fail generation on skips, conflicts, or entries below `high` confidence. |
+| `--fail-on-skips` | flag | Fail generation when any selected source file is skipped. |
+| `--fail-on-conflicts` | flag | Fail generation when conflicts remain unresolved. |
 | `--files <paths>` | string | Comma-separated list of explicit source files to generate for. |
 | `--scenario <name>` | string | Limit generation to one adapter family. |
 | `--min-confidence <level>` | string | Keep only entries at or above `low`, `medium`, or `high`. |
+| `--require-confidence <level>` | string | Fail generation if selected entries fall below `low`, `medium`, or `high`. |
 | `--match-source <regex>` | string | Filter candidate source files by relative path regex. |
 | `--match-export <regex>` | string | Filter candidate source files by exported symbol regex. |
 | `--include <regex>` | string | Include only source files whose relative path matches regex. |
@@ -89,6 +94,10 @@ Per-file hint sidecars are supported via `<source>.themis.json`. These can provi
 - Exit code `0`: all selected tests passed or were skipped.
 - Exit code `1`: any selected test failed, invalid usage, or runtime error.
 
+Generate-specific note:
+
+- `themis generate` exits `1` when active generate gates fail, including unresolved conflicts in write mode.
+
 `--lexicon` does not affect machine payload contracts (`--json`, `--agent`, or artifacts).
 
 ## Artifacts
@@ -106,6 +115,7 @@ Formal schemas:
 - `docs/schemas/generate-result.v1.json`
 - `docs/schemas/generate-map.v1.json`
 - `docs/schemas/generate-handoff.v1.json`
+- `docs/schemas/generate-backlog.v1.json`
 - `docs/schemas/failures.v1.json`
 
 Human-facing artifact:
@@ -192,6 +202,10 @@ Options:
 - `update?: boolean`
 - `clean?: boolean`
 - `changed?: boolean`
+- `strict?: boolean`
+- `failOnSkips?: boolean`
+- `failOnConflicts?: boolean`
+- `requireConfidence?: string | null`
 - `files?: string[] | string`
 - `scenario?: string | null`
 - `minConfidence?: string | null`
@@ -206,13 +220,17 @@ Returns absolute paths for scanned files, selected generated files, removed stal
 
 Converts a `GenerateSummary` into the same machine-readable payload emitted by `themis generate --json`.
 
+## `buildGenerateBacklogPayload(summary, cwd?): GenerateBacklogPayload`
+
+Builds the unresolved-work artifact persisted at `.themis/generate-backlog.json`.
+
 ## `buildGenerateHandoff(payload): GenerateHandoffPayload`
 
 Builds the compact handoff payload persisted at `.themis/generate-handoff.json`.
 
-## `writeGenerateArtifacts(summary, cwd?): { payload, handoff }`
+## `writeGenerateArtifacts(summary, cwd?): { payload, handoff, backlog }`
 
-Writes `.themis/generate-last.json` and `.themis/generate-handoff.json` for a generate run and returns both payloads.
+Writes `.themis/generate-last.json`, `.themis/generate-handoff.json`, and `.themis/generate-backlog.json` for a generate run and returns all three payloads.
 
 ## `loadConfig(cwd): ThemisConfig`
 

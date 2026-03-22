@@ -92,11 +92,15 @@ export interface GenerateOptions {
   targetDir?: string;
   outputDir?: string;
   force?: boolean;
+  strict?: boolean;
   plan?: boolean;
   review?: boolean;
   update?: boolean;
   clean?: boolean;
   changed?: boolean;
+  failOnSkips?: boolean;
+  failOnConflicts?: boolean;
+  requireConfidence?: string | null;
   files?: string[] | string;
   scenario?: string | null;
   minConfidence?: string | null;
@@ -150,6 +154,50 @@ export interface GenerateArtifacts {
   helperFile: string;
   generateResult: string;
   generateHandoff: string;
+  generateBacklog: string;
+}
+
+export interface GenerateGateFailure {
+  code: string;
+  count: number;
+  message: string;
+}
+
+export interface GenerateGateSummary {
+  strict: boolean;
+  failOnSkips: boolean;
+  failOnConflicts: boolean;
+  requireConfidence: string | null;
+  failed: boolean;
+  failures: GenerateGateFailure[];
+}
+
+export interface GenerateBacklogItem {
+  type: string;
+  severity: 'warning' | 'error';
+  sourceFile: string;
+  testFile: string | null;
+  moduleKind: string | null;
+  confidence: string | null;
+  stage: string | null;
+  hintsFile: string | null;
+  reason: string;
+  suggestedAction: string;
+  suggestedCommand: string | null;
+}
+
+export interface GenerateBacklogSummary {
+  total: number;
+  errors: number;
+  warnings: number;
+  skipped: number;
+  conflicts: number;
+  confidence: number;
+}
+
+export interface GenerateBacklog {
+  summary: GenerateBacklogSummary;
+  items: GenerateBacklogItem[];
 }
 
 export interface GeneratePromptTarget {
@@ -164,6 +212,7 @@ export interface GeneratePromptTarget {
 export interface GeneratePromptReady {
   summary: string;
   targets: GeneratePromptTarget[];
+  unresolved: GenerateBacklogItem[];
   nextActions: string[];
   prompt: string;
 }
@@ -182,6 +231,7 @@ export interface GeneratePayload {
     outputDir: string;
   };
   filters: GenerateFilterSummary;
+  gates: GenerateGateSummary;
   summary: {
     scanned: number;
     generated: number;
@@ -198,6 +248,7 @@ export interface GeneratePayload {
   skippedFiles: GenerateSkippedFile[];
   conflictFiles: string[];
   entries: GenerateEntrySummary[];
+  backlog: GenerateBacklog;
   artifacts: GenerateArtifacts;
   promptReady: GeneratePromptReady;
   hints: {
@@ -207,8 +258,21 @@ export interface GeneratePayload {
     updateOnly: string;
     clean: string;
     changed: string;
+    strict: string;
     fileTarget: string;
   };
+}
+
+export interface GenerateBacklogPayload {
+  schema: 'themis.generate.backlog.v1';
+  source: {
+    targetDir: string;
+    outputDir: string;
+  };
+  filters: GenerateFilterSummary;
+  gates: GenerateGateSummary;
+  summary: GenerateBacklogSummary;
+  items: GenerateBacklogItem[];
 }
 
 export interface GenerateHandoffPayload {
@@ -218,12 +282,16 @@ export interface GenerateHandoffPayload {
     outputDir: string;
   };
   filters: GenerateFilterSummary;
+  gates: GenerateGateSummary;
   summary: GeneratePayload['summary'];
   artifacts: {
     generateMap: string;
     generateResult: string;
+    generateBacklog: string;
   };
   targets: GeneratePromptTarget[];
+  unresolved: GenerateBacklogItem[];
+  backlog: GenerateBacklogSummary;
   nextActions: string[];
   prompt: string;
 }
@@ -249,6 +317,14 @@ export interface GenerateSummary {
   clean: boolean;
   changed: boolean;
   filters: GenerateFilterSummary;
+  gateOptions: {
+    strict: boolean;
+    failOnSkips: boolean;
+    failOnConflicts: boolean;
+    requireConfidence: string | null;
+  };
+  gates: GenerateGateSummary;
+  backlog: GenerateBacklog;
   artifacts: GenerateArtifacts;
   prompt: string;
   helperRemoved: boolean;
@@ -263,10 +339,12 @@ export function initConfig(cwd: string): void;
 export const DEFAULT_CONFIG: ThemisConfig;
 export function generateTestsFromSource(cwd: string, options?: GenerateOptions): GenerateSummary;
 export function buildGeneratePayload(summary: GenerateSummary, cwd?: string): GeneratePayload;
+export function buildGenerateBacklogPayload(summary: GenerateSummary, cwd?: string): GenerateBacklogPayload;
 export function buildGenerateHandoff(payload: GeneratePayload): GenerateHandoffPayload;
 export function writeGenerateArtifacts(summary: GenerateSummary, cwd?: string): {
   payload: GeneratePayload;
   handoff: GenerateHandoffPayload;
+  backlog: GenerateBacklogPayload;
 };
 
 export interface MockResult {

@@ -363,6 +363,44 @@ describe('code scan generation', () => {
     );
   });
 
+  test('supports strict generation gates and writes a backlog artifact for unresolved work', async () => {
+    await withProjectFixture(
+      {
+        'src/math.js': `module.exports = {\n  add(a, b) {\n    return a + b;\n  }\n};\n`,
+        'src/format.js': `module.exports = {\n  formatStatus(status) {\n    return {\n      status,\n      upper: String(status).toUpperCase()\n    };\n  }\n};\n`,
+        'src/internal.js': `const secret = 42;\n`,
+        'tests/generated/math.generated.test.js': `test('custom user test', () => {\n  expect(true).toBe(true);\n});\n`
+      },
+      async ({ tempDir, resolvePath }) => {
+        const strictRun = runCli(tempDir, ['generate', 'src', '--review', '--strict', '--json']);
+        expect(strictRun.status).toBe(1);
+
+        const payload = parseJsonOutput(strictRun);
+        expect(payload.gates.failed).toBe(true);
+        expect(payload.gates.strict).toBe(true);
+        expect(payload.gates.failOnSkips).toBe(true);
+        expect(payload.gates.failOnConflicts).toBe(true);
+        expect(payload.gates.requireConfidence).toBe('high');
+        expect(payload.gates.failures.map((failure) => failure.code)).toEqual(['skips', 'conflicts', 'confidence']);
+        expect(payload.backlog.summary.total).toBe(3);
+        expect(payload.backlog.summary.errors).toBe(3);
+        expect(payload.backlog.summary.skipped).toBe(1);
+        expect(payload.backlog.summary.conflicts).toBe(1);
+        expect(payload.backlog.summary.confidence).toBe(1);
+        expect(payload.promptReady.unresolved.length).toBe(3);
+        expect(payload.promptReady.unresolved.find((item) => item.type === 'conflict').suggestedCommand).toBe('npx themis generate src/math.js --force');
+
+        const backlogPath = resolvePath('.themis', 'generate-backlog.json');
+        expect(fs.existsSync(backlogPath)).toBe(true);
+
+        const backlogPayload = JSON.parse(fs.readFileSync(backlogPath, 'utf8'));
+        expect(backlogPayload.schema).toBe('themis.generate.backlog.v1');
+        expect(backlogPayload.summary.total).toBe(3);
+        expect(backlogPayload.items.find((item) => item.type === 'confidence').hintsFile).toBe('src/format.themis.json');
+      }
+    );
+  });
+
   test('refuses to overwrite non-generated files without --force and replaces them with --force', async () => {
     await withProjectFixture(
       {
@@ -372,7 +410,8 @@ describe('code scan generation', () => {
       async ({ tempDir, resolvePath }) => {
         const blocked = runCli(tempDir, ['generate', 'src']);
         expect(blocked.status).toBe(1);
-        expect(blocked.output).toContain('Refusing to overwrite non-Themis file');
+        expect(blocked.output).toContain('Refusing to overwrite non-Themis file without --force');
+        expect(blocked.output).toContain('Gate Failures');
 
         const forced = runCli(tempDir, ['generate', 'src', '--force']);
         expect(forced.status).toBe(0);
