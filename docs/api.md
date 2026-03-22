@@ -31,7 +31,8 @@ Default behavior:
 - generated tests snapshot normalized runtime export contracts
 - scenario adapters cover React components, React hooks, Next app components, Next route handlers, generic route handlers, and Node service functions when inputs can be inferred or hinted
 - React component and hook adapters also snapshot inferred interaction/state contracts when event handlers or zero-argument stateful methods are available
-- project-level providers from `themis.generate.js` / `themis.generate.cjs` can match source files, inject shared fixture data, and register runtime mocks for generated adapters
+- React and Next component adapters also emit DOM-state snapshots that capture visible text, inferred roles, non-event attributes, and interaction-driven UI changes
+- project-level providers from `themis.generate.js` / `themis.generate.cjs` can match source files, inject shared fixture data, register runtime mocks, and wrap generated component renders for provider-aware DOM contracts
 - `.themis/generate-map.json` records source-to-generated-test mappings plus scenario metadata
 - `.themis/generate-last.json` stores the full machine-readable generate payload
 - `.themis/generate-handoff.json` stores a compact prompt-ready handoff payload for agents
@@ -82,6 +83,7 @@ Project-level provider modules are supported via `themis.generate.js` or `themis
 - `include` / `exclude` / `files`: source matching rules
 - any of the same static fixture keys as sidecars (`componentProps`, `componentInteractions`, `hookArgs`, `hookInteractions`, `serviceArgs`, `routeRequests`, `routeContext`, `scenarios`)
 - `applyMocks(context)`: runtime mock registration for generated tests
+- `wrapRender(context)`: provider-aware render wrapping for generated React and Next component adapters
 
 `applyMocks(context)` receives:
 
@@ -91,6 +93,14 @@ Project-level provider modules are supported via `themis.generate.js` or `themis
 - `scenario`
 - `mock`
 - `fn`
+
+`wrapRender(context)` receives:
+
+- `sourceFile`
+- `sourcePath`
+- `exportName`
+- `scenario`
+- `element`
 
 ## `themis test` options
 

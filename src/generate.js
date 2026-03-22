@@ -415,12 +415,14 @@ function withPatchedModule(sourceFile, request, buildExports, run) {
   }
 }
 
-function runComponentInteractionContract(sourceFile, exportName, props, interactionPlan = []) {
+function runComponentInteractionContract(sourceFile, exportName, props, interactionPlan = [], options = {}) {
+  const wrapRender = options && typeof options.wrapRender === 'function' ? options.wrapRender : null;
   return loadModuleWithReactHarness(sourceFile, ({ moduleExports, stateRecords, beginRender } = {}) => {
     const component = readExportValue(moduleExports || require(sourceFile), exportName);
     function render() {
       beginRender();
-      return component(props);
+      const rendered = component(props);
+      return wrapRender ? wrapRender(rendered) : rendered;
     }
 
     let rendered = render();
@@ -439,12 +441,15 @@ function runComponentInteractionContract(sourceFile, exportName, props, interact
         beforeState,
         afterState: normalizeBehaviorValue(stateRecords),
         beforeRendered,
-        afterRendered: normalizeBehaviorValue(rendered)
+        afterRendered: normalizeBehaviorValue(rendered),
+        beforeDom: buildDomContractFromElement(interaction.beforeRenderedElement || beforeRendered),
+        afterDom: buildDomContractFromElement(rendered)
       };
     });
 
     return {
       rendered: normalizeBehaviorValue(rendered),
+      dom: buildDomContractFromElement(rendered),
       state: normalizeBehaviorValue(stateRecords),
       plan: normalizeBehaviorValue(interactionPlan),
       interactions
@@ -620,6 +625,7 @@ function visitElementInteractions(node, ancestry, interactions) {
       eventName,
       elementType,
       syntheticEvent: normalizeBehaviorValue(syntheticEvent),
+      beforeRenderedElement: node,
       invoke() {
         return props[eventName](syntheticEvent);
       }
@@ -629,6 +635,133 @@ function visitElementInteractions(node, ancestry, interactions) {
   for (const child of flattenChildren(props.children)) {
     visitElementInteractions(child, currentPath, interactions);
   }
+}
+
+function buildDomContractFromElement(node) {
+  const contract = {
+    textContent: collectElementText(node),
+    roles: [],
+    nodes: []
+  };
+
+  visitDomContract(node, contract, []);
+  return contract;
+}
+
+function visitDomContract(node, contract, ancestry) {
+  if (node === null || node === undefined || typeof node === 'boolean') {
+    return;
+  }
+
+  if (typeof node === 'string' || typeof node === 'number') {
+    contract.nodes.push({
+      kind: 'text',
+      value: String(node),
+      path: ancestry.join(' > ')
+    });
+    return;
+  }
+
+  if (Array.isArray(node)) {
+    for (const child of node) {
+      visitDomContract(child, contract, ancestry);
+    }
+    return;
+  }
+
+  if (!isReactLikeElement(node)) {
+    contract.nodes.push({
+      kind: 'value',
+      value: normalizeBehaviorValue(node),
+      path: ancestry.join(' > ')
+    });
+    return;
+  }
+
+  const elementType = normalizeElementType(node.type);
+  const props = node.props || {};
+  const currentPath = ancestry.concat([elementType]);
+  const attributes = collectDomAttributes(props);
+  const role = inferElementRole(elementType, props);
+  const textContent = collectElementText(props.children);
+
+  contract.nodes.push({
+    kind: 'element',
+    type: elementType,
+    path: currentPath.join(' > '),
+    textContent,
+    attributes
+  });
+
+  if (role) {
+    contract.roles.push({
+      role,
+      name: props['aria-label'] || textContent,
+      path: currentPath.join(' > '),
+      type: elementType,
+      attributes
+    });
+  }
+
+  for (const child of flattenChildren(props.children)) {
+    visitDomContract(child, contract, currentPath);
+  }
+}
+
+function collectElementText(node) {
+  if (node === null || node === undefined || typeof node === 'boolean') {
+    return '';
+  }
+  if (typeof node === 'string' || typeof node === 'number') {
+    return String(node);
+  }
+  if (Array.isArray(node)) {
+    return node.map((child) => collectElementText(child)).join('');
+  }
+  if (!isReactLikeElement(node)) {
+    return '';
+  }
+  return collectElementText((node.props || {}).children);
+}
+
+function collectDomAttributes(props) {
+  const attributes = {};
+  for (const [key, value] of Object.entries(props || {})) {
+    if (key === 'children' || key.startsWith('on') || value === undefined || value === null) {
+      continue;
+    }
+    attributes[key] = normalizeBehaviorValue(value);
+  }
+  return attributes;
+}
+
+function inferElementRole(type, props) {
+  if (props && typeof props.role === 'string') {
+    return props.role;
+  }
+  if (type === 'button') {
+    return 'button';
+  }
+  if (type === 'form') {
+    return 'form';
+  }
+  if (type === 'textarea') {
+    return 'textbox';
+  }
+  if (type === 'input') {
+    const inputType = props && typeof props.type === 'string' ? props.type.toLowerCase() : 'text';
+    if (inputType === 'checkbox') {
+      return 'checkbox';
+    }
+    if (inputType === 'radio') {
+      return 'radio';
+    }
+    return 'textbox';
+  }
+  if (type === 'a' && props && props.href) {
+    return 'link';
+  }
+  return null;
 }
 
 function flattenChildren(children) {
@@ -826,7 +959,7 @@ function generateTestsFromSource(cwd, options = {}) {
     analysis.projectProviders = matchedProviders;
     analysis.projectProviderFile = projectProviders ? projectProviders.file : null;
     analysis.providerRuntimeIndexes = matchedProviders
-      .filter((provider) => typeof provider.applyMocks === 'function')
+      .filter((provider) => typeof provider.applyMocks === 'function' || typeof provider.wrapRender === 'function')
       .map((provider) => provider.index);
     analysis.hints = mergeHintSources(buildProviderHints(matchedProviders), sidecarHints);
     analysis.hintsFile = sidecarHints ? resolveHintFilePath(file) : null;
@@ -3835,6 +3968,43 @@ function applyProjectProviderMocks(exportName, scenarioName) {
   }
 }
 
+function applyProjectProviderRender(element, exportName, scenarioName) {
+  if (!PROJECT_PROVIDER_IMPORT) {
+    return element;
+  }
+
+  const loaded = require(PROJECT_PROVIDER_IMPORT);
+  const providers = Array.isArray(loaded)
+    ? loaded
+    : Array.isArray(loaded && loaded.providers)
+      ? loaded.providers
+      : loaded
+        ? [loaded]
+        : [];
+
+  let current = element;
+  for (const providerIndex of PROJECT_PROVIDER_INDEXES) {
+    const provider = providers[providerIndex];
+    if (!provider || typeof provider.wrapRender !== 'function') {
+      continue;
+    }
+
+    const nextValue = provider.wrapRender({
+      sourceFile: SOURCE_FILE,
+      sourcePath: SOURCE_PATH,
+      exportName,
+      scenario: scenarioName,
+      element: current
+    });
+
+    if (nextValue !== undefined) {
+      current = nextValue;
+    }
+  }
+
+  return current;
+}
+
 describe(${JSON.stringify(suiteName)}, () => {
   ${exactExportBlock}
 
@@ -3854,7 +4024,7 @@ describe(${JSON.stringify(suiteName)}, () => {
           applyProjectProviderMocks(testCase.exportName, 'next-app-component');
           const moduleExports = loadModuleExports();
           const component = readExportValue(moduleExports, testCase.exportName);
-          const rendered = component(testCase.props);
+          const rendered = applyProjectProviderRender(component(testCase.props), testCase.exportName, 'next-app-component');
           expect({
             source: SOURCE_PATH,
             scenario: 'next-app-component',
@@ -3873,7 +4043,33 @@ describe(${JSON.stringify(suiteName)}, () => {
             confidence: testCase.confidence,
             exportName: testCase.exportName,
             props: testCase.props,
-            interaction: runComponentInteractionContract(SOURCE_FILE, testCase.exportName, testCase.props, testCase.interactions)
+            interaction: runComponentInteractionContract(SOURCE_FILE, testCase.exportName, testCase.props, testCase.interactions, {
+              wrapRender(element) {
+                return applyProjectProviderRender(element, testCase.exportName, 'next-app-component');
+              }
+            })
+          }).toMatchSnapshot();
+        });
+
+        test(testCase.exportName + ' next dom state contract', () => {
+          applyProjectProviderMocks(testCase.exportName, 'next-app-component');
+          const contract = runComponentInteractionContract(SOURCE_FILE, testCase.exportName, testCase.props, testCase.interactions, {
+            wrapRender(element) {
+              return applyProjectProviderRender(element, testCase.exportName, 'next-app-component');
+            }
+          });
+          expect({
+            source: SOURCE_PATH,
+            scenario: 'next-app-component',
+            confidence: testCase.confidence,
+            exportName: testCase.exportName,
+            props: testCase.props,
+            dom: contract.dom,
+            interactionDom: contract.interactions.map((entry) => ({
+              label: entry.label,
+              beforeDom: entry.beforeDom,
+              afterDom: entry.afterDom
+            }))
           }).toMatchSnapshot();
         });
       }
@@ -3887,7 +4083,7 @@ describe(${JSON.stringify(suiteName)}, () => {
           applyProjectProviderMocks(testCase.exportName, 'react-component');
           const moduleExports = loadModuleExports();
           const component = readExportValue(moduleExports, testCase.exportName);
-          const rendered = component(testCase.props);
+          const rendered = applyProjectProviderRender(component(testCase.props), testCase.exportName, 'react-component');
           expect({
             source: SOURCE_PATH,
             scenario: 'react-component',
@@ -3906,7 +4102,33 @@ describe(${JSON.stringify(suiteName)}, () => {
             confidence: testCase.confidence,
             exportName: testCase.exportName,
             props: testCase.props,
-            interaction: runComponentInteractionContract(SOURCE_FILE, testCase.exportName, testCase.props, testCase.interactions)
+            interaction: runComponentInteractionContract(SOURCE_FILE, testCase.exportName, testCase.props, testCase.interactions, {
+              wrapRender(element) {
+                return applyProjectProviderRender(element, testCase.exportName, 'react-component');
+              }
+            })
+          }).toMatchSnapshot();
+        });
+
+        test(testCase.exportName + ' dom state contract', () => {
+          applyProjectProviderMocks(testCase.exportName, 'react-component');
+          const contract = runComponentInteractionContract(SOURCE_FILE, testCase.exportName, testCase.props, testCase.interactions, {
+            wrapRender(element) {
+              return applyProjectProviderRender(element, testCase.exportName, 'react-component');
+            }
+          });
+          expect({
+            source: SOURCE_PATH,
+            scenario: 'react-component',
+            confidence: testCase.confidence,
+            exportName: testCase.exportName,
+            props: testCase.props,
+            dom: contract.dom,
+            interactionDom: contract.interactions.map((entry) => ({
+              label: entry.label,
+              beforeDom: entry.beforeDom,
+              afterDom: entry.afterDom
+            }))
           }).toMatchSnapshot();
         });
       }

@@ -104,11 +104,12 @@ Generated files land under `tests/generated` by default. Each generated test:
 - snapshots a normalized runtime contract for the module surface
 - adds scenario adapters for React components/hooks, Next app/router files, route handlers, and service functions when Themis can infer or read useful inputs
 - captures React interaction and hook state-transition contracts when event handlers or stateful methods are available
+- snapshots DOM-state contracts for generated React and Next component adapters so humans and agents can review visible structure, roles, attributes, and interaction-driven UI changes
 - fails with a regeneration hint when the source drifts after the scan
 
 Themis also supports per-file generation hints with sidecars like `src/components/Button.themis.json` so humans and agents can provide props, args, route requests, and route context. When those sidecars do not exist yet, `--write-hints` can scaffold them automatically from the current source analysis.
 
-For repo-wide generation defaults, add `themis.generate.js` or `themis.generate.cjs` at the project root. Providers in that file can match source paths, supply shared props/args/interaction plans, and register runtime mocks for generated React, route, and service adapters.
+For repo-wide generation defaults, add `themis.generate.js` or `themis.generate.cjs` at the project root. Providers in that file can match source paths, supply shared props/args/interaction plans, register runtime mocks, and wrap generated component renders so DOM-state snapshots include the same provider shells humans use in app tests.
 
 For CI and agent loops, Themis can also enforce generation quality instead of only writing files. Strict runs emit a structured backlog, fail on unresolved scan debt, and hand back exact remediation commands.
 
