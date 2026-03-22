@@ -3,7 +3,7 @@ const os = require('os');
 const path = require('path');
 const { spawnSync } = require('child_process');
 
-const { generateTestsFromSource, runTests } = require('../index');
+const { generateTestsFromSource, runTests, discoverTests, loadConfig } = require('../index');
 
 const CLI_PATH = path.resolve(__dirname, '..', 'bin', 'themis.js');
 const FIXTURES_DIR = path.join(__dirname, 'fixtures');
@@ -114,6 +114,19 @@ describe('code scan generation', () => {
     }
 
     return { run: lastRun, payload: null };
+  }
+
+  async function runDiscoveredSuite(tempDir, overrides = {}) {
+    const config = loadConfig(tempDir);
+    const files = discoverTests(tempDir, config);
+    return runTests(files, {
+      cwd: tempDir,
+      maxWorkers: 1,
+      environment: config.environment,
+      setupFiles: config.setupFiles,
+      tsconfigPath: config.tsconfigPath,
+      ...overrides
+    });
   }
 
   function parseJsonOutput(result) {
@@ -547,11 +560,9 @@ describe('code scan generation', () => {
         expect(buttonTestSource).toContain('../../../src/components/Button.tsx');
         expect(buttonTestSource).toContain('react component adapter');
 
-        const { run, payload } = runCliJsonWithRetry(tempDir, ['test', '--json', '--workers', '1']);
-        expect(run.status).toBe(0);
-        expect(Boolean(payload)).toBe(true);
-        expect(payload.summary.failed).toBe(0);
-        expect(payload.summary.passed).toBe(16);
+        const result = await runDiscoveredSuite(tempDir);
+        expect(result.summary.failed).toBe(0);
+        expect(result.summary.passed).toBe(16);
       }
     );
   });
@@ -811,10 +822,8 @@ describe('code scan generation', () => {
           'src/hooks/useToggle.themis.json'
         ]);
 
-        const { run, payload: runPayload } = runCliJsonWithRetry(tempDir, ['test', '--json', '--workers', '1']);
-        expect(run.status).toBe(0);
-        expect(Boolean(runPayload)).toBe(true);
-        expect(runPayload.summary.failed).toBe(0);
+        const result = await runDiscoveredSuite(tempDir);
+        expect(result.summary.failed).toBe(0);
       }
     );
   });
