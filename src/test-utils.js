@@ -637,7 +637,7 @@ function createFetchController(activeMocks) {
   function mockFetch(handlerOrResponse) {
     const mockFn = createMockFunction(async function themisFetch(...args) {
       if (typeof handlerOrResponse === 'function') {
-        return handlerOrResponse(...args);
+        return normalizeFetchResponse(await handlerOrResponse(...args));
       }
       return normalizeFetchResponse(handlerOrResponse);
     });

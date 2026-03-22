@@ -580,4 +580,48 @@ test('deterministic instability', () => {
       }
     );
   });
+
+  test('rewrites Jest and Testing Library imports to a local Themis compatibility module', async () => {
+    await withProjectFiles(
+      async ({ tempDir }) => {
+        const run = runCliCommand(tempDir, 'migrate', ['jest', '--rewrite-imports']);
+        expect(run.status).toBe(0);
+        expect(run.output).toContain('Imports: rewrote 1 file(s) to local Themis compatibility imports.');
+
+        const compatSource = fs.readFileSync(path.join(tempDir, 'themis.compat.js'), 'utf8');
+        expect(compatSource).toContain('module.exports');
+        expect(compatSource).toContain('jest: jestLike');
+        expect(compatSource).toContain('vi: jestLike');
+
+        const testSource = fs.readFileSync(path.join(tempDir, 'tests', 'sample.test.jsx'), 'utf8');
+        expect(testSource).toContain(`from '../themis.compat.js'`);
+        expect(testSource.includes(`@jest/globals`)).toBe(false);
+        expect(testSource.includes(`@testing-library/react`)).toBe(false);
+
+        const report = JSON.parse(fs.readFileSync(path.join(tempDir, '.themis', 'migration-report.json'), 'utf8'));
+        expect(report.summary.rewrittenFiles).toBe(1);
+        expect(report.summary.rewrittenImports).toBe(2);
+        expect(report.rewrites).toEqual(['tests/sample.test.jsx']);
+
+        const rerun = runCliCommand(tempDir, 'test', ['--json']);
+        expect(rerun.status).toBe(0);
+        const payload = JSON.parse(rerun.output);
+        expect(payload.summary.failed).toBe(0);
+      },
+      {
+        'package.json': `{\n  "name": "themis-migrate-rewrite-fixture",\n  "private": true,\n  "version": "0.0.0",\n  "scripts": {\n    "test": "jest"\n  }\n}\n`,
+        'tsconfig.json': `{\n  "compilerOptions": {\n    "target": "ES2020",\n    "module": "CommonJS",\n    "jsx": "react-jsx",\n    "allowJs": true\n  }\n}\n`,
+        'node_modules/react/index.js': "module.exports = {};\n",
+        'node_modules/react/jsx-runtime.js': "exports.Fragment = Symbol.for('react.fragment'); exports.jsx = (type, props, key) => ({ $$typeof: 'react.test.element', type, key: key || null, props: props || {} }); exports.jsxs = exports.jsx;\n",
+        'tests/sample.test.jsx': `import { describe, test, expect } from '@jest/globals';\nimport { render, screen, cleanup } from '@testing-library/react';\n\nfunction Banner() {\n  return <h1>Themis migration</h1>;\n}\n\ndescribe('migration rewrite', () => {\n  test('works after import rewrite', () => {\n    render(<Banner />);\n    expect(screen.getByText('Themis migration')).toBeInTheDocument();\n    cleanup();\n  });\n});\n`
+      },
+      {
+        testRegex: '\\.(test|spec)\\.(js|jsx)$',
+        reporter: 'json',
+        environment: 'jsdom',
+        setupFiles: [],
+        tsconfigPath: 'tsconfig.json'
+      }
+    );
+  });
 });

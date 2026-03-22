@@ -32,6 +32,9 @@ const STATEFUL_METHOD_PRIORITY = ['toggle', 'enable', 'disable', 'increment', 'd
 const FLOW_LOADING_KEYWORDS = ['loading', 'saving', 'submitting', 'pending'];
 const FLOW_SUCCESS_KEYWORDS = ['saved', 'success', 'done', 'complete', 'completed', 'submitted', 'loaded'];
 const FLOW_ERROR_KEYWORDS = ['error', 'failed', 'failure'];
+const FLOW_EMPTY_KEYWORDS = ['empty', 'required', 'missing', 'enter'];
+const FLOW_RETRY_KEYWORDS = ['retry', 'try again'];
+const FLOW_DISABLED_KEYWORDS = ['disabled', 'disable'];
 const SCAFFOLD_HINT_META = Object.freeze({
   generatedBy: 'themis',
   kind: 'scaffold',
@@ -792,11 +795,63 @@ function isSatisfiedFlowExpectation(expected, dom) {
     return true;
   }
 
+  if (typeof expected.beforeTextIncludes === 'string' && !String(dom && dom.textContent || '').includes(expected.beforeTextIncludes)) {
+    return false;
+  }
+
   if (typeof expected.settledTextIncludes === 'string' && !String(dom && dom.textContent || '').includes(expected.settledTextIncludes)) {
     return false;
   }
 
+  if (typeof expected.textExcludes === 'string' && String(dom && dom.textContent || '').includes(expected.textExcludes)) {
+    return false;
+  }
+
+  if (!domContractMatchesAttributes(dom, expected.attributes)) {
+    return false;
+  }
+
+  if (!domContractMatchesRoles(dom, expected.rolesInclude)) {
+    return false;
+  }
+
   return true;
+}
+
+function domContractMatchesAttributes(dom, expectedAttributes) {
+  if (!isPlainObject(expectedAttributes) || Object.keys(expectedAttributes).length === 0) {
+    return true;
+  }
+
+  const nodes = dom && Array.isArray(dom.nodes) ? dom.nodes : [];
+  return nodes.some((node) => {
+    if (!node || node.kind !== 'element' || !isPlainObject(node.attributes)) {
+      return false;
+    }
+
+    return Object.entries(expectedAttributes).every(([key, value]) => {
+      const actual = Object.prototype.hasOwnProperty.call(node.attributes, key) ? node.attributes[key] : undefined;
+      return valuesDeepEqual(normalizeBehaviorValue(actual), normalizeBehaviorValue(value));
+    });
+  });
+}
+
+function valuesDeepEqual(left, right) {
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+
+function domContractMatchesRoles(dom, rolesInclude) {
+  if (rolesInclude === undefined || rolesInclude === null) {
+    return true;
+  }
+
+  const expectedRoles = Array.isArray(rolesInclude) ? rolesInclude : [rolesInclude];
+  if (expectedRoles.length === 0) {
+    return true;
+  }
+
+  const roles = dom && Array.isArray(dom.roles) ? dom.roles : [];
+  return expectedRoles.every((expectedRole) => roles.some((entry) => entry && entry.role === expectedRole));
 }
 
 async function flushFlowMicrotasks(step) {
@@ -3012,7 +3067,25 @@ function inferComponentFlowPlan(entry, analysis) {
   const events = [...new Set(Array.isArray(entry.eventHandlers) ? entry.eventHandlers : [])];
   const steps = [];
   const immediateText = inferFlowExpectationText(entry, analysis, FLOW_LOADING_KEYWORDS);
-  const settledText = inferFlowExpectationText(entry, analysis, FLOW_SUCCESS_KEYWORDS) || inferFlowExpectationText(entry, analysis, FLOW_ERROR_KEYWORDS);
+  const successText = inferFlowExpectationText(entry, analysis, FLOW_SUCCESS_KEYWORDS);
+  const errorText = inferFlowExpectationText(entry, analysis, FLOW_ERROR_KEYWORDS);
+  const emptyText = inferFlowExpectationText(entry, analysis, FLOW_EMPTY_KEYWORDS);
+  const retryText = inferFlowExpectationText(entry, analysis, FLOW_RETRY_KEYWORDS);
+  const disabledText = inferFlowExpectationText(entry, analysis, FLOW_DISABLED_KEYWORDS);
+  const settledText = successText || errorText;
+
+  if ((events.includes('onInput') || events.includes('onChange')) && (emptyText || disabledText)) {
+    steps.push({
+      label: 'empty state',
+      event: events.includes('onInput') ? 'onInput' : 'onChange',
+      elementType: 'input',
+      target: { value: '' },
+      expected: {
+        ...(emptyText ? { immediateTextIncludes: emptyText } : {}),
+        attributes: { disabled: true }
+      }
+    });
+  }
 
   if (events.includes('onInput')) {
     steps.push({
@@ -3032,6 +3105,30 @@ function inferComponentFlowPlan(entry, analysis) {
       target: { value: 'themis@example.test' },
       expected: {
         immediateTextIncludes: 'themis@example.test'
+      }
+    });
+  }
+
+  if (events.includes('onFocus')) {
+    steps.push({
+      label: 'focus state',
+      event: 'onFocus',
+      elementType: 'input',
+      expected: {
+        rolesInclude: ['textbox']
+      }
+    });
+  }
+
+  if (events.includes('onKeyDown')) {
+    steps.push({
+      label: 'keyboard flow',
+      event: 'onKeyDown',
+      elementType: 'input',
+      target: { key: 'Enter', code: 'Enter' },
+      expected: {
+        ...(immediateText ? { immediateTextIncludes: immediateText } : {}),
+        ...(settledText ? { settledTextIncludes: settledText } : {})
       }
     });
   }
@@ -3056,6 +3153,22 @@ function inferComponentFlowPlan(entry, analysis) {
       expected: {
         ...(immediateText ? { immediateTextIncludes: immediateText } : {}),
         ...(settledText ? { settledTextIncludes: settledText } : {})
+      }
+    });
+  }
+
+  if (retryText && errorText && (events.includes('onClick') || events.includes('onSubmit'))) {
+    steps.push({
+      label: 'retry recovery',
+      event: events.includes('onClick') ? 'onClick' : 'onSubmit',
+      elementType: events.includes('onClick') ? 'button' : 'form',
+      awaitResult: true,
+      flushMicrotasks: 2,
+      expected: {
+        beforeTextIncludes: retryText,
+        ...(immediateText ? { immediateTextIncludes: immediateText } : {}),
+        ...(successText ? { settledTextIncludes: successText } : {}),
+        textExcludes: errorText
       }
     });
   }
@@ -4476,7 +4589,10 @@ function withReactRouter(element, config = {}) {
     'data-themis-provider': 'router',
     'data-route-path': typeof config.path === 'string' ? config.path : '/',
     'data-route-params': serializeProviderData(config.params || {}),
-    'data-route-search': serializeProviderData(config.search || {})
+    'data-route-search': serializeProviderData(config.search || {}),
+    'data-route-state': serializeProviderData(config.state || {}),
+    'data-route-history': serializeProviderData(config.history || []),
+    'data-route-name': typeof config.name === 'string' ? config.name : ''
   });
 }
 
@@ -4485,7 +4601,10 @@ function withReactQuery(element, config = {}) {
     'data-themis-provider': 'react-query',
     'data-query-client': typeof config.clientName === 'string' ? config.clientName : 'themis-query-client',
     'data-query-state': serializeProviderData(config.state || {}),
-    'data-query-cache': serializeProviderData(config.cache || {})
+    'data-query-cache': serializeProviderData(config.cache || {}),
+    'data-query-status': typeof config.status === 'string' ? config.status : 'success',
+    'data-query-fetch-status': typeof config.fetchStatus === 'string' ? config.fetchStatus : 'idle',
+    'data-query-queries': serializeProviderData(config.queries || [])
   });
 }
 
@@ -4494,7 +4613,9 @@ function withNextNavigation(element, config = {}) {
     'data-themis-provider': 'next-navigation',
     'data-next-pathname': typeof config.pathname === 'string' ? config.pathname : '/',
     'data-next-params': serializeProviderData(config.params || {}),
-    'data-next-search-params': serializeProviderData(config.searchParams || {})
+    'data-next-search-params': serializeProviderData(config.searchParams || {}),
+    'data-next-segment': typeof config.segment === 'string' ? config.segment : '',
+    'data-next-locale': typeof config.locale === 'string' ? config.locale : ''
   });
 }
 
@@ -4503,7 +4624,9 @@ function withAuthSession(element, config = {}) {
     'data-themis-provider': 'auth',
     'data-auth-user': typeof config.user === 'string' ? config.user : 'anonymous',
     'data-auth-session': serializeProviderData(config.session || {}),
-    'data-auth-state': typeof config.state === 'string' ? config.state : 'authenticated'
+    'data-auth-state': typeof config.state === 'string' ? config.state : 'authenticated',
+    'data-auth-roles': serializeProviderData(config.roles || []),
+    'data-auth-permissions': serializeProviderData(config.permissions || [])
   });
 }
 
@@ -4511,7 +4634,9 @@ function withZustandStore(element, config = {}) {
   return withProviderShell('themis-zustand-provider', element, {
     'data-themis-provider': 'zustand',
     'data-store-name': typeof config.name === 'string' ? config.name : 'zustand-store',
-    'data-store-state': serializeProviderData(config.state || {})
+    'data-store-state': serializeProviderData(config.state || {}),
+    'data-store-selectors': serializeProviderData(config.selectors || []),
+    'data-store-actions': serializeProviderData(config.actions || [])
   });
 }
 
@@ -4519,7 +4644,9 @@ function withReduxStore(element, config = {}) {
   return withProviderShell('themis-redux-provider', element, {
     'data-themis-provider': 'redux',
     'data-redux-slice': typeof config.slice === 'string' ? config.slice : 'root',
-    'data-redux-state': serializeProviderData(config.state || {})
+    'data-redux-state': serializeProviderData(config.state || {}),
+    'data-redux-actions': serializeProviderData(config.actions || []),
+    'data-redux-selectors': serializeProviderData(config.selectors || [])
   });
 }
 
@@ -4638,8 +4765,45 @@ function assertFlowContractShape(flow, plan) {
       expect(step.immediateDom.textContent).toContain(expected.expected.immediateTextIncludes);
     }
 
+    if (expected.expected && typeof expected.expected.beforeTextIncludes === 'string') {
+      expect(step.beforeDom.textContent).toContain(expected.expected.beforeTextIncludes);
+    }
+
     if (expected.expected && typeof expected.expected.settledTextIncludes === 'string') {
       expect(step.settledDom.textContent).toContain(expected.expected.settledTextIncludes);
+    }
+
+    if (expected.expected && typeof expected.expected.textExcludes === 'string') {
+      expect(step.settledDom.textContent.includes(expected.expected.textExcludes)).toBe(false);
+    }
+
+    if (
+      expected.expected
+      && expected.expected.attributes
+      && typeof expected.expected.attributes === 'object'
+      && !Array.isArray(expected.expected.attributes)
+    ) {
+      const matchesAttributes = [step.immediateDom, step.settledDom].some((dom) => {
+        const nodes = dom && Array.isArray(dom.nodes) ? dom.nodes : [];
+        return nodes.some((node) => {
+          if (!node || node.kind !== 'element' || !node.attributes || typeof node.attributes !== 'object') {
+            return false;
+          }
+          return Object.entries(expected.expected.attributes).every(([key, value]) => JSON.stringify(node.attributes[key]) === JSON.stringify(value));
+        });
+      });
+      expect(matchesAttributes).toBe(true);
+    }
+
+    if (expected.expected && expected.expected.rolesInclude !== undefined) {
+      const expectedRoles = Array.isArray(expected.expected.rolesInclude)
+        ? expected.expected.rolesInclude
+        : [expected.expected.rolesInclude];
+      const matchesRoles = [step.immediateDom, step.settledDom].some((dom) => {
+        const roles = dom && Array.isArray(dom.roles) ? dom.roles : [];
+        return expectedRoles.every((role) => roles.some((entry) => entry && entry.role === role));
+      });
+      expect(matchesRoles).toBe(true);
     }
   }
 }

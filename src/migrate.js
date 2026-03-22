@@ -4,11 +4,12 @@ const { DEFAULT_CONFIG, loadConfig } = require('./config');
 
 const SUPPORTED_MIGRATION_SOURCES = new Set(['jest', 'vitest']);
 const THEMIS_SETUP_FILE = path.join('tests', 'setup.themis.js');
+const THEMIS_COMPAT_FILE = 'themis.compat.js';
 const MIGRATION_REPORT_FILE = path.join('.themis', 'migration-report.json');
 const SCANNABLE_EXTENSIONS = new Set(['.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs']);
 const IGNORED_DIRECTORIES = new Set(['node_modules', '.git', '.themis']);
 
-function runMigrate(cwd, framework) {
+function runMigrate(cwd, framework, options = {}) {
   const source = String(framework || '').trim().toLowerCase();
   if (!SUPPORTED_MIGRATION_SOURCES.has(source)) {
     throw new Error(`Unsupported migrate source: ${String(framework)}. Use "jest" or "vitest".`);
@@ -18,6 +19,7 @@ function runMigrate(cwd, framework) {
   const configPath = path.join(projectRoot, 'themis.config.json');
   const packageJsonPath = path.join(projectRoot, 'package.json');
   const setupPath = path.join(projectRoot, THEMIS_SETUP_FILE);
+  const compatPath = path.join(projectRoot, THEMIS_COMPAT_FILE);
   const reportPath = path.join(projectRoot, MIGRATION_REPORT_FILE);
 
   const existingConfig = fs.existsSync(configPath) ? loadConfig(projectRoot) : { ...DEFAULT_CONFIG, setupFiles: [], testIgnore: [] };
@@ -36,6 +38,10 @@ function runMigrate(cwd, framework) {
     fs.writeFileSync(setupPath, buildMigrationSetupSource(source), 'utf8');
   }
 
+  if (!fs.existsSync(compatPath)) {
+    fs.writeFileSync(compatPath, buildMigrationCompatSource(), 'utf8');
+  }
+
   fs.writeFileSync(configPath, `${JSON.stringify(nextConfig, null, 2)}\n`, 'utf8');
 
   let packageUpdated = false;
@@ -50,7 +56,11 @@ function runMigrate(cwd, framework) {
     }
   }
 
-  const report = buildMigrationReport(projectRoot, source);
+  const scan = scanMigrationFiles(projectRoot);
+  const rewriteSummary = options.rewriteImports
+    ? rewriteMigrationImports(projectRoot, scan.matches, compatPath)
+    : { rewrittenFiles: [], rewrittenImports: 0 };
+  const report = buildMigrationReport(projectRoot, source, scan.matches, rewriteSummary);
   fs.mkdirSync(path.dirname(reportPath), { recursive: true });
   fs.writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`, 'utf8');
 
@@ -58,10 +68,13 @@ function runMigrate(cwd, framework) {
     source,
     configPath,
     setupPath,
+    compatPath,
     packageJsonPath: fs.existsSync(packageJsonPath) ? packageJsonPath : null,
     packageUpdated,
     reportPath,
-    report
+    report,
+    rewriteImports: Boolean(options.rewriteImports),
+    rewrittenFiles: rewriteSummary.rewrittenFiles
   };
 }
 
@@ -77,7 +90,47 @@ afterEach(() => {
 `;
 }
 
-function buildMigrationReport(projectRoot, source) {
+function buildMigrationCompatSource() {
+  return `const themisCompat = {
+  describe,
+  test,
+  it: test,
+  expect,
+  beforeAll,
+  beforeEach,
+  afterEach,
+  afterAll,
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+  cleanup,
+  act: async (callback) => (typeof callback === 'function' ? callback() : undefined)
+};
+
+const jestLike = {
+  fn,
+  spyOn,
+  mock,
+  unmock,
+  clearAllMocks,
+  resetAllMocks,
+  restoreAllMocks,
+  useFakeTimers,
+  useRealTimers,
+  advanceTimersByTime,
+  runAllTimers
+};
+
+module.exports = {
+  ...themisCompat,
+  jest: jestLike,
+  vi: jestLike
+};
+`;
+}
+
+function scanMigrationFiles(projectRoot) {
   const files = [];
   walkProject(projectRoot, files);
   const matches = [];
@@ -97,6 +150,13 @@ function buildMigrationReport(projectRoot, source) {
   }
 
   return {
+    files,
+    matches
+  };
+}
+
+function buildMigrationReport(projectRoot, source, matches, rewriteSummary = { rewrittenFiles: [], rewrittenImports: 0 }) {
+  return {
     schema: 'themis.migration.report.v1',
     source,
     createdAt: new Date().toISOString(),
@@ -104,14 +164,63 @@ function buildMigrationReport(projectRoot, source) {
       matchedFiles: matches.length,
       jestGlobals: matches.filter((entry) => entry.imports.includes('@jest/globals')).length,
       vitest: matches.filter((entry) => entry.imports.includes('vitest')).length,
-      testingLibraryReact: matches.filter((entry) => entry.imports.includes('@testing-library/react')).length
+      testingLibraryReact: matches.filter((entry) => entry.imports.includes('@testing-library/react')).length,
+      rewrittenFiles: Array.isArray(rewriteSummary.rewrittenFiles) ? rewriteSummary.rewrittenFiles.length : 0,
+      rewrittenImports: Number(rewriteSummary.rewrittenImports || 0)
     },
     files: matches,
     nextActions: [
       'Run npx themis test to execute migrated suites under the Themis runtime.',
       'Replace any unsupported Jest/Vitest-only helpers with Themis built-ins or project setup utilities.',
       'Use npx themis generate src for source-driven unit-layer coverage alongside migrated suites.'
-    ]
+    ],
+    rewrites: Array.isArray(rewriteSummary.rewrittenFiles)
+      ? rewriteSummary.rewrittenFiles
+      : []
+  };
+}
+
+function rewriteMigrationImports(projectRoot, matches, compatPath) {
+  const rewrittenFiles = [];
+  let rewrittenImports = 0;
+
+  for (const match of matches) {
+    const absoluteFile = path.join(projectRoot, match.file);
+    const original = fs.readFileSync(absoluteFile, 'utf8');
+    const compatSpecifier = toPortableRelativeSpecifier(path.relative(path.dirname(absoluteFile), compatPath));
+    const rewritten = rewriteMigrationSourceText(original, compatSpecifier);
+    if (rewritten.source !== original) {
+      fs.writeFileSync(absoluteFile, rewritten.source, 'utf8');
+      rewrittenFiles.push(match.file);
+      rewrittenImports += rewritten.rewrites;
+    }
+  }
+
+  return {
+    rewrittenFiles,
+    rewrittenImports
+  };
+}
+
+function rewriteMigrationSourceText(sourceText, compatSpecifier) {
+  const patterns = [
+    /(['"])@jest\/globals\1/g,
+    /(['"])vitest\1/g,
+    /(['"])@testing-library\/react\1/g
+  ];
+
+  let rewrites = 0;
+  let nextSource = sourceText;
+  for (const pattern of patterns) {
+    nextSource = nextSource.replace(pattern, (match, quote) => {
+      rewrites += 1;
+      return `${quote}${compatSpecifier}${quote}`;
+    });
+  }
+
+  return {
+    source: nextSource,
+    rewrites
   };
 }
 
@@ -156,6 +265,14 @@ function detectMigrationImports(sourceText) {
 function hasModuleReference(sourceText, moduleName) {
   const escaped = moduleName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   return new RegExp(`(?:import\\s+[^;]*?from\\s+['"]${escaped}['"]|import\\s*\\(\\s*['"]${escaped}['"]\\s*\\)|require\\(\\s*['"]${escaped}['"]\\s*\\))`).test(sourceText);
+}
+
+function toPortableRelativeSpecifier(relativePath) {
+  const normalized = String(relativePath || '').split(path.sep).join('/');
+  if (normalized.startsWith('.')) {
+    return normalized;
+  }
+  return `./${normalized}`;
 }
 
 module.exports = {

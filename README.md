@@ -95,6 +95,7 @@ Incrementally migrate existing Jest/Vitest suites:
 
 ```bash
 npx themis migrate jest
+npx themis migrate jest --rewrite-imports
 npx themis test
 ```
 
@@ -115,11 +116,12 @@ Generated files land under `tests/generated` by default. Each generated test:
 - captures React interaction and hook state-transition contracts when event handlers or stateful methods are available
 - asserts DOM-state and behavioral flow contracts directly for generated React and Next component adapters
 - emits async behavioral flow contracts for generated React and Next component adapters when flow plans are inferred or hinted, including richer inferred input/submit/loading/success paths for common async forms
+- supports provider-driven DOM flow contracts for empty, disabled, retry, error, and recovery states with attribute- and role-aware assertions
 - fails with a regeneration hint when the source drifts after the scan
 
 Themis also supports per-file generation hints with sidecars like `src/components/Button.themis.json` so humans and agents can provide props, component flows, args, route requests, and route context. When those sidecars do not exist yet, `--write-hints` can scaffold them automatically from the current source analysis.
 
-For repo-wide generation defaults, add `themis.generate.js` or `themis.generate.cjs` at the project root. Providers in that file can match source paths, supply shared props/args/flow plans, register runtime mocks for generated UI scenarios, and wrap generated component renders so generated DOM contracts run inside the same provider shells humans use in app tests. Providers can also declare preset wrapper metadata for router, Next navigation, auth/session shells, React Query, Zustand, and Redux-style app state patterns.
+For repo-wide generation defaults, add `themis.generate.js` or `themis.generate.cjs` at the project root. Providers in that file can match source paths, supply shared props/args/flow plans, register runtime mocks for generated UI scenarios, and wrap generated component renders so generated DOM contracts run inside the same provider shells humans use in app tests. Providers can also declare preset wrapper metadata for router, Next navigation, auth/session shells, React Query, Zustand, and Redux-style app state patterns, including route history/state, query status, auth permissions, and store selector/action metadata.
 
 For CI and agent loops, Themis can also enforce generation quality instead of only writing files. Strict runs emit a structured backlog, fail on unresolved scan debt, and hand back exact remediation commands.
 
@@ -161,6 +163,7 @@ When generated tests fail, Themis also writes:
 Migration scaffolds also write:
 
 - `.themis/migration-report.json`: a machine-readable inventory of detected Jest/Vitest compatibility imports and recommended next actions
+- `themis.compat.js`: an optional local compatibility bridge used by `themis migrate --rewrite-imports`
 
 ## Why Themis
 
@@ -198,6 +201,7 @@ See [`docs/why-themis.md`](docs/why-themis.md) for positioning, differentiators,
 - `npx themis generate src --scenario react-hook --min-confidence high`: targets one adapter family at a confidence threshold.
 - `npx themis generate app --scenario next-route-handler`: focuses generation on Next app router request handlers.
 - `npx themis migrate jest`: scaffolds a Themis config/setup bridge for existing Jest suites.
+- `npx themis migrate jest --rewrite-imports`: rewrites matched Jest/Vitest/Testing Library imports to a local `themis.compat.js` bridge file.
 - `npx themis migrate vitest`: scaffolds the same bridge for Vitest suites.
 - `npx themis generate src --require-confidence high`: enforces a quality bar for all selected generated tests.
 - `npx themis generate src --files src/routes/ping.ts`: targets one or more explicit source files.
@@ -238,6 +242,7 @@ Each run writes artifacts to `.themis/`:
 - `run-history.json`: rolling recent-run history for agent comparison loops.
 - `fix-handoff.json`: source-oriented repair handoff for generated test failures.
 - `migration-report.json`: compatibility inventory and next actions for migrated Jest/Vitest suites.
+- `themis.compat.js`: optional local compat bridge for rewritten migration imports.
 - `report.html`: interactive HTML verdict report.
 
 `--agent` output includes deterministic failure fingerprints, grouped `analysis.failureClusters`, stability classifications, previous-run comparison data, and a direct pointer to `.themis/fix-handoff.json` so AI agents can jump from generated failures to exact regeneration commands. Fix handoff entries also carry repair strategies, candidate files, and autofix commands for tighter failure-to-fix loops.

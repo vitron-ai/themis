@@ -36,6 +36,7 @@ Default behavior:
 - React and Next component adapters can also emit async behavioral flow contracts when `componentFlows` are inferred or supplied, including richer inferred input/submit/loading/success flows for common async forms
 - project-level providers from `themis.generate.js` / `themis.generate.cjs` can match source files, inject shared fixture data, register runtime mocks, and wrap generated component renders for provider-aware DOM contracts and behavioral flow coverage
 - provider presets can declare router, Next navigation, auth/session, React Query, Zustand, and Redux-style wrapper metadata without hand-writing every wrapper shell
+- richer flow expectations can assert text transitions, attribute state, and role presence for empty, disabled, retry, error, and recovery paths
 - `.themis/generate-map.json` records source-to-generated-test mappings plus scenario metadata
 - `.themis/generate-last.json` stores the full machine-readable generate payload
 - `.themis/generate-handoff.json` stores a compact prompt-ready handoff payload for agents
@@ -87,11 +88,17 @@ Project-level provider modules are supported via `themis.generate.js` or `themis
 - `include` / `exclude` / `files`: source matching rules
 - any of the same static fixture keys as sidecars (`componentProps`, `componentInteractions`, `componentFlows`, `hookArgs`, `hookInteractions`, `serviceArgs`, `routeRequests`, `routeContext`, `scenarios`)
 - `router`: preset router wrapper metadata (`path`, `params`, `search`)
+- `router`: also supports `name`, `history`, and `state`
 - `nextNavigation`: preset Next navigation wrapper metadata (`pathname`, `params`, `searchParams`)
+- `nextNavigation`: also supports `segment` and `locale`
 - `auth`: preset auth/session wrapper metadata (`user`, `session`, `state`)
+- `auth`: also supports `roles` and `permissions`
 - `reactQuery`: preset React Query wrapper metadata (`clientName`, `state`, `cache`)
+- `reactQuery`: also supports `status`, `fetchStatus`, and `queries`
 - `zustand`: preset Zustand wrapper metadata (`name`, `state`)
+- `zustand`: also supports `selectors` and `actions`
 - `redux`: preset Redux wrapper metadata (`slice`, `state`)
+- `redux`: also supports `selectors` and `actions`
 - `applyMocks(context)`: runtime mock registration for generated tests
 - `wrapRender(context)`: provider-aware render wrapping for generated React and Next component adapters
 
@@ -135,9 +142,14 @@ Behavior:
 
 - writes or updates `themis.config.json`
 - adds `tests/setup.themis.js` to `setupFiles`
+- writes `themis.compat.js` as a local compatibility bridge
 - adds `test:themis` to `package.json` when missing
 - writes `.themis/migration-report.json` with detected compatibility imports and next actions
 - relies on built-in runtime compatibility for `@jest/globals`, `vitest`, and `@testing-library/react`
+
+Migration options:
+
+- `--rewrite-imports`: rewrites matched imports from `@jest/globals`, `vitest`, and `@testing-library/react` to the local `themis.compat.js` bridge
 
 ## `themis test` options
 
@@ -262,6 +274,8 @@ These helpers are intentionally small and deterministic. They are designed for g
 - a function `(input, init) => response`
 - a Response instance
 - a shorthand object like `{ status, headers, body }` or `{ status, json }`
+
+When the handler form is used, shorthand objects returned by the handler are normalized into `Response` instances before the generated test consumes them.
 
 The fake timer helpers only patch the current Themis runtime. They do not mutate system time outside the active test process.
 

@@ -226,10 +226,21 @@ describe('code scan generation', () => {
     return {
       'package.json': `{\n  "name": "themis-provider-preset-fixture",\n  "private": true,\n  "version": "0.0.0"\n}\n`,
       'tsconfig.json': `{\n  "compilerOptions": {\n    "target": "ES2020",\n    "module": "CommonJS",\n    "jsx": "react-jsx"\n  }\n}\n`,
-      'themis.generate.js': `module.exports = {\n  providers: [\n    {\n      include: /src\\/components\\//,\n      router: {\n        path: '/teams/themis',\n        params: { team: 'themis' },\n        search: { tab: 'overview' }\n      },\n      nextNavigation: {\n        pathname: '/dashboard',\n        params: { team: 'themis' },\n        searchParams: { tab: 'overview' }\n      },\n      auth: {\n        user: 'ada',\n        state: 'authenticated',\n        session: { team: 'themis' }\n      },\n      reactQuery: {\n        clientName: 'themis-client',\n        state: { greeting: 'warm-cache' }\n      },\n      zustand: {\n        name: 'ui-store',\n        state: { modalOpen: true }\n      },\n      redux: {\n        slice: 'session',\n        state: { user: 'ada' }\n      },\n      wrapRender({ element, withReduxStore }) {\n        return withReduxStore(element, {\n          slice: 'session',\n          state: { user: 'ada-override' }\n        });\n      }\n    }\n  ]\n};\n`,
+      'themis.generate.js': `module.exports = {\n  providers: [\n    {\n      include: /src\\/components\\//,\n      router: {\n        path: '/teams/themis',\n        params: { team: 'themis' },\n        search: { tab: 'overview' },\n        name: 'dashboard',\n        history: ['/teams/themis', '/teams/themis?tab=overview'],\n        state: { from: 'overview' }\n      },\n      nextNavigation: {\n        pathname: '/dashboard',\n        params: { team: 'themis' },\n        searchParams: { tab: 'overview' },\n        segment: 'dashboard',\n        locale: 'en-US'\n      },\n      auth: {\n        user: 'ada',\n        state: 'authenticated',\n        session: { team: 'themis' },\n        roles: ['admin'],\n        permissions: ['teams:write']\n      },\n      reactQuery: {\n        clientName: 'themis-client',\n        state: { greeting: 'warm-cache' },\n        status: 'success',\n        fetchStatus: 'idle',\n        queries: ['dashboard']\n      },\n      zustand: {\n        name: 'ui-store',\n        state: { modalOpen: true },\n        selectors: ['modalOpen'],\n        actions: ['toggleModal']\n      },\n      redux: {\n        slice: 'session',\n        state: { user: 'ada' },\n        selectors: ['user'],\n        actions: ['session/login']\n      },\n      wrapRender({ element, withReduxStore }) {\n        return withReduxStore(element, {\n          slice: 'session',\n          state: { user: 'ada-override' }\n        });\n      }\n    }\n  ]\n};\n`,
       'node_modules/react/index.js': REACT_INDEX_SOURCE,
       'node_modules/react/jsx-runtime.js': REACT_JSX_RUNTIME_SOURCE,
       'src/components/Dashboard.tsx': `export function Dashboard() {\n  return <button>Launch dashboard</button>;\n}\n`
+    };
+  }
+
+  function createRichUiFlowFixture() {
+    return {
+      'package.json': `{\n  "name": "themis-rich-ui-flow-fixture",\n  "private": true,\n  "version": "0.0.0"\n}\n`,
+      'tsconfig.json': `{\n  "compilerOptions": {\n    "target": "ES2020",\n    "module": "CommonJS",\n    "jsx": "react-jsx"\n  }\n}\n`,
+      'themis.generate.js': `module.exports = {\n  providers: [\n    {\n      include: /src\\/components\\//,\n      componentFlows: {\n        RetryingSignupForm: [\n          {\n            label: 'empty disables submit',\n            event: 'onInput',\n            elementType: 'input',\n            target: { value: '' },\n            expected: {\n              attributes: { disabled: true },\n              rolesInclude: ['button']\n            }\n          },\n          {\n            label: 'restore input before submit',\n            event: 'onInput',\n            elementType: 'input',\n            target: { value: 'ada@themis.test' },\n            expected: {\n              attributes: { value: 'ada@themis.test' }\n            }\n          },\n          {\n            label: 'error after submit',\n            event: 'onSubmit',\n            elementType: 'form',\n            awaitResult: true,\n            flushMicrotasks: 2,\n            expected: {\n              immediateTextIncludes: 'loading',\n              settledTextIncludes: 'retry'\n            }\n          },\n          {\n            label: 'retry recovers',\n            event: 'onSubmit',\n            elementType: 'form',\n            awaitResult: true,\n            flushMicrotasks: 2,\n            expected: {\n              beforeTextIncludes: 'retry',\n              settledTextIncludes: 'saved',\n              textExcludes: 'error'\n            }\n          }\n        ]\n      },\n      applyMocks({ scenario, mockFetch }) {\n        if (scenario !== 'react-component' || !mockFetch) {\n          return;\n        }\n\n        let calls = 0;\n        mockFetch(() => {\n          calls += 1;\n          if (calls === 1) {\n            return { status: 500, json: { state: 'retry', error: true } };\n          }\n          return { status: 201, json: { state: 'saved' } };\n        });\n      }\n    }\n  ]\n};\n`,
+      'node_modules/react/index.js': REACT_INDEX_SOURCE,
+      'node_modules/react/jsx-runtime.js': REACT_JSX_RUNTIME_SOURCE,
+      'src/components/RetryingSignupForm.tsx': `import { useState } from 'react';\n\nexport function RetryingSignupForm({ endpoint = 'https://themis.test/api/signup' }) {\n  const [email, setEmail] = useState('ada@themis.test');\n  const [status, setStatus] = useState('idle');\n\n  async function submit(event) {\n    event.preventDefault();\n    if (!email) {\n      setStatus('required');\n      return;\n    }\n    setStatus('loading');\n    const response = await fetch(endpoint, { method: 'POST', body: JSON.stringify({ email }) });\n    const payload = await response.json();\n    if (payload.error) {\n      setStatus('retry');\n      return;\n    }\n    setStatus(payload.state);\n  }\n\n  return (\n    <form onSubmit={submit}>\n      <label htmlFor=\"email\">Email</label>\n      <input id=\"email\" value={email} onInput={(event) => setEmail(event.target.value)} onFocus={() => setStatus('editing')} onKeyDown={(event) => {\n        if (event.key === 'Enter' && !email) {\n          setStatus('required');\n        }\n      }} />\n      <button type=\"submit\" disabled={!email}>Submit</button>\n      <p role=\"status\">{status}</p>\n    </form>\n  );\n}\n`
     };
   }
 
@@ -698,6 +709,34 @@ describe('code scan generation', () => {
       expect(generatedSource).toContain('"reactQuery"');
       expect(generatedSource).toContain('"zustand"');
       expect(generatedSource).toContain('"redux"');
+      expect(generatedSource).toContain('"permissions"');
+      expect(generatedSource).toContain('"queries"');
+      expect(generatedSource).toContain('"history"');
+      expect(generatedSource).toContain('"actions"');
+
+      const result = await runTests([generatedPath], {
+        cwd: tempDir,
+        environment: 'jsdom',
+        maxWorkers: 1,
+        tsconfigPath: 'tsconfig.json'
+      });
+
+      expect(result.summary.failed).toBe(0);
+      expect(result.summary.passed > 0).toBe(true);
+    });
+  });
+
+  test('supports richer behavioral dom flows with empty, error, retry, and disabled state expectations', async () => {
+    await withProjectFixture(createRichUiFlowFixture(), async ({ tempDir, resolvePath }) => {
+      const summary = generateTestsFromSource(tempDir);
+      const generatedPath = resolvePath('tests', 'generated', 'components', 'RetryingSignupForm.generated.test.js');
+      const generatedSource = fs.readFileSync(generatedPath, 'utf8');
+
+      expect(summary.generatedFiles).toContain(generatedPath);
+      expect(generatedSource).toContain('"beforeTextIncludes": "retry"');
+      expect(generatedSource).toContain('"textExcludes": "error"');
+      expect(generatedSource).toContain('"attributes": {');
+      expect(generatedSource).toContain('"rolesInclude": [');
 
       const result = await runTests([generatedPath], {
         cwd: tempDir,

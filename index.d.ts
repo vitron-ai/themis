@@ -95,8 +95,11 @@ export interface MigrationResult {
   source: 'jest' | 'vitest';
   configPath: string;
   setupPath: string;
+  compatPath: string;
   packageJsonPath: string | null;
   packageUpdated: boolean;
+  rewriteImports: boolean;
+  rewrittenFiles: string[];
   reportPath: string;
   report: {
     schema: 'themis.migration.report.v1';
@@ -107,13 +110,20 @@ export interface MigrationResult {
       jestGlobals: number;
       vitest: number;
       testingLibraryReact: number;
+      rewrittenFiles: number;
+      rewrittenImports: number;
     };
     files: Array<{
       file: string;
       imports: string[];
     }>;
+    rewrites: string[];
     nextActions: string[];
   };
+}
+
+export interface MigrationOptions {
+  rewriteImports?: boolean;
 }
 
 export interface GenerateOptions {
@@ -294,6 +304,9 @@ export interface FixHandoffItem {
   failedTests: string[];
   suggestedAction: string;
   suggestedCommand: string | null;
+  repairStrategy: string;
+  candidateFiles: string[];
+  autofixCommand: string | null;
 }
 
 export interface FixHandoffPayload {
@@ -441,7 +454,7 @@ export function runTests(files: string[], options?: RunOptions): Promise<RunResu
 export function discoverTests(cwd: string, config: ThemisConfig): string[];
 export function loadConfig(cwd: string): ThemisConfig;
 export function initConfig(cwd: string): void;
-export function runMigrate(cwd: string, framework: 'jest' | 'vitest'): MigrationResult;
+export function runMigrate(cwd: string, framework: 'jest' | 'vitest', options?: MigrationOptions): MigrationResult;
 export const DEFAULT_CONFIG: ThemisConfig;
 export function generateTestsFromSource(cwd: string, options?: GenerateOptions): GenerateSummary;
 export function buildGeneratePayload(summary: GenerateSummary, cwd?: string): GeneratePayload;

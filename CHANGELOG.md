@@ -24,6 +24,9 @@ All notable changes to this project are documented in this file.
 - Added a zero-IPC `--isolation in-process` test mode plus `--cache` for faster local rerun loops and in-process watch execution.
 - Deepened provider/app adapter presets with Next navigation and auth/session wrapper metadata alongside the existing router, React Query, Zustand, and Redux presets.
 - Strengthened failure-to-fix automation with richer `.themis/fix-handoff.json` entries (`repairStrategy`, `candidateFiles`, `autofixCommand`) and added `.themis/migration-report.json` for migration inventories and next actions.
+- Extended provider/app presets with route history/state, auth permissions/roles, query status/query keys, and store selector/action metadata for richer generated UI wrappers.
+- Added richer generated DOM flow assertions for empty, disabled, retry, error, and recovery paths with role- and attribute-aware expectations.
+- Added `themis migrate --rewrite-imports`, which rewrites matched Jest/Vitest/Testing Library imports to a local `themis.compat.js` bridge for more automated incremental migration.
 - Added config-level `testIgnore` discovery patterns so repos can keep generated output, fixture sandboxes, and other local test noise out of default suite runs deterministically.
 - Added an in-repo VS Code extension scaffold for artifact-driven result viewing, reruns, and HTML report opening.
 - Expanded the VS Code extension scaffold with generated-review navigation for source/test/hint mappings and unresolved generation backlog.
