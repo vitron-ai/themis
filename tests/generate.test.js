@@ -226,7 +226,7 @@ describe('code scan generation', () => {
     return {
       'package.json': `{\n  "name": "themis-provider-preset-fixture",\n  "private": true,\n  "version": "0.0.0"\n}\n`,
       'tsconfig.json': `{\n  "compilerOptions": {\n    "target": "ES2020",\n    "module": "CommonJS",\n    "jsx": "react-jsx"\n  }\n}\n`,
-      'themis.generate.js': `module.exports = {\n  providers: [\n    {\n      include: /src\\/components\\//,\n      router: {\n        path: '/teams/themis',\n        params: { team: 'themis' },\n        search: { tab: 'overview' }\n      },\n      reactQuery: {\n        clientName: 'themis-client',\n        state: { greeting: 'warm-cache' }\n      },\n      zustand: {\n        name: 'ui-store',\n        state: { modalOpen: true }\n      },\n      redux: {\n        slice: 'session',\n        state: { user: 'ada' }\n      },\n      wrapRender({ element, withReduxStore }) {\n        return withReduxStore(element, {\n          slice: 'session',\n          state: { user: 'ada-override' }\n        });\n      }\n    }\n  ]\n};\n`,
+      'themis.generate.js': `module.exports = {\n  providers: [\n    {\n      include: /src\\/components\\//,\n      router: {\n        path: '/teams/themis',\n        params: { team: 'themis' },\n        search: { tab: 'overview' }\n      },\n      nextNavigation: {\n        pathname: '/dashboard',\n        params: { team: 'themis' },\n        searchParams: { tab: 'overview' }\n      },\n      auth: {\n        user: 'ada',\n        state: 'authenticated',\n        session: { team: 'themis' }\n      },\n      reactQuery: {\n        clientName: 'themis-client',\n        state: { greeting: 'warm-cache' }\n      },\n      zustand: {\n        name: 'ui-store',\n        state: { modalOpen: true }\n      },\n      redux: {\n        slice: 'session',\n        state: { user: 'ada' }\n      },\n      wrapRender({ element, withReduxStore }) {\n        return withReduxStore(element, {\n          slice: 'session',\n          state: { user: 'ada-override' }\n        });\n      }\n    }\n  ]\n};\n`,
       'node_modules/react/index.js': REACT_INDEX_SOURCE,
       'node_modules/react/jsx-runtime.js': REACT_JSX_RUNTIME_SOURCE,
       'src/components/Dashboard.tsx': `export function Dashboard() {\n  return <button>Launch dashboard</button>;\n}\n`
@@ -693,6 +693,8 @@ describe('code scan generation', () => {
 
       expect(summary.generatedFiles).toContain(generatedPath);
       expect(generatedSource).toContain('PROJECT_PROVIDER_PRESETS');
+      expect(generatedSource).toContain('"nextNavigation"');
+      expect(generatedSource).toContain('"auth"');
       expect(generatedSource).toContain('"reactQuery"');
       expect(generatedSource).toContain('"zustand"');
       expect(generatedSource).toContain('"redux"');

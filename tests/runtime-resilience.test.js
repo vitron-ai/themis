@@ -200,4 +200,32 @@ test('works', () => {
       }
     );
   });
+
+  test('supports in-process execution caching for local loops', async () => {
+    await withProjectFixture(
+      {
+        'tests/fixture.test.js': `const fs = require('fs');\nconst path = require('path');\nconst counterPath = path.join(__dirname, 'counter.txt');\n\ntest('cached local loop', () => {\n  const current = fs.existsSync(counterPath) ? Number(fs.readFileSync(counterPath, 'utf8')) : 0;\n  fs.writeFileSync(counterPath, String(current + 1), 'utf8');\n  expect(true).toBe(true);\n});\n`
+      },
+      async ({ tempDir, resolvePath }) => {
+        const fixturePath = resolvePath('tests', 'fixture.test.js');
+        const counterPath = resolvePath('tests', 'counter.txt');
+
+        let result = await runTests([fixturePath], {
+          cwd: tempDir,
+          isolation: 'in-process',
+          cache: true
+        });
+        expect(result.summary.failed).toBe(0);
+        expect(fs.readFileSync(counterPath, 'utf8')).toBe('1');
+
+        result = await runTests([fixturePath], {
+          cwd: tempDir,
+          isolation: 'in-process',
+          cache: true
+        });
+        expect(result.summary.failed).toBe(0);
+        expect(fs.readFileSync(counterPath, 'utf8')).toBe('1');
+      }
+    );
+  });
 });

@@ -1,20 +1,19 @@
+const fs = require('fs');
 const path = require('path');
 const { Worker } = require('worker_threads');
 const { performance } = require('perf_hooks');
+const { collectAndRun } = require('./runtime');
+
+const inProcessResultCache = new Map();
 
 async function runTests(files, options = {}) {
   const startedAt = performance.now();
   const startedAtIso = new Date().toISOString();
-  const maxWorkers = resolveMaxWorkers(options.maxWorkers);
-  const queue = [...files];
-  const workers = [];
-  const fileResults = [];
-
-  for (let i = 0; i < Math.min(maxWorkers, files.length); i += 1) {
-    workers.push(runNext(queue, fileResults, options));
-  }
-
-  await Promise.all(workers);
+  const isolation = resolveIsolationMode(options);
+  const maxWorkers = isolation === 'in-process' ? 1 : resolveMaxWorkers(options.maxWorkers);
+  const fileResults = isolation === 'in-process'
+    ? await runFilesInProcess(files, options)
+    : await runFilesInWorkers(files, options);
 
   fileResults.sort((a, b) => a.file.localeCompare(b.file));
 
@@ -39,6 +38,27 @@ async function runTests(files, options = {}) {
       durationMs
     }
   };
+}
+
+async function runFilesInWorkers(files, options) {
+  const queue = [...files];
+  const workers = [];
+  const fileResults = [];
+
+  for (let i = 0; i < Math.min(resolveMaxWorkers(options.maxWorkers), files.length); i += 1) {
+    workers.push(runNext(queue, fileResults, options));
+  }
+
+  await Promise.all(workers);
+  return fileResults;
+}
+
+async function runFilesInProcess(files, options) {
+  const fileResults = [];
+  for (const file of files) {
+    fileResults.push(await runFileInProcess(file, options));
+  }
+  return fileResults;
 }
 
 async function runNext(queue, fileResults, options) {
@@ -154,6 +174,47 @@ function runFileInWorker(file, options = {}) {
   });
 }
 
+async function runFileInProcess(file, options = {}) {
+  const cacheKey = options.cache ? buildInProcessCacheKey(file, options) : null;
+  if (cacheKey && inProcessResultCache.has(cacheKey)) {
+    return cloneResult(inProcessResultCache.get(cacheKey));
+  }
+
+  const result = await collectAndRun(file, options);
+  if (cacheKey) {
+    inProcessResultCache.set(cacheKey, cloneResult(result));
+  }
+  return result;
+}
+
+function buildInProcessCacheKey(file, options) {
+  const stats = fs.statSync(file);
+  return JSON.stringify({
+    file: path.resolve(file),
+    size: stats.size,
+    mtimeMs: Math.round(stats.mtimeMs),
+    match: options.match || null,
+    allowedFullNames: Array.isArray(options.allowedFullNames) ? options.allowedFullNames : null,
+    noMemes: Boolean(options.noMemes),
+    cwd: options.cwd || process.cwd(),
+    environment: options.environment || 'node',
+    setupFiles: Array.isArray(options.setupFiles) ? options.setupFiles : [],
+    tsconfigPath: options.tsconfigPath === undefined ? '__default__' : options.tsconfigPath
+  });
+}
+
+function cloneResult(result) {
+  return JSON.parse(JSON.stringify(result));
+}
+
+function clearRunCache() {
+  inProcessResultCache.clear();
+}
+
+function resolveIsolationMode(options = {}) {
+  return options.isolation === 'in-process' ? 'in-process' : 'worker';
+}
+
 function resolveMaxWorkers(value) {
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed < 1) {
@@ -163,5 +224,6 @@ function resolveMaxWorkers(value) {
 }
 
 module.exports = {
-  runTests
+  runTests,
+  clearRunCache
 };

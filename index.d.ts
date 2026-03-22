@@ -76,6 +76,8 @@ export interface RunOptions {
   environment?: TestEnvironment;
   setupFiles?: string[];
   tsconfigPath?: string | null;
+  isolation?: 'worker' | 'in-process';
+  cache?: boolean;
 }
 
 export interface ThemisConfig {
@@ -95,6 +97,23 @@ export interface MigrationResult {
   setupPath: string;
   packageJsonPath: string | null;
   packageUpdated: boolean;
+  reportPath: string;
+  report: {
+    schema: 'themis.migration.report.v1';
+    source: 'jest' | 'vitest';
+    createdAt: string;
+    summary: {
+      matchedFiles: number;
+      jestGlobals: number;
+      vitest: number;
+      testingLibraryReact: number;
+    };
+    files: Array<{
+      file: string;
+      imports: string[];
+    }>;
+    nextActions: string[];
+  };
 }
 
 export interface GenerateOptions {

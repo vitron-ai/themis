@@ -3623,12 +3623,14 @@ function buildProviderRuntimePresets(providers) {
     const preset = {
       name: typeof provider.name === 'string' ? provider.name : null,
       router: cloneSerializable(provider.router) || null,
+      nextNavigation: cloneSerializable(provider.nextNavigation) || null,
+      auth: cloneSerializable(provider.auth) || null,
       reactQuery: cloneSerializable(provider.reactQuery) || null,
       zustand: cloneSerializable(provider.zustand) || null,
       redux: cloneSerializable(provider.redux) || null
     };
 
-    if (preset.router || preset.reactQuery || preset.zustand || preset.redux) {
+    if (preset.router || preset.nextNavigation || preset.auth || preset.reactQuery || preset.zustand || preset.redux) {
       presets.push(preset);
     }
   }
@@ -4403,6 +4405,12 @@ function applyProjectProviderRender(element, exportName, scenarioName) {
       withReactRouter(elementValue, config) {
         return withReactRouter(elementValue, config);
       },
+      withNextNavigation(elementValue, config) {
+        return withNextNavigation(elementValue, config);
+      },
+      withAuthSession(elementValue, config) {
+        return withAuthSession(elementValue, config);
+      },
       withReactQuery(elementValue, config) {
         return withReactQuery(elementValue, config);
       },
@@ -4428,6 +4436,12 @@ function applyProjectProviderPresets(element) {
   for (const preset of PROJECT_PROVIDER_PRESETS) {
     if (preset.router) {
       current = withReactRouter(current, preset.router);
+    }
+    if (preset.nextNavigation) {
+      current = withNextNavigation(current, preset.nextNavigation);
+    }
+    if (preset.auth) {
+      current = withAuthSession(current, preset.auth);
     }
     if (preset.reactQuery) {
       current = withReactQuery(current, preset.reactQuery);
@@ -4472,6 +4486,24 @@ function withReactQuery(element, config = {}) {
     'data-query-client': typeof config.clientName === 'string' ? config.clientName : 'themis-query-client',
     'data-query-state': serializeProviderData(config.state || {}),
     'data-query-cache': serializeProviderData(config.cache || {})
+  });
+}
+
+function withNextNavigation(element, config = {}) {
+  return withProviderShell('themis-next-navigation-provider', element, {
+    'data-themis-provider': 'next-navigation',
+    'data-next-pathname': typeof config.pathname === 'string' ? config.pathname : '/',
+    'data-next-params': serializeProviderData(config.params || {}),
+    'data-next-search-params': serializeProviderData(config.searchParams || {})
+  });
+}
+
+function withAuthSession(element, config = {}) {
+  return withProviderShell('themis-auth-provider', element, {
+    'data-themis-provider': 'auth',
+    'data-auth-user': typeof config.user === 'string' ? config.user : 'anonymous',
+    'data-auth-session': serializeProviderData(config.session || {}),
+    'data-auth-state': typeof config.state === 'string' ? config.state : 'authenticated'
   });
 }
 

@@ -256,8 +256,11 @@ function buildFixHandoffPayload(cwd, result, context) {
       category,
       failureCount: 1,
       failedTests: [failedTest.fullName],
+      repairStrategy: resolveRepairStrategy(category, generatedEntry, backlogMatch),
+      candidateFiles: buildFixCandidateFiles(generatedEntry, backlogMatch),
       suggestedAction: resolveFixAction(category, generatedEntry, backlogMatch),
-      suggestedCommand: resolveFixCommand(category, generatedEntry, backlogMatch)
+      suggestedCommand: resolveFixCommand(category, generatedEntry, backlogMatch),
+      autofixCommand: resolveAutofixCommand(category, generatedEntry, backlogMatch)
     });
   }
 
@@ -315,6 +318,45 @@ function resolveFixCommand(category, entry, backlogMatch) {
     return `npx themis generate ${entry.sourceFile} --update`;
   }
   return null;
+}
+
+function resolveAutofixCommand(category, entry, backlogMatch) {
+  if (backlogMatch && backlogMatch.suggestedCommand) {
+    return backlogMatch.suggestedCommand;
+  }
+  if (category === 'source-drift' && entry && entry.sourceFile) {
+    return `npx themis generate ${entry.sourceFile} --update && npx themis test --match ${JSON.stringify(path.basename(entry.testFile || entry.sourceFile))}`;
+  }
+  if (entry && entry.sourceFile) {
+    return `npx themis generate ${entry.sourceFile} --update`;
+  }
+  return null;
+}
+
+function resolveRepairStrategy(category, entry, backlogMatch) {
+  if (category === 'source-drift') {
+    return 'regenerate-source';
+  }
+  if (backlogMatch && backlogMatch.hintsFile) {
+    return 'tighten-hints';
+  }
+  return 'inspect-contract';
+}
+
+function buildFixCandidateFiles(entry, backlogMatch) {
+  const files = [];
+  if (entry && entry.sourceFile) {
+    files.push(entry.sourceFile);
+  }
+  if (entry && entry.testFile) {
+    files.push(entry.testFile);
+  }
+  if (entry && entry.hintsFile) {
+    files.push(entry.hintsFile);
+  } else if (backlogMatch && backlogMatch.hintsFile) {
+    files.push(backlogMatch.hintsFile);
+  }
+  return [...new Set(files)];
 }
 
 function buildFixNextActions(summary) {

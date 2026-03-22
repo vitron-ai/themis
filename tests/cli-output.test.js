@@ -504,6 +504,26 @@ test('deterministic instability', () => {
     );
   });
 
+  test('rejects unsupported isolation values', async () => {
+    await withProjectFiles(
+      async ({ tempDir }) => {
+        const run = runCli(tempDir, ['--json', '--isolation', 'fork']);
+        expect(run.status).toBe(1);
+        expect(run.output).toContain('Unsupported --isolation value: fork. Use one of: worker, in-process.');
+      },
+      {
+        'tests/sample.test.js': `test('direct contract fixture', () => {\n  expect(true).toBe(true);\n});\n`
+      },
+      {
+        testRegex: '\\.(test|spec)\\.js$',
+        reporter: 'json',
+        environment: 'node',
+        setupFiles: [],
+        tsconfigPath: null
+      }
+    );
+  });
+
   test('rejects the removed snapshot update flag', async () => {
     await withProjectFiles(
       async ({ tempDir }) => {
@@ -541,10 +561,15 @@ test('deterministic instability', () => {
 
         const packageJson = JSON.parse(fs.readFileSync(path.join(tempDir, 'package.json'), 'utf8'));
         expect(packageJson.scripts['test:themis']).toBe('themis test');
+
+        const report = JSON.parse(fs.readFileSync(path.join(tempDir, '.themis', 'migration-report.json'), 'utf8'));
+        expect(report.schema).toBe('themis.migration.report.v1');
+        expect(report.summary.matchedFiles).toBe(1);
+        expect(report.summary.jestGlobals).toBe(1);
       },
       {
         'package.json': `{\n  "name": "themis-migrate-fixture",\n  "private": true,\n  "version": "0.0.0",\n  "scripts": {\n    "test": "jest"\n  }\n}\n`,
-        'tests/sample.test.js': `test('migration placeholder', () => {\n  expect(true).toBe(true);\n});\n`
+        'tests/sample.test.js': `import { describe, test, expect } from '@jest/globals';\n\ndescribe('migration placeholder', () => {\n  test('works', () => {\n    expect(true).toBe(true);\n  });\n});\n`
       },
       {
         testRegex: '\\.(test|spec)\\.js$',

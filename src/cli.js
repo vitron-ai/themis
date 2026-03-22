@@ -87,8 +87,37 @@ async function main(argv) {
     return;
   }
 
-  const config = loadConfig(cwd);
   const flags = parseFlags(argv.slice(1));
+  const watchIsolation = flags.watch ? (flags.isolation || 'in-process') : flags.isolation;
+  const watchCache = flags.watch ? (flags.cache !== undefined ? flags.cache : watchIsolation === 'in-process') : flags.cache;
+  if (watchIsolation) {
+    validateIsolation(watchIsolation);
+  }
+  if (flags.watch) {
+    await runWatchMode({
+      cwd,
+      cliArgs: argv.slice(1),
+      inProcess: watchIsolation === 'in-process',
+      executeInProcess: async (cliArgs) => {
+        const rerunFlags = parseFlags(cliArgs);
+        rerunFlags.watch = false;
+        if (!rerunFlags.isolation && watchIsolation) {
+          rerunFlags.isolation = watchIsolation;
+        }
+        if (rerunFlags.cache === undefined && watchCache !== undefined) {
+          rerunFlags.cache = watchCache;
+        }
+        await executeTestRun(cwd, rerunFlags);
+      }
+    });
+    return;
+  }
+
+  await executeTestRun(cwd, flags);
+}
+
+async function executeTestRun(cwd, flags) {
+  const config = loadConfig(cwd);
 
   if (flags.match) {
     validateRegex(flags.match);
@@ -102,12 +131,8 @@ async function main(argv) {
   validateStabilityRuns(flags.stability);
   const environment = resolveEnvironment(flags, config);
   validateEnvironment(environment, flags.environment, config.environment);
-  if (flags.watch) {
-    await runWatchMode({
-      cwd,
-      cliArgs: argv.slice(1)
-    });
-    return;
+  if (flags.isolation) {
+    validateIsolation(flags.isolation);
   }
   printBanner(reporter);
   const maxWorkers = resolveWorkerCount(flags.workers, config.maxWorkers);
@@ -154,7 +179,9 @@ async function main(argv) {
       cwd,
       environment,
       setupFiles: config.setupFiles,
-      tsconfigPath: config.tsconfigPath
+      tsconfigPath: config.tsconfigPath,
+      isolation: flags.isolation || 'worker',
+      cache: Boolean(flags.cache)
     });
     runResults.push(runResult);
   }
@@ -293,6 +320,15 @@ function parseFlags(args) {
     if (token === '--match') {
       flags.match = requireFlagValue(args, i, '--match');
       i += 1;
+      continue;
+    }
+    if (token === '--isolation') {
+      flags.isolation = requireFlagValue(args, i, '--isolation');
+      i += 1;
+      continue;
+    }
+    if (token === '--cache') {
+      flags.cache = true;
       continue;
     }
     if (token.startsWith('-')) {
@@ -470,6 +506,13 @@ function validateWorkerCount(flagValue, configValue) {
   throw new Error(`Invalid config maxWorkers value: ${String(configValue)}. Use a positive integer.`);
 }
 
+function validateIsolation(value) {
+  if (value === 'worker' || value === 'in-process') {
+    return;
+  }
+  throw new Error(`Unsupported --isolation value: ${value}. Use one of: worker, in-process.`);
+}
+
 function resolveWorkerCount(flagValue, configValue) {
   const sourceValue = flagValue !== undefined ? flagValue : configValue;
   return Number(sourceValue);
@@ -501,7 +544,7 @@ function printUsage() {
   console.log('                         Options: [--json] [--plan] [--output path] [--files a,b] [--match-source regex] [--match-export regex] [--scenario name] [--min-confidence level] [--require-confidence level] [--include regex] [--exclude regex] [--review] [--update] [--clean] [--changed] [--force] [--strict] [--write-hints] [--fail-on-skips] [--fail-on-conflicts]');
   console.log('  scan [path]             Alias for generate');
   console.log('  migrate <jest|vitest>   Scaffold an incremental migration bridge for existing suites');
-  console.log('  test [--json] [--agent] [--next] [--reporter spec|next|json|agent|html] [--workers N] [--stability N] [--environment node|jsdom] [-w|--watch] [--html-output path] [--match regex] [--rerun-failed] [--no-memes] [--lexicon classic|themis]');
+  console.log('  test [--json] [--agent] [--next] [--reporter spec|next|json|agent|html] [--workers N] [--stability N] [--environment node|jsdom] [--isolation worker|in-process] [--cache] [-w|--watch] [--html-output path] [--match regex] [--rerun-failed] [--no-memes] [--lexicon classic|themis]');
 }
 
 function printGenerateSummary(summary, cwd) {

@@ -32,6 +32,8 @@ function hasWatchSignatureChanged(previousSignature, nextSignature) {
 async function runWatchMode(options) {
   const cwd = path.resolve(options.cwd || process.cwd());
   const cliArgs = stripWatchFlags(options.cliArgs || []);
+  const executeInProcess = typeof options.executeInProcess === 'function' ? options.executeInProcess : null;
+  const useInProcess = Boolean(options.inProcess && executeInProcess);
   const cliPath = path.join(__dirname, '..', 'bin', 'themis.js');
   const pollIntervalMs = Number(options.pollIntervalMs) > 0 ? Number(options.pollIntervalMs) : 400;
   let previousSignature = collectWatchSignature(cwd);
@@ -45,6 +47,13 @@ async function runWatchMode(options) {
   });
 
   const runOnce = () => new Promise((resolve, reject) => {
+    if (useInProcess) {
+      Promise.resolve()
+        .then(() => executeInProcess(cliArgs))
+        .then(resolve, reject);
+      return;
+    }
+
     activeChild = spawn(process.execPath, [cliPath, 'test', ...cliArgs], {
       cwd,
       stdio: 'inherit',

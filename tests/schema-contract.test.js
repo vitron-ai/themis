@@ -420,6 +420,9 @@ describe('schema contracts', () => {
       expect(fixPayload.schema).toBe('themis.fix.handoff.v1');
       expect(fixPayload.summary.generatedFailures).toBe(1);
       expect(fixPayload.items[0].category).toBe('source-drift');
+      expect(fixPayload.items[0].repairStrategy).toBe('regenerate-source');
+      expect(Array.isArray(fixPayload.items[0].candidateFiles)).toBe(true);
+      expect(typeof fixPayload.items[0].autofixCommand).toBe('string');
     } finally {
       fs.rmSync(tempDir, { recursive: true, force: true });
     }

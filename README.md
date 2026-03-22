@@ -56,7 +56,7 @@ Themis is built for modern Node.js and TypeScript projects:
 - `testIgnore` patterns for deterministic discovery boundaries
 - first-party mocks, spies, and deterministic UI primitives
 - compatibility imports for `@jest/globals`, `vitest`, and `@testing-library/react`
-- `--watch` and `--rerun-failed` for tight local and agent rerun loops
+- `--watch`, `--rerun-failed`, `--isolation in-process`, and `--cache` for tight local and agent rerun loops
 
 ## Visuals
 
@@ -88,7 +88,7 @@ npx themis test --agent
 Stay in a local rerun loop while editing:
 
 ```bash
-npx themis test --watch --reporter next
+npx themis test --watch --isolation in-process --cache --reporter next
 ```
 
 Incrementally migrate existing Jest/Vitest suites:
@@ -119,7 +119,7 @@ Generated files land under `tests/generated` by default. Each generated test:
 
 Themis also supports per-file generation hints with sidecars like `src/components/Button.themis.json` so humans and agents can provide props, component flows, args, route requests, and route context. When those sidecars do not exist yet, `--write-hints` can scaffold them automatically from the current source analysis.
 
-For repo-wide generation defaults, add `themis.generate.js` or `themis.generate.cjs` at the project root. Providers in that file can match source paths, supply shared props/args/flow plans, register runtime mocks for generated UI scenarios, and wrap generated component renders so generated DOM contracts run inside the same provider shells humans use in app tests. Providers can also declare preset wrapper metadata for router, React Query, Zustand, and Redux-style app state patterns.
+For repo-wide generation defaults, add `themis.generate.js` or `themis.generate.cjs` at the project root. Providers in that file can match source paths, supply shared props/args/flow plans, register runtime mocks for generated UI scenarios, and wrap generated component renders so generated DOM contracts run inside the same provider shells humans use in app tests. Providers can also declare preset wrapper metadata for router, Next navigation, auth/session shells, React Query, Zustand, and Redux-style app state patterns.
 
 For CI and agent loops, Themis can also enforce generation quality instead of only writing files. Strict runs emit a structured backlog, fail on unresolved scan debt, and hand back exact remediation commands.
 
@@ -148,9 +148,19 @@ Every generation run also writes:
 - `.themis/generate-handoff.json`: a compact agent handoff artifact with prompt-ready next actions
 - `.themis/generate-backlog.json`: unresolved skips, conflicts, and confidence debt with suggested fixes
 
+Local test loops can also opt into a zero-IPC execution path:
+
+- `npx themis test --isolation in-process`: executes suites in-process instead of worker mode
+- `npx themis test --watch --isolation in-process --cache`: keeps a fast local rerun loop with file-level result caching
+- `npx themis test --isolation worker`: keeps process isolation for CI or global-heavy suites
+
 When generated tests fail, Themis also writes:
 
-- `.themis/fix-handoff.json`: a deduped failure-to-fix artifact that maps generated failures back to source files, categories, and remediation commands
+- `.themis/fix-handoff.json`: a deduped failure-to-fix artifact that maps generated failures back to source files, categories, repair strategies, candidate files, and remediation commands
+
+Migration scaffolds also write:
+
+- `.themis/migration-report.json`: a machine-readable inventory of detected Jest/Vitest compatibility imports and recommended next actions
 
 ## Why Themis
 
@@ -201,7 +211,10 @@ See [`docs/why-themis.md`](docs/why-themis.md) for positioning, differentiators,
 - `npx themis test --reporter html`: generates a next-gen HTML report file.
 - `npx themis test --reporter html --html-output reports/themis.html`: writes HTML report to a custom path.
 - `npx themis test --watch`: reruns the suite when watched project files change.
+- `npx themis test --watch --isolation in-process --cache`: runs a zero-IPC cached local loop for fast edit/rerun cycles.
 - `npx themis test --workers 8`: overrides worker count (positive integer).
+- `npx themis test --isolation in-process`: runs test files in-process instead of worker processes.
+- `npx themis test --cache`: enables file-level result caching for in-process local loops.
 - `npx themis test --environment jsdom`: runs tests in a browser-like DOM environment.
 - `npx themis test --stability 3`: runs the suite three times and classifies each test as `stable_pass`, `stable_fail`, or `unstable`.
 - `npx themis test --match "intent DSL"`: runs only tests whose full name matches regex.
@@ -224,9 +237,10 @@ Each run writes artifacts to `.themis/`:
 - `run-diff.json`: diff against the previous run, including new and resolved failures.
 - `run-history.json`: rolling recent-run history for agent comparison loops.
 - `fix-handoff.json`: source-oriented repair handoff for generated test failures.
+- `migration-report.json`: compatibility inventory and next actions for migrated Jest/Vitest suites.
 - `report.html`: interactive HTML verdict report.
 
-`--agent` output includes deterministic failure fingerprints, grouped `analysis.failureClusters`, stability classifications, previous-run comparison data, and a direct pointer to `.themis/fix-handoff.json` so AI agents can jump from generated failures to exact regeneration commands.
+`--agent` output includes deterministic failure fingerprints, grouped `analysis.failureClusters`, stability classifications, previous-run comparison data, and a direct pointer to `.themis/fix-handoff.json` so AI agents can jump from generated failures to exact regeneration commands. Fix handoff entries also carry repair strategies, candidate files, and autofix commands for tighter failure-to-fix loops.
 
 Machine-facing reporters intentionally emit compact JSON. Agents and tooling should parse the payloads rather than depend on whitespace formatting.
 

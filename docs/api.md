@@ -35,7 +35,7 @@ Default behavior:
 - React and Next component adapters also emit direct DOM-state contract assertions that capture visible text, inferred roles, non-event attributes, and interaction-driven UI changes
 - React and Next component adapters can also emit async behavioral flow contracts when `componentFlows` are inferred or supplied, including richer inferred input/submit/loading/success flows for common async forms
 - project-level providers from `themis.generate.js` / `themis.generate.cjs` can match source files, inject shared fixture data, register runtime mocks, and wrap generated component renders for provider-aware DOM contracts and behavioral flow coverage
-- provider presets can declare router, React Query, Zustand, and Redux-style wrapper metadata without hand-writing every wrapper shell
+- provider presets can declare router, Next navigation, auth/session, React Query, Zustand, and Redux-style wrapper metadata without hand-writing every wrapper shell
 - `.themis/generate-map.json` records source-to-generated-test mappings plus scenario metadata
 - `.themis/generate-last.json` stores the full machine-readable generate payload
 - `.themis/generate-handoff.json` stores a compact prompt-ready handoff payload for agents
@@ -87,6 +87,8 @@ Project-level provider modules are supported via `themis.generate.js` or `themis
 - `include` / `exclude` / `files`: source matching rules
 - any of the same static fixture keys as sidecars (`componentProps`, `componentInteractions`, `componentFlows`, `hookArgs`, `hookInteractions`, `serviceArgs`, `routeRequests`, `routeContext`, `scenarios`)
 - `router`: preset router wrapper metadata (`path`, `params`, `search`)
+- `nextNavigation`: preset Next navigation wrapper metadata (`pathname`, `params`, `searchParams`)
+- `auth`: preset auth/session wrapper metadata (`user`, `session`, `state`)
 - `reactQuery`: preset React Query wrapper metadata (`clientName`, `state`, `cache`)
 - `zustand`: preset Zustand wrapper metadata (`name`, `state`)
 - `redux`: preset Redux wrapper metadata (`slice`, `state`)
@@ -119,6 +121,8 @@ Project-level provider modules are supported via `themis.generate.js` or `themis
 - `element`
 - `withProviderShell(type, element, attrs)`
 - `withReactRouter(element, config?)`
+- `withNextNavigation(element, config?)`
+- `withAuthSession(element, config?)`
 - `withReactQuery(element, config?)`
 - `withZustandStore(element, config?)`
 - `withReduxStore(element, config?)`
@@ -132,6 +136,7 @@ Behavior:
 - writes or updates `themis.config.json`
 - adds `tests/setup.themis.js` to `setupFiles`
 - adds `test:themis` to `package.json` when missing
+- writes `.themis/migration-report.json` with detected compatibility imports and next actions
 - relies on built-in runtime compatibility for `@jest/globals`, `vitest`, and `@testing-library/react`
 
 ## `themis test` options
@@ -144,6 +149,8 @@ Behavior:
 | `--reporter spec\|next\|json\|agent\|html` | string | Explicit reporter override. |
 | `--workers <N>` | positive integer | Override worker count. Invalid values fail fast. |
 | `--environment node\|jsdom` | string | Override the configured test environment. |
+| `--isolation worker\|in-process` | string | Select worker isolation or a zero-IPC in-process execution mode. |
+| `--cache` | flag | Enable file-level result caching for in-process local loops. |
 | `-w`, `--watch` | flag | Rerun the selected suite when watched project files change. |
 | `--stability <N>` | positive integer | Run selected tests `N` times and classify stability (`stable_pass`, `stable_fail`, `unstable`). |
 | `--html-output <path>` | string | Output path for `--reporter html` (default: `.themis/report.html`). |
@@ -156,7 +163,16 @@ Migration compatibility:
 - imports from `@jest/globals` are supported at runtime
 - imports from `vitest` are supported at runtime
 - imports from `@testing-library/react` are supported via Themis `render`, `screen`, `fireEvent`, `waitFor`, `cleanup`, and `act`
+- `themis migrate <jest|vitest>` also emits `.themis/migration-report.json` with detected files and recommended next actions
+
+Additional option:
+
 | `--lexicon classic\|themis` | string | Human reporter terminology mode for `next/spec`. |
+
+Execution note:
+
+- `--watch --isolation in-process --cache` is the fastest local rerun mode
+- `--isolation worker` remains the safer mode for CI and global-heavy suites
 
 Snapshot note:
 
@@ -182,6 +198,7 @@ Each run writes to `.themis/`:
 - `run-diff.json`: diff against the previous run
 - `run-history.json`: rolling recent-run history
 - `fix-handoff.json`: deduped repair artifact for generated test failures (`themis.fix.handoff.v1`)
+- `migration-report.json`: migration inventory for Jest/Vitest bridge scaffolds (`themis.migration.report.v1`)
 
 Formal schemas:
 
@@ -204,6 +221,7 @@ Agent payload details:
 - `analysis.stability` captures multi-run classifications and per-test status sequences
 - `analysis.comparison` reports delta stats plus new and resolved failures against the previous run
 - `artifacts.fixHandoff` points to `.themis/fix-handoff.json` for generated failure repair loops
+- fix handoff entries include `repairStrategy`, `candidateFiles`, and `autofixCommand` for machine repair loops
 
 ## UI Test Utilities
 
