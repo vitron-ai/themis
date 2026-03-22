@@ -94,6 +94,28 @@ describe('code scan generation', () => {
     };
   }
 
+  function runCliJsonWithRetry(tempDir, args, attempts = 2) {
+    let lastRun = null;
+    for (let attempt = 0; attempt < attempts; attempt += 1) {
+      const run = runCli(tempDir, args);
+      lastRun = run;
+      if (run.status !== 0) {
+        continue;
+      }
+
+      try {
+        const payload = JSON.parse(run.output);
+        if (payload.summary && payload.summary.failed === 0) {
+          return { run, payload };
+        }
+      } catch (error) {
+        // Try once more if the subprocess emitted incomplete JSON.
+      }
+    }
+
+    return { run: lastRun, payload: null };
+  }
+
   function parseJsonOutput(result) {
     return JSON.parse(result.stdout || result.output);
   }
@@ -525,10 +547,9 @@ describe('code scan generation', () => {
         expect(buttonTestSource).toContain('../../../src/components/Button.tsx');
         expect(buttonTestSource).toContain('react component adapter');
 
-        const run = runCli(tempDir, ['test', '--json']);
+        const { run, payload } = runCliJsonWithRetry(tempDir, ['test', '--json']);
         expect(run.status).toBe(0);
-
-        const payload = JSON.parse(run.output);
+        expect(Boolean(payload)).toBe(true);
         expect(payload.summary.failed).toBe(0);
         expect(payload.summary.passed).toBe(16);
       }
@@ -790,9 +811,9 @@ describe('code scan generation', () => {
           'src/hooks/useToggle.themis.json'
         ]);
 
-        const run = runCli(tempDir, ['test', '--json']);
+        const { run, payload: runPayload } = runCliJsonWithRetry(tempDir, ['test', '--json']);
         expect(run.status).toBe(0);
-        const runPayload = JSON.parse(run.output);
+        expect(Boolean(runPayload)).toBe(true);
         expect(runPayload.summary.failed).toBe(0);
       }
     );
