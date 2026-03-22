@@ -134,4 +134,35 @@ describe('test utilities', () => {
       }
     );
   });
+
+  test('supports fake timers and deterministic async advancement', async () => {
+    await withProjectFixture(
+      {
+        'tests/fixture.test.js': `test('fake timers', async () => {\n  useFakeTimers();\n  const events = [];\n  setTimeout(() => {\n    events.push('timeout');\n  }, 20);\n  setTimeout(() => {\n    events.push('later');\n  }, 40);\n\n  advanceTimersByTime(20);\n  expect(events).toEqual(['timeout']);\n\n  advanceTimersByTime(20);\n  expect(events).toEqual(['timeout', 'later']);\n\n  useRealTimers();\n});\n`
+      },
+      async ({ tempDir, resolvePath }) => {
+        const result = await collectAndRun(resolvePath('tests', 'fixture.test.js'), {
+          cwd: tempDir
+        });
+
+        expect(result.tests[0].status).toBe('passed');
+      }
+    );
+  });
+
+  test('supports flushing microtasks and mocked fetch responses in jsdom', async () => {
+    await withProjectFixture(
+      {
+        'tests/fixture.test.js': `test('fetch primitives', async () => {\n  const fetchMock = mockFetch({ json: { ok: true, team: 'themis' }, status: 201 });\n  const state = { label: 'idle' };\n\n  async function load() {\n    state.label = 'loading';\n    const response = await fetch('https://themis.test/api/status');\n    const payload = await response.json();\n    state.label = payload.team;\n  }\n\n  const pending = load();\n  expect(state.label).toBe('loading');\n  await flushMicrotasks();\n  await pending;\n\n  expect(state.label).toBe('themis');\n  expect(fetchMock).toHaveBeenCalledWith('https://themis.test/api/status');\n  resetFetchMocks();\n  expect(fetchMock.mock.calls).toHaveLength(0);\n  restoreFetch();\n});\n`
+      },
+      async ({ tempDir, resolvePath }) => {
+        const result = await collectAndRun(resolvePath('tests', 'fixture.test.js'), {
+          cwd: tempDir,
+          environment: 'jsdom'
+        });
+
+        expect(result.tests[0].status).toBe('passed');
+      }
+    );
+  });
 });

@@ -272,6 +272,9 @@ For UI-oriented `jsdom` tests, Themis also ships a lightweight DOM layer:
 - `fireEvent.click/change/input/submit/keyDown(...)`
 - `waitFor(asyncAssertion)`
 - `cleanup()`
+- `useFakeTimers()`, `advanceTimersByTime(ms)`, `runAllTimers()`, `useRealTimers()`
+- `flushMicrotasks()`
+- `mockFetch(...)`, `resetFetchMocks()`, `restoreFetch()`
 
 Example:
 
@@ -284,6 +287,30 @@ test('submits the form', async () => {
   await waitFor(() => {
     expect(document.body).toHaveAttribute('data-state', 'sent');
   });
+});
+```
+
+Network and async example:
+
+```ts
+test('loads api state deterministically', async () => {
+  useFakeTimers();
+  const fetchMock = mockFetch({ json: { ok: true } });
+
+  let done = false;
+  setTimeout(async () => {
+    const response = await fetch('/api/status');
+    const payload = await response.json();
+    done = payload.ok;
+  }, 50);
+
+  advanceTimersByTime(50);
+  await flushMicrotasks();
+
+  expect(done).toBe(true);
+  expect(fetchMock).toHaveBeenCalled();
+  useRealTimers();
+  restoreFetch();
 });
 ```
 

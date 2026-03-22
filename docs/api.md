@@ -171,6 +171,14 @@ Themis exposes a lightweight DOM-oriented helper layer for `jsdom` tests:
 - `fireEvent.keyDown(node, payload?)`
 - `waitFor(assertion, options?)`
 - `cleanup()`
+- `useFakeTimers()`
+- `useRealTimers()`
+- `advanceTimersByTime(ms)`
+- `runAllTimers()`
+- `flushMicrotasks()`
+- `mockFetch(handlerOrResponse)`
+- `resetFetchMocks()`
+- `restoreFetch()`
 
 Supported DOM matchers:
 
@@ -179,6 +187,14 @@ Supported DOM matchers:
 - `expect(node).toBeInTheDocument()`
 
 These helpers are intentionally small and deterministic. They are designed for generated UI unit-layer tests and human-authored component tests running in Themis `jsdom` mode.
+
+`mockFetch(...)` accepts either:
+
+- a function `(input, init) => response`
+- a Response instance
+- a shorthand object like `{ status, headers, body }` or `{ status, json }`
+
+The fake timer helpers only patch the current Themis runtime. They do not mutate system time outside the active test process.
 
 ## Config File (`themis.config.json`)
 

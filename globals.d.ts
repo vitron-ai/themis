@@ -12,6 +12,8 @@ import type {
   ScreenApi,
   SpyOn,
   Test,
+  FetchMock,
+  FlushMicrotasks,
   WaitFor
 } from './index';
 
@@ -37,6 +39,14 @@ declare global {
   var fireEvent: FireEventApi;
   var waitFor: WaitFor;
   var cleanup: Cleanup;
+  var useFakeTimers: () => void;
+  var useRealTimers: () => void;
+  var advanceTimersByTime: (ms: number) => void;
+  var runAllTimers: () => void;
+  var flushMicrotasks: FlushMicrotasks;
+  var mockFetch: (handlerOrResponse: unknown) => FetchMock;
+  var restoreFetch: () => void;
+  var resetFetchMocks: () => void;
 }
 
 export {};

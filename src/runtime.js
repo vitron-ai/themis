@@ -284,7 +284,15 @@ function installGlobals(api) {
     'screen',
     'fireEvent',
     'waitFor',
-    'cleanup'
+    'cleanup',
+    'useFakeTimers',
+    'useRealTimers',
+    'advanceTimersByTime',
+    'runAllTimers',
+    'flushMicrotasks',
+    'mockFetch',
+    'restoreFetch',
+    'resetFetchMocks'
   ];
   const previous = {};
   for (const name of names) {
@@ -312,6 +320,14 @@ function installGlobals(api) {
   global.fireEvent = api.fireEvent;
   global.waitFor = api.waitFor;
   global.cleanup = api.cleanup;
+  global.useFakeTimers = api.useFakeTimers;
+  global.useRealTimers = api.useRealTimers;
+  global.advanceTimersByTime = api.advanceTimersByTime;
+  global.runAllTimers = api.runAllTimers;
+  global.flushMicrotasks = api.flushMicrotasks;
+  global.mockFetch = api.mockFetch;
+  global.restoreFetch = api.restoreFetch;
+  global.resetFetchMocks = api.resetFetchMocks;
 
   return previous;
 }

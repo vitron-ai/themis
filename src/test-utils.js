@@ -6,6 +6,8 @@ function createTestUtils(options = {}) {
   const activeSpies = new Set();
   const moduleLoader = options.moduleLoader;
   const renderedContainers = new Set();
+  let timerState = null;
+  let fetchState = null;
 
   function fn(implementation) {
     const mockFn = createMockFunction(implementation);
@@ -79,6 +81,12 @@ function createTestUtils(options = {}) {
         spy.mockRestore();
       }
     }
+    if (fetchState) {
+      fetchState.restore();
+    }
+    if (timerState) {
+      timerState.useRealTimers();
+    }
   }
 
   function render(input, renderOptions = {}) {
@@ -144,7 +152,29 @@ function createTestUtils(options = {}) {
     waitFor,
     screen,
     fireEvent,
-    cleanup
+    cleanup,
+    useFakeTimers() {
+      return getTimerState().useFakeTimers();
+    },
+    useRealTimers() {
+      return getTimerState().useRealTimers();
+    },
+    advanceTimersByTime(ms) {
+      return getTimerState().advanceTimersByTime(ms);
+    },
+    runAllTimers() {
+      return getTimerState().runAllTimers();
+    },
+    flushMicrotasks,
+    mockFetch(handlerOrResponse) {
+      return getFetchState().mockFetch(handlerOrResponse);
+    },
+    restoreFetch() {
+      return getFetchState().restore();
+    },
+    resetFetchMocks() {
+      return getFetchState().reset();
+    }
   };
 
   function cleanupContainer(container) {
@@ -336,6 +366,20 @@ function createTestUtils(options = {}) {
 
     return node;
   }
+
+  function getTimerState() {
+    if (!timerState) {
+      timerState = createTimerController();
+    }
+    return timerState;
+  }
+
+  function getFetchState() {
+    if (!fetchState) {
+      fetchState = createFetchController(activeMocks);
+    }
+    return fetchState;
+  }
 }
 
 function createMockFunction(implementation) {
@@ -440,6 +484,222 @@ function format(value) {
   return util.inspect(value, { depth: 5, colors: false, maxArrayLength: 20 });
 }
 
+function createTimerController() {
+  const original = {
+    setTimeout: globalThis.setTimeout,
+    clearTimeout: globalThis.clearTimeout,
+    setInterval: globalThis.setInterval,
+    clearInterval: globalThis.clearInterval
+  };
+  const state = {
+    enabled: false,
+    now: 0,
+    nextId: 1,
+    timers: new Map()
+  };
+
+  function useFakeTimers() {
+    if (state.enabled) {
+      return;
+    }
+
+    state.enabled = true;
+    state.now = 0;
+    state.nextId = 1;
+    state.timers.clear();
+    globalThis.setTimeout = function themisSetTimeout(callback, delay = 0, ...args) {
+      return registerTimer('timeout', callback, delay, args);
+    };
+    globalThis.clearTimeout = function themisClearTimeout(id) {
+      state.timers.delete(Number(id));
+    };
+    globalThis.setInterval = function themisSetInterval(callback, delay = 0, ...args) {
+      return registerTimer('interval', callback, delay, args);
+    };
+    globalThis.clearInterval = function themisClearInterval(id) {
+      state.timers.delete(Number(id));
+    };
+  }
+
+  function useRealTimers() {
+    if (!state.enabled) {
+      return;
+    }
+
+    state.enabled = false;
+    state.timers.clear();
+    globalThis.setTimeout = original.setTimeout;
+    globalThis.clearTimeout = original.clearTimeout;
+    globalThis.setInterval = original.setInterval;
+    globalThis.clearInterval = original.clearInterval;
+  }
+
+  function registerTimer(kind, callback, delay, args) {
+    const id = state.nextId++;
+    const numericDelay = Math.max(0, Number(delay) || 0);
+    state.timers.set(id, {
+      id,
+      kind,
+      callback,
+      args,
+      delay: numericDelay,
+      dueAt: state.now + numericDelay
+    });
+    return id;
+  }
+
+  function advanceTimersByTime(ms) {
+    ensureFakeTimers('advanceTimersByTime');
+    const targetTime = state.now + Math.max(0, Number(ms) || 0);
+
+    while (true) {
+      const nextTimer = findNextTimer(targetTime);
+      if (!nextTimer) {
+        break;
+      }
+
+      state.now = nextTimer.dueAt;
+      executeTimer(nextTimer);
+    }
+
+    state.now = targetTime;
+  }
+
+  function runAllTimers() {
+    ensureFakeTimers('runAllTimers');
+    let guard = 0;
+    while (state.timers.size > 0) {
+      const nextTimer = findNextTimer(Infinity);
+      if (!nextTimer) {
+        break;
+      }
+      state.now = nextTimer.dueAt;
+      executeTimer(nextTimer);
+      guard += 1;
+      if (guard > 1000) {
+        throw new Error('runAllTimers aborted after 1000 timer executions');
+      }
+    }
+  }
+
+  function findNextTimer(maxDueAt) {
+    let candidate = null;
+    for (const timer of state.timers.values()) {
+      if (timer.dueAt > maxDueAt) {
+        continue;
+      }
+      if (!candidate || timer.dueAt < candidate.dueAt || (timer.dueAt === candidate.dueAt && timer.id < candidate.id)) {
+        candidate = timer;
+      }
+    }
+    return candidate;
+  }
+
+  function executeTimer(timer) {
+    if (!state.timers.has(timer.id)) {
+      return;
+    }
+
+    if (timer.kind === 'timeout') {
+      state.timers.delete(timer.id);
+    }
+
+    timer.callback(...timer.args);
+
+    if (timer.kind === 'interval' && state.timers.has(timer.id)) {
+      timer.dueAt = state.now + timer.delay;
+      state.timers.set(timer.id, timer);
+    }
+  }
+
+  function ensureFakeTimers(apiName) {
+    if (!state.enabled) {
+      throw new Error(`${apiName}(...) requires useFakeTimers()`);
+    }
+  }
+
+  return {
+    useFakeTimers,
+    useRealTimers,
+    advanceTimersByTime,
+    runAllTimers
+  };
+}
+
+function createFetchController(activeMocks) {
+  const originalFetch = globalThis.fetch;
+  const originalResponse = typeof Response === 'function' ? Response : null;
+  const state = {
+    active: false,
+    mockFn: null
+  };
+
+  function mockFetch(handlerOrResponse) {
+    const mockFn = createMockFunction(async function themisFetch(...args) {
+      if (typeof handlerOrResponse === 'function') {
+        return handlerOrResponse(...args);
+      }
+      return normalizeFetchResponse(handlerOrResponse);
+    });
+    activeMocks.add(mockFn);
+    state.active = true;
+    state.mockFn = mockFn;
+    globalThis.fetch = mockFn;
+    return mockFn;
+  }
+
+  function reset() {
+    if (state.mockFn) {
+      state.mockFn.mockClear();
+    }
+  }
+
+  function restore() {
+    state.active = false;
+    state.mockFn = null;
+    if (originalFetch) {
+      globalThis.fetch = originalFetch;
+    } else {
+      delete globalThis.fetch;
+    }
+  }
+
+  function normalizeFetchResponse(value) {
+    if (originalResponse && value instanceof originalResponse) {
+      return Promise.resolve(value);
+    }
+
+    if (isPlainObject(value) && (Object.prototype.hasOwnProperty.call(value, 'status') || Object.prototype.hasOwnProperty.call(value, 'body') || Object.prototype.hasOwnProperty.call(value, 'json'))) {
+      const body = Object.prototype.hasOwnProperty.call(value, 'json')
+        ? JSON.stringify(value.json)
+        : Object.prototype.hasOwnProperty.call(value, 'body')
+          ? value.body
+          : '';
+      const headers = {
+        ...(isPlainObject(value.headers) ? value.headers : {}),
+        ...(Object.prototype.hasOwnProperty.call(value, 'json') ? { 'content-type': 'application/json' } : {})
+      };
+      return Promise.resolve(new Response(body, {
+        status: value.status || 200,
+        headers
+      }));
+    }
+
+    return Promise.resolve(value);
+  }
+
+  return {
+    mockFetch,
+    reset,
+    restore
+  };
+}
+
+async function flushMicrotasks() {
+  await Promise.resolve();
+  await Promise.resolve();
+}
+
 function assertDomAvailable(apiName) {
   if (typeof document === 'undefined' || typeof Node === 'undefined') {
     throw new Error(`${apiName}(...) requires the jsdom test environment`);
@@ -469,6 +729,14 @@ function flattenChildren(children) {
 
 function normalizeText(value) {
   return String(value || '').replace(/\s+/g, ' ').trim();
+}
+
+function isPlainObject(value) {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
 }
 
 function resolveRole(node) {

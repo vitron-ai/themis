@@ -503,6 +503,15 @@ export interface FireEventApi {
 export type Render = (input: unknown, options?: { container?: HTMLElement }) => RenderResult;
 export type WaitFor = <T>(assertion: () => T | Promise<T>, options?: { timeout?: number; interval?: number }) => Promise<T>;
 export type Cleanup = () => void;
+export type FetchMock = MockFunction<any[], Promise<unknown>>;
+export type UseFakeTimers = () => void;
+export type UseRealTimers = () => void;
+export type AdvanceTimersByTime = (ms: number) => void;
+export type RunAllTimers = () => void;
+export type FlushMicrotasks = () => Promise<void>;
+export type MockFetch = (handlerOrResponse: unknown) => FetchMock;
+export type RestoreFetch = () => void;
+export type ResetFetchMocks = () => void;
 
 export type SuiteFn = () => void;
 export type TestFn = () => Awaitable<void>;
