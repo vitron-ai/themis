@@ -41,6 +41,8 @@ jobs:
         run: npm ci
 
       - name: Run test suite
+        env:
+          THEMIS_CI_DEBUG_OUTPUT: ci-failure.json
         run: npm test
 
   release-surface:
