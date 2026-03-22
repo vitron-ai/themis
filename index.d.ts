@@ -88,6 +88,172 @@ export interface ThemisConfig {
   tsconfigPath: string | null;
 }
 
+export interface GenerateOptions {
+  targetDir?: string;
+  outputDir?: string;
+  force?: boolean;
+  plan?: boolean;
+  review?: boolean;
+  update?: boolean;
+  clean?: boolean;
+  changed?: boolean;
+  files?: string[] | string;
+  scenario?: string | null;
+  minConfidence?: string | null;
+  matchSource?: string | null;
+  matchExport?: string | null;
+  include?: string | null;
+  exclude?: string | null;
+}
+
+export interface GenerateSkippedFile {
+  file: string;
+  reason: string;
+  stage: string;
+}
+
+export interface GenerateScenarioSummary {
+  kind: string;
+  confidence: string;
+  exports: string[];
+  caseCount: number;
+}
+
+export interface GenerateEntrySummary {
+  action: string;
+  sourceFile: string;
+  testFile: string | null;
+  moduleKind: string;
+  confidence: string;
+  exactExports: boolean;
+  exportNames: string[];
+  hintsFile: string | null;
+  sourceHash: string | null;
+  scenarios: GenerateScenarioSummary[];
+  reason: string | null;
+}
+
+export interface GenerateFilterSummary {
+  plan: boolean;
+  changed: boolean;
+  files: string[];
+  scenario: string | null;
+  minConfidence: string | null;
+  matchSource: string | null;
+  matchExport: string | null;
+  include: string | null;
+  exclude: string | null;
+}
+
+export interface GenerateArtifacts {
+  generateMap: string;
+  helperFile: string;
+  generateResult: string;
+  generateHandoff: string;
+}
+
+export interface GeneratePromptTarget {
+  action: string;
+  sourceFile: string;
+  testFile: string | null;
+  moduleKind: string;
+  confidence: string;
+  scenarios: string[];
+}
+
+export interface GeneratePromptReady {
+  summary: string;
+  targets: GeneratePromptTarget[];
+  nextActions: string[];
+  prompt: string;
+}
+
+export interface GeneratePayload {
+  schema: 'themis.generate.result.v1';
+  mode: {
+    review: boolean;
+    update: boolean;
+    clean: boolean;
+    changed: boolean;
+    plan: boolean;
+  };
+  source: {
+    targetDir: string;
+    outputDir: string;
+  };
+  filters: GenerateFilterSummary;
+  summary: {
+    scanned: number;
+    generated: number;
+    created: number;
+    updated: number;
+    unchanged: number;
+    removed: number;
+    skipped: number;
+    conflicts: number;
+  };
+  scannedFiles: string[];
+  generatedFiles: string[];
+  removedFiles: string[];
+  skippedFiles: GenerateSkippedFile[];
+  conflictFiles: string[];
+  entries: GenerateEntrySummary[];
+  artifacts: GenerateArtifacts;
+  promptReady: GeneratePromptReady;
+  hints: {
+    runTests: string;
+    plan: string;
+    review: string;
+    updateOnly: string;
+    clean: string;
+    changed: string;
+    fileTarget: string;
+  };
+}
+
+export interface GenerateHandoffPayload {
+  schema: 'themis.generate.handoff.v1';
+  source: {
+    targetDir: string;
+    outputDir: string;
+  };
+  filters: GenerateFilterSummary;
+  summary: GeneratePayload['summary'];
+  artifacts: {
+    generateMap: string;
+    generateResult: string;
+  };
+  targets: GeneratePromptTarget[];
+  nextActions: string[];
+  prompt: string;
+}
+
+export interface GenerateSummary {
+  targetDir: string;
+  outputDir: string;
+  helperFile: string;
+  mapFile: string;
+  scannedFiles: string[];
+  generatedFiles: string[];
+  removedFiles: string[];
+  skippedFiles: GenerateSkippedFile[];
+  createdFiles: string[];
+  updatedFiles: string[];
+  unchangedFiles: string[];
+  cleanedFiles: string[];
+  conflictFiles: string[];
+  entries: GenerateEntrySummary[];
+  plan: boolean;
+  review: boolean;
+  update: boolean;
+  clean: boolean;
+  changed: boolean;
+  filters: GenerateFilterSummary;
+  artifacts: GenerateArtifacts;
+  prompt: string;
+  helperRemoved: boolean;
+}
+
 export function main(argv: string[]): Promise<void>;
 export function collectAndRun(filePath: string, options?: Omit<RunOptions, 'maxWorkers'>): Promise<FileResult>;
 export function runTests(files: string[], options?: RunOptions): Promise<RunResult>;
@@ -95,6 +261,13 @@ export function discoverTests(cwd: string, config: ThemisConfig): string[];
 export function loadConfig(cwd: string): ThemisConfig;
 export function initConfig(cwd: string): void;
 export const DEFAULT_CONFIG: ThemisConfig;
+export function generateTestsFromSource(cwd: string, options?: GenerateOptions): GenerateSummary;
+export function buildGeneratePayload(summary: GenerateSummary, cwd?: string): GeneratePayload;
+export function buildGenerateHandoff(payload: GeneratePayload): GenerateHandoffPayload;
+export function writeGenerateArtifacts(summary: GenerateSummary, cwd?: string): {
+  payload: GeneratePayload;
+  handoff: GenerateHandoffPayload;
+};
 
 export interface MockResult {
   type: 'return' | 'throw';

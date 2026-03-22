@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/vitron-ai/themis/docs/schemas/generate-map.v1.json",
+  "title": "Themis Generate Map v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "generatedAt", "targetDir", "outputDir", "entries"],
+  "properties": {
+    "schema": {
+      "type": "string",
+      "const": "themis.generate.map.v1"
+    },
+    "generatedAt": {
+      "type": "string"
+    },
+    "targetDir": {
+      "type": "string"
+    },
+    "outputDir": {
+      "type": "string"
+    },
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "sourceFile",
+          "sourceHash",
+          "testFile",
+          "moduleKind",
+          "confidence",
+          "exactExports",
+          "exportNames",
+          "hintsFile",
+          "scenarios"
+        ],
+        "properties": {
+          "sourceFile": {
+            "type": "string"
+          },
+          "sourceHash": {
+            "type": "string"
+          },
+          "testFile": {
+            "type": "string"
+          },
+          "moduleKind": {
+            "type": "string"
+          },
+          "confidence": {
+            "type": "string"
+          },
+          "exactExports": {
+            "type": "boolean"
+          },
+          "exportNames": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "hintsFile": {
+            "type": ["string", "null"]
+          },
+          "scenarios": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["kind", "confidence", "exports", "caseCount"],
+              "properties": {
+                "kind": {
+                  "type": "string"
+                },
+                "confidence": {
+                  "type": "string"
+                },
+                "exports": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "caseCount": {
+                  "type": "number"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

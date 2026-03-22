@@ -18,6 +18,7 @@ It is built to be the best test loop for agent workflows: deterministic reruns, 
 ## Contents
 
 - [Quickstart](#quickstart)
+- [Code Scan](#code-scan)
 - [Positioning](#positioning)
 - [Modern JS/TS Support](#modern-jsts-support)
 - [Commands](#commands)
@@ -66,6 +67,7 @@ Themis is built for modern Node.js and TypeScript projects:
 ```bash
 npm install -D @vitronai/themis
 npx themis init
+npx themis generate src
 npx themis test
 ```
 
@@ -87,6 +89,44 @@ Stay in a local rerun loop while editing:
 npx themis test --watch --reporter next
 ```
 
+## Code Scan
+
+Themis can scan your JS/TS source tree and generate deterministic unit-layer tests for exported modules, React components, React hooks, route handlers, and Node services:
+
+```bash
+npx themis generate src
+npx themis test
+```
+
+Generated files land under `tests/generated` by default. Each generated test:
+
+- checks the scanned export names when Themis can resolve them exactly
+- snapshots a normalized runtime contract for the module surface
+- adds scenario adapters for React components/hooks, route handlers, and service functions when Themis can infer or read useful inputs
+- fails with a regeneration hint when the source drifts after the scan
+
+Themis also supports per-file generation hints with sidecars like `src/components/Button.themis.json` so humans and agents can provide props, args, route requests, and route context.
+
+Use these flags to control the generation loop:
+
+- `--json`: machine-readable payload for agents, including prompt-ready next steps
+- `--plan`: alias for `--review --json` with persisted handoff artifacts
+- `--review`: dry-run create/update/remove decisions without writing files
+- `--update`: refresh existing generated files only
+- `--clean`: remove generated files for the selected scope
+- `--changed`: target changed files in a git worktree
+- `--scenario`: limit generation to one adapter family such as `react-hook` or `route-handler`
+- `--min-confidence`: keep only entries at or above a confidence threshold
+- `--files`, `--match-source`, `--match-export`, `--include`, `--exclude`: narrow the scan scope
+- `--force`: replace a conflicting non-Themis file
+- `--output <dir>`: change the generated test directory
+
+Every generation run also writes:
+
+- `.themis/generate-map.json`: source-to-generated-test mapping plus scenario/confidence metadata
+- `.themis/generate-last.json`: the full machine-readable generate payload
+- `.themis/generate-handoff.json`: a compact agent handoff artifact with prompt-ready next actions
+
 ## Why Themis
 
 See [`docs/why-themis.md`](docs/why-themis.md) for positioning, differentiators, and community messaging.
@@ -98,6 +138,9 @@ See [`docs/why-themis.md`](docs/why-themis.md) for positioning, differentiators,
 - Publish guide: [`docs/publish.md`](docs/publish.md)
 - VS Code extension notes: [`docs/vscode-extension.md`](docs/vscode-extension.md)
 - Agent result schema: [`docs/schemas/agent-result.v1.json`](docs/schemas/agent-result.v1.json)
+- Generate result schema: [`docs/schemas/generate-result.v1.json`](docs/schemas/generate-result.v1.json)
+- Generate map schema: [`docs/schemas/generate-map.v1.json`](docs/schemas/generate-map.v1.json)
+- Generate handoff schema: [`docs/schemas/generate-handoff.v1.json`](docs/schemas/generate-handoff.v1.json)
 - Failures artifact schema: [`docs/schemas/failures.v1.json`](docs/schemas/failures.v1.json)
 - Changelog: [`CHANGELOG.md`](CHANGELOG.md)
 - Contributing: [`CONTRIBUTING.md`](CONTRIBUTING.md)
@@ -106,6 +149,18 @@ See [`docs/why-themis.md`](docs/why-themis.md) for positioning, differentiators,
 ## Commands
 
 - `npx themis init`: creates `themis.config.json` and a sample test.
+- `npx themis generate src`: scans source files and generates contract tests under `tests/generated`.
+- `npx themis generate src --json`: emits a machine-readable generation payload for agents and automation.
+- `npx themis generate src --plan`: emits a planning payload and handoff artifact without writing generated tests.
+- `npx themis generate src --review --json`: previews create/update/remove decisions without writing files.
+- `npx themis generate src --update`: refreshes existing generated tests only.
+- `npx themis generate src --clean`: removes generated tests for the selected scope.
+- `npx themis generate src --changed`: regenerates against changed files in the current git worktree.
+- `npx themis generate src --scenario react-hook --min-confidence high`: targets one adapter family at a confidence threshold.
+- `npx themis generate src --files src/routes/ping.ts`: targets one or more explicit source files.
+- `npx themis generate src --match-source "routes/" --match-export "GET|POST"`: narrows generation by source path and exported symbol.
+- `npx themis generate src --output tests/contracts`: writes generated tests to a custom directory.
+- `npx themis generate src --force`: replaces conflicting files in the target output directory.
 - `npx themis test`: discovers and runs tests.
 - `npx themis test --next`: next-gen console output mode.
 - `npx themis test --json`: emits JSON result payload.

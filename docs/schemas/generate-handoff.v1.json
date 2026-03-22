@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/vitron-ai/themis/docs/schemas/generate-handoff.v1.json",
+  "title": "Themis Generate Handoff v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "source", "filters", "summary", "artifacts", "targets", "nextActions", "prompt"],
+  "properties": {
+    "schema": {
+      "type": "string",
+      "const": "themis.generate.handoff.v1"
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["targetDir", "outputDir"],
+      "properties": {
+        "targetDir": { "type": "string" },
+        "outputDir": { "type": "string" }
+      }
+    },
+    "filters": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["plan", "changed", "files", "scenario", "minConfidence", "matchSource", "matchExport", "include", "exclude"],
+      "properties": {
+        "plan": { "type": "boolean" },
+        "changed": { "type": "boolean" },
+        "files": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "scenario": { "type": ["string", "null"] },
+        "minConfidence": { "type": ["string", "null"] },
+        "matchSource": { "type": ["string", "null"] },
+        "matchExport": { "type": ["string", "null"] },
+        "include": { "type": ["string", "null"] },
+        "exclude": { "type": ["string", "null"] }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["scanned", "generated", "created", "updated", "unchanged", "removed", "skipped", "conflicts"],
+      "properties": {
+        "scanned": { "type": "number" },
+        "generated": { "type": "number" },
+        "created": { "type": "number" },
+        "updated": { "type": "number" },
+        "unchanged": { "type": "number" },
+        "removed": { "type": "number" },
+        "skipped": { "type": "number" },
+        "conflicts": { "type": "number" }
+      }
+    },
+    "artifacts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["generateMap", "generateResult"],
+      "properties": {
+        "generateMap": { "type": "string" },
+        "generateResult": { "type": "string" }
+      }
+    },
+    "targets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["action", "sourceFile", "testFile", "moduleKind", "confidence", "scenarios"],
+        "properties": {
+          "action": { "type": "string" },
+          "sourceFile": { "type": "string" },
+          "testFile": { "type": ["string", "null"] },
+          "moduleKind": { "type": "string" },
+          "confidence": { "type": "string" },
+          "scenarios": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      }
+    },
+    "nextActions": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "prompt": {
+      "type": "string"
+    }
+  }
+}

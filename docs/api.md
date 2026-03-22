@@ -9,6 +9,7 @@ This document defines the public API surface for Themis `0.1.0-beta.0`.
 ```bash
 themis test [options]
 themis init
+themis generate [path]
 ```
 
 ## `themis init`
@@ -17,6 +18,52 @@ Creates:
 
 - `themis.config.json` with default settings
 - `tests/example.test.js` sample test (if missing)
+
+## `themis generate`
+
+Scans a source directory and writes generated Themis unit-layer tests.
+
+Default behavior:
+
+- input directory: `src`
+- output directory: `tests/generated`
+- generated files mirror the scanned source tree with `*.generated.test.js`
+- generated tests snapshot normalized runtime export contracts
+- scenario adapters cover React components, React hooks, route handlers, and Node service functions when inputs can be inferred or hinted
+- `.themis/generate-map.json` records source-to-generated-test mappings plus scenario metadata
+- `.themis/generate-last.json` stores the full machine-readable generate payload
+- `.themis/generate-handoff.json` stores a compact prompt-ready handoff payload for agents
+
+## `themis generate` options
+
+| Option | Type | Description |
+| --- | --- | --- |
+| `--json` | flag | Print a machine-readable generation payload (`themis.generate.result.v1`). |
+| `--plan` | flag | Alias for `--review --json`, plus persisted handoff artifacts for agent loops. |
+| `--review` | flag | Preview create/update/remove decisions without writing files. |
+| `--update` | flag | Refresh existing generated files only. |
+| `--clean` | flag | Remove generated files for the selected scope. |
+| `--changed` | flag | Limit selection to changed files in the current git worktree. |
+| `--files <paths>` | string | Comma-separated list of explicit source files to generate for. |
+| `--scenario <name>` | string | Limit generation to one adapter family. |
+| `--min-confidence <level>` | string | Keep only entries at or above `low`, `medium`, or `high`. |
+| `--match-source <regex>` | string | Filter candidate source files by relative path regex. |
+| `--match-export <regex>` | string | Filter candidate source files by exported symbol regex. |
+| `--include <regex>` | string | Include only source files whose relative path matches regex. |
+| `--exclude <regex>` | string | Exclude source files whose relative path matches regex. |
+| `--output <path>` | string | Output directory for generated tests (default: `tests/generated`). |
+| `--force` | flag | Replace conflicting files that were not created by a prior Themis scan. |
+
+Per-file hint sidecars are supported via `<source>.themis.json`. These can provide:
+
+- `componentProps`
+- `hookArgs`
+- `serviceArgs`
+- `routeRequests`
+- `routeContext`
+- `includeExports`
+- `excludeExports`
+- `scenarios`
 
 ## `themis test` options
 
@@ -56,6 +103,9 @@ Each run writes to `.themis/`:
 Formal schemas:
 
 - `docs/schemas/agent-result.v1.json`
+- `docs/schemas/generate-result.v1.json`
+- `docs/schemas/generate-map.v1.json`
+- `docs/schemas/generate-handoff.v1.json`
 - `docs/schemas/failures.v1.json`
 
 Human-facing artifact:
@@ -127,6 +177,42 @@ Options:
 ## `discoverTests(cwd, config): string[]`
 
 Discovers test files from config.
+
+## `generateTestsFromSource(cwd, options?): GenerateSummary`
+
+Scans exported source modules and writes deterministic generated tests plus mapping artifacts.
+
+Options:
+
+- `targetDir?: string`
+- `outputDir?: string`
+- `force?: boolean`
+- `plan?: boolean`
+- `review?: boolean`
+- `update?: boolean`
+- `clean?: boolean`
+- `changed?: boolean`
+- `files?: string[] | string`
+- `scenario?: string | null`
+- `minConfidence?: string | null`
+- `matchSource?: string | null`
+- `matchExport?: string | null`
+- `include?: string | null`
+- `exclude?: string | null`
+
+Returns absolute paths for scanned files, selected generated files, removed stale generated files, skipped files, detailed per-entry actions, prompt text, and artifact locations.
+
+## `buildGeneratePayload(summary, cwd?): GeneratePayload`
+
+Converts a `GenerateSummary` into the same machine-readable payload emitted by `themis generate --json`.
+
+## `buildGenerateHandoff(payload): GenerateHandoffPayload`
+
+Builds the compact handoff payload persisted at `.themis/generate-handoff.json`.
+
+## `writeGenerateArtifacts(summary, cwd?): { payload, handoff }`
+
+Writes `.themis/generate-last.json` and `.themis/generate-handoff.json` for a generate run and returns both payloads.
 
 ## `loadConfig(cwd): ThemisConfig`
 

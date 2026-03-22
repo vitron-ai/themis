@@ -1,0 +1,227 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/vitron-ai/themis/docs/schemas/generate-result.v1.json",
+  "title": "Themis Generate Result v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "mode",
+    "source",
+    "filters",
+    "summary",
+    "scannedFiles",
+    "generatedFiles",
+    "removedFiles",
+    "skippedFiles",
+    "conflictFiles",
+    "entries",
+    "artifacts",
+    "promptReady",
+    "hints"
+  ],
+  "properties": {
+    "schema": {
+      "type": "string",
+      "const": "themis.generate.result.v1"
+    },
+    "mode": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["review", "update", "clean", "changed", "plan"],
+      "properties": {
+        "review": { "type": "boolean" },
+        "update": { "type": "boolean" },
+        "clean": { "type": "boolean" },
+        "changed": { "type": "boolean" },
+        "plan": { "type": "boolean" }
+      }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["targetDir", "outputDir"],
+      "properties": {
+        "targetDir": { "type": "string" },
+        "outputDir": { "type": "string" }
+      }
+    },
+    "filters": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["plan", "changed", "files", "scenario", "minConfidence", "matchSource", "matchExport", "include", "exclude"],
+      "properties": {
+        "plan": { "type": "boolean" },
+        "changed": { "type": "boolean" },
+        "files": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "scenario": { "type": ["string", "null"] },
+        "minConfidence": { "type": ["string", "null"] },
+        "matchSource": { "type": ["string", "null"] },
+        "matchExport": { "type": ["string", "null"] },
+        "include": { "type": ["string", "null"] },
+        "exclude": { "type": ["string", "null"] }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["scanned", "generated", "created", "updated", "unchanged", "removed", "skipped", "conflicts"],
+      "properties": {
+        "scanned": { "type": "number" },
+        "generated": { "type": "number" },
+        "created": { "type": "number" },
+        "updated": { "type": "number" },
+        "unchanged": { "type": "number" },
+        "removed": { "type": "number" },
+        "skipped": { "type": "number" },
+        "conflicts": { "type": "number" }
+      }
+    },
+    "scannedFiles": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "generatedFiles": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "removedFiles": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "skippedFiles": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["file", "reason", "stage"],
+        "properties": {
+          "file": { "type": "string" },
+          "reason": { "type": "string" },
+          "stage": { "type": "string" }
+        }
+      }
+    },
+    "conflictFiles": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "entries": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/generateEntry" }
+    },
+    "artifacts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["generateMap", "helperFile", "generateResult", "generateHandoff"],
+      "properties": {
+        "generateMap": { "type": "string" },
+        "helperFile": { "type": "string" },
+        "generateResult": { "type": "string" },
+        "generateHandoff": { "type": "string" }
+      }
+    },
+    "promptReady": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["summary", "targets", "nextActions", "prompt"],
+      "properties": {
+        "summary": { "type": "string" },
+        "targets": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/promptTarget" }
+        },
+        "nextActions": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "prompt": { "type": "string" }
+      }
+    },
+    "hints": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["runTests", "plan", "review", "updateOnly", "clean", "changed", "fileTarget"],
+      "properties": {
+        "runTests": { "type": "string" },
+        "plan": { "type": "string" },
+        "review": { "type": "string" },
+        "updateOnly": { "type": "string" },
+        "clean": { "type": "string" },
+        "changed": { "type": "string" },
+        "fileTarget": { "type": "string" }
+      }
+    }
+  },
+  "$defs": {
+    "generateEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "action",
+        "sourceFile",
+        "testFile",
+        "moduleKind",
+        "confidence",
+        "exactExports",
+        "exportNames",
+        "hintsFile",
+        "sourceHash",
+        "scenarios",
+        "reason"
+      ],
+      "properties": {
+        "action": { "type": "string" },
+        "sourceFile": { "type": "string" },
+        "testFile": { "type": ["string", "null"] },
+        "moduleKind": { "type": "string" },
+        "confidence": { "type": "string" },
+        "exactExports": { "type": "boolean" },
+        "exportNames": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "hintsFile": { "type": ["string", "null"] },
+        "sourceHash": { "type": ["string", "null"] },
+        "scenarios": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/scenarioSummary" }
+        },
+        "reason": { "type": ["string", "null"] }
+      }
+    },
+    "scenarioSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "confidence", "exports", "caseCount"],
+      "properties": {
+        "kind": { "type": "string" },
+        "confidence": { "type": "string" },
+        "exports": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "caseCount": { "type": "number" }
+      }
+    },
+    "promptTarget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["action", "sourceFile", "testFile", "moduleKind", "confidence", "scenarios"],
+      "properties": {
+        "action": { "type": "string" },
+        "sourceFile": { "type": "string" },
+        "testFile": { "type": ["string", "null"] },
+        "moduleKind": { "type": "string" },
+        "confidence": { "type": "string" },
+        "scenarios": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    }
+  }
+}

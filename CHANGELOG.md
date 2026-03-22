@@ -6,6 +6,7 @@ All notable changes to this project are documented in this file.
 
 ### Changed
 
+- Added a first-party `themis generate` / `themis scan` code-scan flow that generates deterministic contract tests for exported modules, React components, hooks, route handlers, and Node services; emits richer machine-readable `--json` results for agents; writes `.themis/generate-map.json`, `.themis/generate-last.json`, and `.themis/generate-handoff.json`; supports hint sidecars, targeted regeneration, planning mode, scenario/confidence steering, and review/update/clean workflows; and fails generated tests with direct regeneration guidance when scanned sources drift.
 - Moved the package line from alpha to beta and defined beta compatibility expectations for CLI, artifacts, and the JS/TS package surface.
 - Tightened npm/package positioning around Themis as an intent-first unit test framework for AI agents in Node.js and TypeScript.
 - Updated publish-facing docs to consistently frame Themis as an AI verdict engine for human and agent review loops.

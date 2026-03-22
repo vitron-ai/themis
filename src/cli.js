@@ -1,8 +1,10 @@
+const path = require('path');
 const { loadConfig } = require('./config');
 const { discoverTests } = require('./discovery');
 const { runTests } = require('./runner');
 const { printSpec, printJson, printAgent, printNext, writeHtmlReport } = require('./reporter');
 const { runInit } = require('./init');
+const { generateTestsFromSource, writeGenerateArtifacts } = require('./generate');
 const { writeRunArtifacts, readFailedTestsArtifact } = require('./artifacts');
 const { buildStabilityReport, hasStabilityBreaches } = require('./stability');
 const { verdictReveal } = require('./verdict');
@@ -19,6 +21,37 @@ async function main(argv) {
   if (command === 'init') {
     runInit(cwd);
     console.log('Themis initialized. Run: npx themis test');
+    return;
+  }
+
+  if (command === 'generate' || command === 'scan') {
+    const flags = parseGenerateFlags(argv.slice(1));
+    if (!flags.json) {
+      printBanner('next');
+    }
+    const summary = generateTestsFromSource(cwd, {
+      targetDir: flags.targetDir || 'src',
+      outputDir: flags.outputDir,
+      force: Boolean(flags.force),
+      review: Boolean(flags.review),
+      update: Boolean(flags.update),
+      clean: Boolean(flags.clean),
+      changed: Boolean(flags.changed),
+      plan: Boolean(flags.plan),
+      scenario: flags.scenario || null,
+      minConfidence: flags.minConfidence || null,
+      files: flags.files || null,
+      matchSource: flags.matchSource || null,
+      matchExport: flags.matchExport || null,
+      include: flags.include || null,
+      exclude: flags.exclude || null
+    });
+    const { payload } = writeGenerateArtifacts(summary, cwd);
+    if (flags.json) {
+      console.log(JSON.stringify(payload));
+      return;
+    }
+    printGenerateSummary(summary, cwd);
     return;
   }
 
@@ -242,6 +275,96 @@ function parseFlags(args) {
   return flags;
 }
 
+function parseGenerateFlags(args) {
+  const flags = {};
+
+  for (let i = 0; i < args.length; i += 1) {
+    const token = args[i];
+    if (token === '--json') {
+      flags.json = true;
+      continue;
+    }
+    if (token === '--plan') {
+      flags.plan = true;
+      flags.review = true;
+      flags.json = true;
+      continue;
+    }
+    if (token === '--output') {
+      flags.outputDir = requireFlagValue(args, i, '--output');
+      i += 1;
+      continue;
+    }
+    if (token === '--files') {
+      flags.files = requireFlagValue(args, i, '--files');
+      i += 1;
+      continue;
+    }
+    if (token === '--match-source') {
+      flags.matchSource = requireFlagValue(args, i, '--match-source');
+      i += 1;
+      continue;
+    }
+    if (token === '--match-export') {
+      flags.matchExport = requireFlagValue(args, i, '--match-export');
+      i += 1;
+      continue;
+    }
+    if (token === '--scenario') {
+      flags.scenario = requireFlagValue(args, i, '--scenario');
+      i += 1;
+      continue;
+    }
+    if (token === '--min-confidence') {
+      flags.minConfidence = requireFlagValue(args, i, '--min-confidence');
+      i += 1;
+      continue;
+    }
+    if (token === '--include') {
+      flags.include = requireFlagValue(args, i, '--include');
+      i += 1;
+      continue;
+    }
+    if (token === '--exclude') {
+      flags.exclude = requireFlagValue(args, i, '--exclude');
+      i += 1;
+      continue;
+    }
+    if (token === '--force') {
+      flags.force = true;
+      continue;
+    }
+    if (token === '--review') {
+      flags.review = true;
+      continue;
+    }
+    if (token === '--update') {
+      flags.update = true;
+      continue;
+    }
+    if (token === '--clean') {
+      flags.clean = true;
+      continue;
+    }
+    if (token === '--changed') {
+      flags.changed = true;
+      continue;
+    }
+    if (token.startsWith('--')) {
+      throw new Error(
+        'Unsupported generate option: ' + token +
+        '. Use --json, --plan, --output <dir>, --files <paths>, --match-source <regex>, --match-export <regex>, --scenario <name>, --min-confidence <level>, --include <regex>, --exclude <regex>, --force, --review, --update, --clean, or --changed.'
+      );
+    }
+    if (flags.targetDir) {
+      throw new Error(`Unexpected extra argument: ${token}`);
+    }
+    flags.targetDir = token;
+  }
+
+  return flags;
+}
+
 function validateRegex(pattern) {
   try {
     new RegExp(pattern);
@@ -326,7 +449,106 @@ function printUsage() {
   console.log('Usage: themis <command> [options]');
   console.log('Commands:');
   console.log('  init                    Create themis.config.json and sample tests');
+  console.log('  generate [path]         Scan source files and generate Themis contract tests');
+  console.log('                         Options: [--json] [--plan] [--output path] [--files a,b] [--match-source regex] [--match-export regex] [--scenario name] [--min-confidence level] [--include regex] [--exclude regex] [--review] [--update] [--clean] [--changed] [--force]');
+  console.log('  scan [path]             Alias for generate');
   console.log('  test [--json] [--agent] [--next] [--reporter spec|next|json|agent|html] [--workers N] [--stability N] [--environment node|jsdom] [-w|--watch] [-u|--update-snapshots] [--html-output path] [--match regex] [--rerun-failed] [--no-memes] [--lexicon classic|themis]');
+}
+
+function printGenerateSummary(summary, cwd) {
+  const target = formatCliPath(cwd, summary.targetDir);
+  const output = formatCliPath(cwd, summary.outputDir);
+  console.log('THEMIS CODE SCAN COMPLETE');
+  console.log(`  target: ${target}`);
+  console.log(`  output: ${output}`);
+  console.log(`  scanned: ${summary.scannedFiles.length}`);
+  console.log(`  generated: ${summary.generatedFiles.length}`);
+  console.log(`  created: ${summary.createdFiles.length}`);
+  console.log(`  updated: ${summary.updatedFiles.length}`);
+  console.log(`  unchanged: ${summary.unchangedFiles.length}`);
+  console.log(`  removed: ${summary.removedFiles.length}`);
+  console.log(`  skipped: ${summary.skippedFiles.length}`);
+  console.log(`  conflicts: ${summary.conflictFiles.length}`);
+
+  if (summary.plan || summary.review || summary.update || summary.clean || summary.changed) {
+    console.log('');
+    console.log('Mode');
+    console.log(`  plan: ${summary.plan ? 'yes' : 'no'}`);
+    console.log(`  review: ${summary.review ? 'yes' : 'no'}`);
+    console.log(`  update: ${summary.update ? 'yes' : 'no'}`);
+    console.log(`  clean: ${summary.clean ? 'yes' : 'no'}`);
+    console.log(`  changed: ${summary.changed ? 'yes' : 'no'}`);
+  }
+
+  if (summary.filters.scenario || summary.filters.minConfidence) {
+    console.log('');
+    console.log('Steering');
+    console.log(`  scenario: ${summary.filters.scenario || '(any)'}`);
+    console.log(`  min-confidence: ${summary.filters.minConfidence || '(any)'}`);
+  }
+
+  if (summary.generatedFiles.length > 0) {
+    console.log('');
+    console.log('Selected Generated Files');
+    for (const file of summary.generatedFiles.slice(0, 10)) {
+      console.log(`  ${formatCliPath(cwd, file)}`);
+    }
+    if (summary.generatedFiles.length > 10) {
+      console.log(`  ... ${summary.generatedFiles.length - 10} more`);
+    }
+  }
+
+  if (summary.removedFiles.length > 0) {
+    console.log('');
+    console.log('Removed Files');
+    for (const file of summary.removedFiles.slice(0, 10)) {
+      console.log(`  ${formatCliPath(cwd, file)}`);
+    }
+    if (summary.removedFiles.length > 10) {
+      console.log(`  ... ${summary.removedFiles.length - 10} more`);
+    }
+  }
+
+  if (summary.skippedFiles.length > 0) {
+    console.log('');
+    console.log('Skipped Files');
+    for (const entry of summary.skippedFiles.slice(0, 5)) {
+      console.log(`  ${formatCliPath(cwd, entry.file)} (${entry.reason})`);
+    }
+    if (summary.skippedFiles.length > 5) {
+      console.log(`  ... ${summary.skippedFiles.length - 5} more`);
+    }
+  }
+
+  if (summary.conflictFiles.length > 0) {
+    console.log('');
+    console.log('Conflicting Files');
+    for (const file of summary.conflictFiles.slice(0, 5)) {
+      console.log(`  ${formatCliPath(cwd, file)}`);
+    }
+    if (summary.conflictFiles.length > 5) {
+      console.log(`  ... ${summary.conflictFiles.length - 5} more`);
+    }
+  }
+
+  console.log('');
+  console.log('Prompt');
+  console.log(`  ${summary.prompt}`);
+
+  console.log('');
+  console.log('Artifacts');
+  console.log(`  ${formatCliPath(cwd, summary.artifacts.generateResult)}`);
+  console.log(`  ${formatCliPath(cwd, summary.artifacts.generateHandoff)}`);
+  console.log(`  ${formatCliPath(cwd, summary.artifacts.generateMap)}`);
+
+  console.log('');
+  console.log('Next Step');
+  console.log(`  Run: ${summary.review ? 'npx themis generate ' + target + ' && npx themis test' : 'npx themis test'}`);
+}
+
+function formatCliPath(cwd, targetPath) {
+  const relative = path.relative(cwd, targetPath);
+  return relative && !relative.startsWith('..') ? relative.split(path.sep).join('/') : targetPath;
 }
 
 function printBanner(reporter) {

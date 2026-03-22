@@ -1,11 +1,16 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const { spawnSync } = require('child_process');
 const { printAgent } = require('../src/reporter');
 const { writeRunArtifacts } = require('../src/artifacts');
 
 const AGENT_SCHEMA_PATH = path.join(__dirname, '..', 'docs', 'schemas', 'agent-result.v1.json');
 const FAILURES_SCHEMA_PATH = path.join(__dirname, '..', 'docs', 'schemas', 'failures.v1.json');
+const GENERATE_SCHEMA_PATH = path.join(__dirname, '..', 'docs', 'schemas', 'generate-result.v1.json');
+const GENERATE_MAP_SCHEMA_PATH = path.join(__dirname, '..', 'docs', 'schemas', 'generate-map.v1.json');
+const GENERATE_HANDOFF_SCHEMA_PATH = path.join(__dirname, '..', 'docs', 'schemas', 'generate-handoff.v1.json');
+const CLI_PATH = path.join(__dirname, '..', 'bin', 'themis.js');
 
 describe('schema contracts', () => {
   function loadSchema(schemaPath) {
@@ -43,6 +48,19 @@ describe('schema contracts', () => {
 
   function assertMatchesSchema(value, schema, rootSchema, atPath = '$') {
     const workingSchema = schema.$ref ? resolveRef(rootSchema, schema.$ref) : schema;
+
+    if (Array.isArray(workingSchema.type)) {
+      let lastError = null;
+      for (const candidateType of workingSchema.type) {
+        try {
+          assertMatchesSchema(value, { ...workingSchema, type: candidateType }, rootSchema, atPath);
+          return;
+        } catch (error) {
+          lastError = error;
+        }
+      }
+      throw lastError || new Error(`Unsupported schema union at ${atPath}`);
+    }
 
     if (workingSchema.const !== undefined) {
       expect(value).toBe(workingSchema.const);
@@ -96,6 +114,16 @@ describe('schema contracts', () => {
 
     if (workingSchema.type === 'number') {
       expect(typeof value).toBe('number');
+      return;
+    }
+
+    if (workingSchema.type === 'boolean') {
+      expect(typeof value).toBe('boolean');
+      return;
+    }
+
+    if (workingSchema.type === 'null') {
+      expect(value).toBe(null);
       return;
     }
 
@@ -200,6 +228,99 @@ describe('schema contracts', () => {
       const payload = JSON.parse(fs.readFileSync(failuresPath, 'utf8'));
       assertMatchesSchema(payload, schema, schema);
       expect(typeof payload.runId).toBe('string');
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  test('generate --json output matches docs schema contract', () => {
+    const schema = loadSchema(GENERATE_SCHEMA_PATH);
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'themis-generate-schema-'));
+
+    try {
+      fs.mkdirSync(path.join(tempDir, 'src'), { recursive: true });
+      fs.writeFileSync(
+        path.join(tempDir, 'src', 'math.js'),
+        `module.exports = {\n  add(a, b) {\n    return a + b;\n  }\n};\n`,
+        'utf8'
+      );
+
+      const proc = spawnSync(process.execPath, [CLI_PATH, 'generate', 'src', '--json'], {
+        cwd: tempDir,
+        encoding: 'utf8',
+        env: {
+          ...process.env,
+          NO_COLOR: '1'
+        }
+      });
+
+      expect(proc.status).toBe(0);
+      const payload = JSON.parse(proc.stdout);
+      assertMatchesSchema(payload, schema, schema);
+      expect(payload.summary.generated).toBe(1);
+      expect(payload.generatedFiles[0]).toBe('tests/generated/math.generated.test.js');
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  test('generate map artifact matches docs schema contract', () => {
+    const schema = loadSchema(GENERATE_MAP_SCHEMA_PATH);
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'themis-generate-map-schema-'));
+
+    try {
+      fs.mkdirSync(path.join(tempDir, 'src'), { recursive: true });
+      fs.writeFileSync(
+        path.join(tempDir, 'src', 'math.js'),
+        `module.exports = {\n  add(a, b) {\n    return a + b;\n  }\n};\n`,
+        'utf8'
+      );
+
+      const proc = spawnSync(process.execPath, [CLI_PATH, 'generate', 'src', '--json'], {
+        cwd: tempDir,
+        encoding: 'utf8',
+        env: {
+          ...process.env,
+          NO_COLOR: '1'
+        }
+      });
+
+      expect(proc.status).toBe(0);
+      const mapPayload = JSON.parse(fs.readFileSync(path.join(tempDir, '.themis', 'generate-map.json'), 'utf8'));
+      assertMatchesSchema(mapPayload, schema, schema);
+      expect(mapPayload.entries[0].sourceFile).toBe('src/math.js');
+      expect(mapPayload.entries[0].testFile).toBe('tests/generated/math.generated.test.js');
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  test('generate handoff artifact matches docs schema contract', () => {
+    const schema = loadSchema(GENERATE_HANDOFF_SCHEMA_PATH);
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'themis-generate-handoff-schema-'));
+
+    try {
+      fs.mkdirSync(path.join(tempDir, 'src'), { recursive: true });
+      fs.writeFileSync(
+        path.join(tempDir, 'src', 'math.js'),
+        `module.exports = {\n  add(a, b) {\n    return a + b;\n  }\n};\n`,
+        'utf8'
+      );
+
+      const proc = spawnSync(process.execPath, [CLI_PATH, 'generate', 'src', '--plan'], {
+        cwd: tempDir,
+        encoding: 'utf8',
+        env: {
+          ...process.env,
+          NO_COLOR: '1'
+        }
+      });
+
+      expect(proc.status).toBe(0);
+      const handoffPayload = JSON.parse(fs.readFileSync(path.join(tempDir, '.themis', 'generate-handoff.json'), 'utf8'));
+      assertMatchesSchema(handoffPayload, schema, schema);
+      expect(handoffPayload.schema).toBe('themis.generate.handoff.v1');
+      expect(handoffPayload.targets[0].sourceFile).toBe('src/math.js');
     } finally {
       fs.rmSync(tempDir, { recursive: true, force: true });
     }
