@@ -97,4 +97,41 @@ describe('test utilities', () => {
       }
     );
   });
+
+  test('renders react-like elements and supports screen queries plus events in jsdom', async () => {
+    await withProjectFixture(
+      {
+        'tsconfig.json': `{\n  "compilerOptions": {\n    "target": "ES2020",\n    "module": "CommonJS",\n    "jsx": "react-jsx"\n  }\n}\n`,
+        'node_modules/react/index.js': `const Fragment = Symbol.for('react.fragment');\nmodule.exports = { Fragment };\n`,
+        'node_modules/react/jsx-runtime.js': `const Fragment = Symbol.for('react.fragment');\nfunction jsx(type, props, key) { return { $$typeof: 'react.test.element', type, key: key || null, props: props || {} }; }\nconst jsxs = jsx;\nmodule.exports = { Fragment, jsx, jsxs };\n`,
+        'tests/fixture.test.tsx': `const state = { count: 0 };\n\nfunction Counter() {\n  return <button onClick={() => { state.count += 1; }}>{'Count ' + state.count}</button>;\n}\n\ntest('dom primitives', async () => {\n  const view = render(<Counter />);\n  const button = screen.getByRole('button', { name: 'Count 0' });\n  expect(button).toBeInTheDocument();\n  expect(button).toHaveTextContent('Count 0');\n\n  fireEvent.click(button);\n  view.rerender(<Counter />);\n\n  await waitFor(() => {\n    expect(screen.getByText('Count 1')).toBeInTheDocument();\n  });\n\n  cleanup();\n  expect(screen.queryByText('Count 1')).toBe(null);\n});\n`
+      },
+      async ({ tempDir, resolvePath }) => {
+        const result = await collectAndRun(resolvePath('tests', 'fixture.test.tsx'), {
+          cwd: tempDir,
+          environment: 'jsdom',
+          tsconfigPath: 'tsconfig.json'
+        });
+
+        expect(result.tests).toHaveLength(1);
+        expect(result.tests[0].status).toBe('passed');
+      }
+    );
+  });
+
+  test('supports label queries, input events, and attribute matchers', async () => {
+    await withProjectFixture(
+      {
+        'tests/fixture.test.js': `test('form primitives', () => {\n  const view = render([\n    (() => {\n      const label = document.createElement('label');\n      label.textContent = 'Email';\n      label.setAttribute('for', 'email');\n      return label;\n    })(),\n    (() => {\n      const input = document.createElement('input');\n      input.id = 'email';\n      input.type = 'text';\n      input.setAttribute('data-state', 'idle');\n      input.addEventListener('input', () => {\n        input.setAttribute('data-state', 'dirty');\n      });\n      return input;\n    })()\n  ]);\n\n  const input = screen.getByLabelText('Email');\n  fireEvent.input(input, { target: { value: 'ada@themis.test' } });\n\n  expect(input.value).toBe('ada@themis.test');\n  expect(input).toHaveAttribute('data-state', 'dirty');\n  expect(screen.getByRole('textbox')).toBe(input);\n  view.unmount();\n});\n`
+      },
+      async ({ tempDir, resolvePath }) => {
+        const result = await collectAndRun(resolvePath('tests', 'fixture.test.js'), {
+          cwd: tempDir,
+          environment: 'jsdom'
+        });
+
+        expect(result.tests[0].status).toBe('passed');
+      }
+    );
+  });
 });

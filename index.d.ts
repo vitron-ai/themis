@@ -465,6 +465,9 @@ export interface ExpectMatchers<TReceived = unknown> {
   toHaveBeenCalledTimes(expected: number): void;
   toHaveBeenCalledWith(...expectedArgs: unknown[]): void;
   toMatchSnapshot(snapshotName?: string): void;
+  toHaveTextContent(expected: string): void;
+  toHaveAttribute(name: string, expectedValue?: string): void;
+  toBeInTheDocument(): void;
 }
 
 export type Expect = <TReceived = unknown>(received: TReceived) => ExpectMatchers<TReceived>;
@@ -478,6 +481,28 @@ export type SpyOn = <TTarget extends Record<string, unknown>, TKey extends keyof
 ) => MockFunction<any[], any>;
 export type MockModule = (request: string, factoryOrExports?: unknown | (() => unknown)) => void;
 export type MockControl = () => void;
+export interface RenderResult {
+  container: HTMLElement;
+  rerender(nextInput: unknown): void;
+  unmount(): void;
+}
+export interface ScreenApi {
+  getByText(text: string): HTMLElement;
+  queryByText(text: string): HTMLElement | null;
+  getByRole(role: string, options?: { name?: string }): HTMLElement;
+  queryByRole(role: string, options?: { name?: string }): HTMLElement | null;
+  getByLabelText(labelText: string): HTMLElement;
+}
+export interface FireEventApi {
+  click(node: Node): Event;
+  change(node: Node, payload?: { target?: Record<string, unknown> }): Event;
+  input(node: Node, payload?: { target?: Record<string, unknown> }): Event;
+  submit(node: Node): Event;
+  keyDown(node: Node, payload?: { key?: string }): Event;
+}
+export type Render = (input: unknown, options?: { container?: HTMLElement }) => RenderResult;
+export type WaitFor = <T>(assertion: () => T | Promise<T>, options?: { timeout?: number; interval?: number }) => Promise<T>;
+export type Cleanup = () => void;
 
 export type SuiteFn = () => void;
 export type TestFn = () => Awaitable<void>;

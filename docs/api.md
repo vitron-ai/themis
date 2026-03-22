@@ -154,6 +154,32 @@ Agent payload details:
 - `analysis.comparison` reports delta stats plus new and resolved failures against the previous run
 - `artifacts.fixHandoff` points to `.themis/fix-handoff.json` for generated failure repair loops
 
+## UI Test Utilities
+
+Themis exposes a lightweight DOM-oriented helper layer for `jsdom` tests:
+
+- `render(input, options?)`
+- `screen.getByText(text)`
+- `screen.queryByText(text)`
+- `screen.getByRole(role, options?)`
+- `screen.queryByRole(role, options?)`
+- `screen.getByLabelText(labelText)`
+- `fireEvent.click(node)`
+- `fireEvent.change(node, payload?)`
+- `fireEvent.input(node, payload?)`
+- `fireEvent.submit(node)`
+- `fireEvent.keyDown(node, payload?)`
+- `waitFor(assertion, options?)`
+- `cleanup()`
+
+Supported DOM matchers:
+
+- `expect(node).toHaveTextContent(text)`
+- `expect(node).toHaveAttribute(name, value?)`
+- `expect(node).toBeInTheDocument()`
+
+These helpers are intentionally small and deterministic. They are designed for generated UI unit-layer tests and human-authored component tests running in Themis `jsdom` mode.
+
 ## Config File (`themis.config.json`)
 
 | Field | Type | Default | Notes |

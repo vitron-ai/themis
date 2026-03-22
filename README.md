@@ -263,6 +263,30 @@ Available globals:
 - `restoreAllMocks()`
 - `expect(value).toMatchSnapshot()`
 
+For UI-oriented `jsdom` tests, Themis also ships a lightweight DOM layer:
+
+- `render(ui)`
+- `screen.getByText(...)`
+- `screen.getByRole(...)`
+- `screen.getByLabelText(...)`
+- `fireEvent.click/change/input/submit/keyDown(...)`
+- `waitFor(asyncAssertion)`
+- `cleanup()`
+
+Example:
+
+```tsx
+test('submits the form', async () => {
+  render(<button onClick={() => document.body.setAttribute('data-state', 'sent')}>Send</button>);
+
+  fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+
+  await waitFor(() => {
+    expect(document.body).toHaveAttribute('data-state', 'sent');
+  });
+});
+```
+
 ## Intent Syntax
 
 Themis supports a strict code-native intent DSL:

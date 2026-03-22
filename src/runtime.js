@@ -279,7 +279,12 @@ function installGlobals(api) {
     'unmock',
     'clearAllMocks',
     'resetAllMocks',
-    'restoreAllMocks'
+    'restoreAllMocks',
+    'render',
+    'screen',
+    'fireEvent',
+    'waitFor',
+    'cleanup'
   ];
   const previous = {};
   for (const name of names) {
@@ -302,6 +307,11 @@ function installGlobals(api) {
   global.clearAllMocks = api.clearAllMocks;
   global.resetAllMocks = api.resetAllMocks;
   global.restoreAllMocks = api.restoreAllMocks;
+  global.render = api.render;
+  global.screen = api.screen;
+  global.fireEvent = api.fireEvent;
+  global.waitFor = api.waitFor;
+  global.cleanup = api.cleanup;
 
   return previous;
 }

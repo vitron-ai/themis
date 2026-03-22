@@ -15,6 +15,7 @@ All notable changes to this project are documented in this file.
 - Added embedded brand/report asset visuals to the README.
 - Added project-aware JS/TS runtime support for TSX, ESM `.js`, `tsconfig` path aliases, `setupFiles`, and `jsdom` environments.
 - Added first-party snapshots, mocks, run-diff artifacts, and watch mode for tighter agent rerun loops.
+- Added a lightweight DOM-oriented `jsdom` UI test layer with `render`, `screen`, `fireEvent`, `waitFor`, `cleanup`, and UI matchers for text, attributes, and document presence.
 - Added an in-repo VS Code extension scaffold for artifact-driven result viewing, reruns, and HTML report opening.
 - Expanded the VS Code extension scaffold with generated-review navigation for source/test/hint mappings and unresolved generation backlog.
 - Refreshed README, AGENTS, and supporting docs to match the current package scope, JS/TS feature set, artifact contracts, and extension surface.

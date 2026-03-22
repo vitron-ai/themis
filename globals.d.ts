@@ -1,4 +1,19 @@
-import type { Describe, Expect, Fn, Hook, Intent, MockControl, MockModule, SpyOn, Test } from './index';
+import type {
+  Cleanup,
+  Describe,
+  Expect,
+  FireEventApi,
+  Fn,
+  Hook,
+  Intent,
+  MockControl,
+  MockModule,
+  Render,
+  ScreenApi,
+  SpyOn,
+  Test,
+  WaitFor
+} from './index';
 
 declare global {
   var describe: Describe;
@@ -17,6 +32,11 @@ declare global {
   var clearAllMocks: MockControl;
   var resetAllMocks: MockControl;
   var restoreAllMocks: MockControl;
+  var render: Render;
+  var screen: ScreenApi;
+  var fireEvent: FireEventApi;
+  var waitFor: WaitFor;
+  var cleanup: Cleanup;
 }
 
 export {};

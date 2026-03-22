@@ -122,6 +122,30 @@ function createExpect(context = {}) {
           throw new Error('toMatchSnapshot() is only available inside the Themis runtime');
         }
         context.snapshotState.matchSnapshot(received, snapshotName);
+      },
+      toHaveTextContent(expected) {
+        const node = assertDomNode(received, 'toHaveTextContent');
+        const actual = normalizeText(node.textContent);
+        const target = normalizeText(expected);
+        if (!actual.includes(target)) {
+          throw new Error(`Expected element text ${format(actual)} to contain ${format(target)}`);
+        }
+      },
+      toHaveAttribute(name, expectedValue) {
+        const node = assertDomNode(received, 'toHaveAttribute');
+        const actual = node.getAttribute(name);
+        if (actual === null) {
+          throw new Error(`Expected element to have attribute ${String(name)}`);
+        }
+        if (expectedValue !== undefined && actual !== String(expectedValue)) {
+          throw new Error(`Expected attribute ${String(name)} to be ${format(expectedValue)}, received ${format(actual)}`);
+        }
+      },
+      toBeInTheDocument() {
+        const node = assertDomNode(received, 'toBeInTheDocument');
+        if (!node.ownerDocument || !node.ownerDocument.documentElement.contains(node)) {
+          throw new Error('Expected element to be attached to the current document');
+        }
       }
     };
   };
@@ -165,6 +189,17 @@ function matchesObjectShape(received, expected) {
 
 function format(value) {
   return util.inspect(value, { depth: 5, colors: false, maxArrayLength: 20 });
+}
+
+function assertDomNode(received, matcherName) {
+  if (typeof Node === 'undefined' || !(received instanceof Node)) {
+    throw new Error(`${matcherName} expects a DOM node`);
+  }
+  return received;
+}
+
+function normalizeText(value) {
+  return String(value || '').replace(/\s+/g, ' ').trim();
 }
 
 const expect = createExpect();
