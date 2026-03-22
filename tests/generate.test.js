@@ -547,7 +547,7 @@ describe('code scan generation', () => {
         expect(buttonTestSource).toContain('../../../src/components/Button.tsx');
         expect(buttonTestSource).toContain('react component adapter');
 
-        const { run, payload } = runCliJsonWithRetry(tempDir, ['test', '--json']);
+        const { run, payload } = runCliJsonWithRetry(tempDir, ['test', '--json', '--workers', '1']);
         expect(run.status).toBe(0);
         expect(Boolean(payload)).toBe(true);
         expect(payload.summary.failed).toBe(0);
@@ -811,7 +811,7 @@ describe('code scan generation', () => {
           'src/hooks/useToggle.themis.json'
         ]);
 
-        const { run, payload: runPayload } = runCliJsonWithRetry(tempDir, ['test', '--json']);
+        const { run, payload: runPayload } = runCliJsonWithRetry(tempDir, ['test', '--json', '--workers', '1']);
         expect(run.status).toBe(0);
         expect(Boolean(runPayload)).toBe(true);
         expect(runPayload.summary.failed).toBe(0);
