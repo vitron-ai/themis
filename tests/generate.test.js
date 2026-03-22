@@ -3,7 +3,7 @@ const os = require('os');
 const path = require('path');
 const { spawnSync } = require('child_process');
 
-const { generateTestsFromSource, runTests, discoverTests, loadConfig } = require('../index');
+const { generateTestsFromSource, runTests } = require('../index');
 
 const CLI_PATH = path.resolve(__dirname, '..', 'bin', 'themis.js');
 const FIXTURES_DIR = path.join(__dirname, 'fixtures');
@@ -94,39 +94,12 @@ describe('code scan generation', () => {
     };
   }
 
-  function runCliJsonWithRetry(tempDir, args, attempts = 2) {
-    let lastRun = null;
-    for (let attempt = 0; attempt < attempts; attempt += 1) {
-      const run = runCli(tempDir, args);
-      lastRun = run;
-      if (run.status !== 0) {
-        continue;
-      }
-
-      try {
-        const payload = JSON.parse(run.output);
-        if (payload.summary && payload.summary.failed === 0) {
-          return { run, payload };
-        }
-      } catch (error) {
-        // Try once more if the subprocess emitted incomplete JSON.
-      }
-    }
-
-    return { run: lastRun, payload: null };
-  }
-
-  async function runDiscoveredSuite(tempDir, overrides = {}) {
-    const config = loadConfig(tempDir);
-    const files = discoverTests(tempDir, config);
-    return runTests(files, {
-      cwd: tempDir,
-      maxWorkers: 1,
-      environment: config.environment,
-      setupFiles: config.setupFiles,
-      tsconfigPath: config.tsconfigPath,
-      ...overrides
-    });
+  function runCliJson(tempDir, args) {
+    const run = runCli(tempDir, args);
+    return {
+      run,
+      payload: JSON.parse(run.stdout || run.output)
+    };
   }
 
   function parseJsonOutput(result) {
@@ -560,9 +533,10 @@ describe('code scan generation', () => {
         expect(buttonTestSource).toContain('../../../src/components/Button.tsx');
         expect(buttonTestSource).toContain('react component adapter');
 
-        const result = await runDiscoveredSuite(tempDir);
-        expect(result.summary.failed).toBe(0);
-        expect(result.summary.passed).toBe(16);
+        const { run, payload } = runCliJson(tempDir, ['test', '--json', '--isolation', 'in-process']);
+        expect(run.status).toBe(0);
+        expect(payload.summary.failed).toBe(0);
+        expect(payload.summary.passed).toBe(16);
       }
     );
   });
@@ -822,8 +796,9 @@ describe('code scan generation', () => {
           'src/hooks/useToggle.themis.json'
         ]);
 
-        const result = await runDiscoveredSuite(tempDir);
-        expect(result.summary.failed).toBe(0);
+        const { run, payload } = runCliJson(tempDir, ['test', '--json', '--isolation', 'in-process']);
+        expect(run.status).toBe(0);
+        expect(payload.summary.failed).toBe(0);
       }
     );
   });
