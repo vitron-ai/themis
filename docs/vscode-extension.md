@@ -8,6 +8,7 @@ This is the intended shape of the editor UX:
 - a results sidebar driven by `.themis/*` artifacts
 - commands to run tests, rerun failures, refresh results, and open the HTML report
 - failure navigation that jumps from artifact data into the source file
+- generated-review navigation for source files, generated tests, hint sidecars, and backlog items
 
 ## Current MVP Scope
 
@@ -16,7 +17,12 @@ The scaffold currently supports:
 - reading `.themis/last-run.json`
 - reading `.themis/failed-tests.json`
 - reading `.themis/run-diff.json`
+- reading `.themis/generate-last.json`
+- reading `.themis/generate-map.json`
+- reading `.themis/generate-backlog.json`
 - opening `.themis/report.html` in a webview
+- surfacing generated source/test/hint mappings in the sidebar
+- surfacing unresolved generate backlog and gate state in the sidebar
 - refreshing when `.themis/*` files change
 
 The extension is intentionally thin. It shells out to Themis commands and treats the CLI plus artifacts as the canonical contract.

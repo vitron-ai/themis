@@ -1,7 +1,7 @@
 {
   "name": "themis-vscode",
   "displayName": "Themis",
-  "description": "View Themis test results, rerun suites, and open the HTML verdict report inside VS Code.",
+  "description": "Review Themis test and generate artifacts, rerun suites, and open the HTML verdict report inside VS Code.",
   "version": "0.1.0-beta.0",
   "license": "MIT",
   "publisher": "vitron-ai",
@@ -29,7 +29,8 @@
     "onCommand:themis.runTests",
     "onCommand:themis.rerunFailed",
     "onCommand:themis.openHtmlReport",
-    "onCommand:themis.refreshResults"
+    "onCommand:themis.refreshResults",
+    "onCommand:themis.openArtifactFile"
   ],
   "contributes": {
     "viewsContainers": {
@@ -68,6 +69,11 @@
       {
         "command": "themis.refreshResults",
         "title": "Themis: Refresh Results",
+        "category": "Themis"
+      },
+      {
+        "command": "themis.openArtifactFile",
+        "title": "Themis: Open Artifact File",
         "category": "Themis"
       }
     ],

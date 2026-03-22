@@ -28,6 +28,7 @@ class ThemisExtensionController {
       vscode.commands.registerCommand('themis.openHtmlReport', () => this.openHtmlReport()),
       vscode.commands.registerCommand('themis.refreshResults', () => this.refresh()),
       vscode.commands.registerCommand('themis.openFailure', (location) => this.openFailure(location)),
+      vscode.commands.registerCommand('themis.openArtifactFile', (location) => this.openFile(location)),
       vscode.workspace.onDidChangeWorkspaceFolders(() => this.syncWorkspaceWatchers()),
       vscode.window.onDidChangeActiveTextEditor(() => this.refresh())
     );
@@ -202,6 +203,10 @@ class ThemisExtensionController {
   }
 
   async openFailure(location) {
+    return this.openFile(location);
+  }
+
+  async openFile(location) {
     if (!location || !location.filePath) {
       vscode.window.showInformationMessage('This failure does not include a source location.');
       return;

@@ -91,7 +91,7 @@ npx themis test --watch --reporter next
 
 ## Code Scan
 
-Themis can scan your JS/TS source tree and generate deterministic unit-layer tests for exported modules, React components, React hooks, route handlers, and Node services:
+Themis can scan your JS/TS source tree and generate deterministic unit-layer tests for exported modules, React components, React hooks, Next app components, Next route handlers, generic route handlers, and Node services:
 
 ```bash
 npx themis generate src
@@ -102,7 +102,8 @@ Generated files land under `tests/generated` by default. Each generated test:
 
 - checks the scanned export names when Themis can resolve them exactly
 - snapshots a normalized runtime contract for the module surface
-- adds scenario adapters for React components/hooks, route handlers, and service functions when Themis can infer or read useful inputs
+- adds scenario adapters for React components/hooks, Next app/router files, route handlers, and service functions when Themis can infer or read useful inputs
+- captures React interaction and hook state-transition contracts when event handlers or stateful methods are available
 - fails with a regeneration hint when the source drifts after the scan
 
 Themis also supports per-file generation hints with sidecars like `src/components/Button.themis.json` so humans and agents can provide props, args, route requests, and route context. When those sidecars do not exist yet, `--write-hints` can scaffold them automatically from the current source analysis.
@@ -118,7 +119,7 @@ Use these flags to control the generation loop:
 - `--clean`: remove generated files for the selected scope
 - `--changed`: target changed files in a git worktree
 - `--write-hints`: scaffold missing `.themis.json` sidecars so the next generate pass has explicit component props, hook args, service args, and route requests
-- `--scenario`: limit generation to one adapter family such as `react-hook` or `route-handler`
+- `--scenario`: limit generation to one adapter family such as `react-hook`, `next-app-component`, or `next-route-handler`
 - `--min-confidence`: keep only entries at or above a confidence threshold
 - `--strict`: fail the generate run on skips, conflicts, or entries below `high` confidence
 - `--fail-on-skips`, `--fail-on-conflicts`: turn unresolved scan debt into a non-zero exit code
@@ -167,6 +168,7 @@ See [`docs/why-themis.md`](docs/why-themis.md) for positioning, differentiators,
 - `npx themis generate src --clean`: removes generated tests for the selected scope.
 - `npx themis generate src --changed`: regenerates against changed files in the current git worktree.
 - `npx themis generate src --scenario react-hook --min-confidence high`: targets one adapter family at a confidence threshold.
+- `npx themis generate app --scenario next-route-handler`: focuses generation on Next app router request handlers.
 - `npx themis generate src --require-confidence high`: enforces a quality bar for all selected generated tests.
 - `npx themis generate src --files src/routes/ping.ts`: targets one or more explicit source files.
 - `npx themis generate src --match-source "routes/" --match-export "GET|POST"`: narrows generation by source path and exported symbol.
@@ -216,8 +218,9 @@ The repo now includes a thin VS Code extension scaffold at [`packages/themis-vsc
 
 The extension is intentionally artifact-driven:
 
-- reads `.themis/last-run.json`, `.themis/failed-tests.json`, `.themis/run-diff.json`, and `.themis/report.html`
+- reads `.themis/last-run.json`, `.themis/failed-tests.json`, `.themis/run-diff.json`, `.themis/generate-last.json`, `.themis/generate-map.json`, `.themis/generate-backlog.json`, and `.themis/report.html`
 - shows the latest verdict and failures in a sidebar
+- adds generated-review navigation for source/test/hint mappings plus unresolved generation backlog
 - reruns Themis from VS Code commands
 - opens the HTML report inside a webview
 

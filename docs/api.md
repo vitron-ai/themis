@@ -29,7 +29,8 @@ Default behavior:
 - output directory: `tests/generated`
 - generated files mirror the scanned source tree with `*.generated.test.js`
 - generated tests snapshot normalized runtime export contracts
-- scenario adapters cover React components, React hooks, route handlers, and Node service functions when inputs can be inferred or hinted
+- scenario adapters cover React components, React hooks, Next app components, Next route handlers, generic route handlers, and Node service functions when inputs can be inferred or hinted
+- React component and hook adapters also snapshot inferred interaction/state contracts when event handlers or zero-argument stateful methods are available
 - `.themis/generate-map.json` records source-to-generated-test mappings plus scenario metadata
 - `.themis/generate-last.json` stores the full machine-readable generate payload
 - `.themis/generate-handoff.json` stores a compact prompt-ready handoff payload for agents
@@ -70,6 +71,8 @@ Per-file hint sidecars are supported via `<source>.themis.json`. These can provi
 - `includeExports`
 - `excludeExports`
 - `scenarios`
+
+`componentProps` and `routeRequests`/`routeContext` also steer Next app component and Next route handler adapters.
 
 ## `themis test` options
 

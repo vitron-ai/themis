@@ -164,6 +164,28 @@ describe('code scan generation', () => {
     };
   }
 
+  function createInteractiveReactFixture() {
+    return {
+      'package.json': `{\n  "name": "themis-interactive-react-fixture",\n  "private": true,\n  "version": "0.0.0"\n}\n`,
+      'tsconfig.json': `{\n  "compilerOptions": {\n    "target": "ES2020",\n    "module": "CommonJS",\n    "jsx": "react-jsx"\n  }\n}\n`,
+      'node_modules/react/index.js': REACT_INDEX_SOURCE,
+      'node_modules/react/jsx-runtime.js': REACT_JSX_RUNTIME_SOURCE,
+      'src/components/CounterButton.tsx': `import { useState } from 'react';\n\nexport interface CounterButtonProps {\n  initial?: number;\n}\n\nexport function CounterButton({ initial = 0 }: CounterButtonProps) {\n  const [count, setCount] = useState(initial);\n\n  return <button data-count={count} onClick={() => setCount((value) => value + 1)}>Count {count}</button>;\n}\n`,
+      'src/hooks/useToggle.ts': `import { useState } from 'react';\n\nexport function useToggle(initial = false) {\n  const [value, setValue] = useState(initial);\n\n  return {\n    value,\n    enable() {\n      setValue(true);\n    },\n    disable() {\n      setValue(false);\n    },\n    toggle() {\n      setValue((current) => !current);\n    }\n  };\n}\n`
+    };
+  }
+
+  function createNextAppFixture() {
+    return {
+      'package.json': `{\n  "name": "themis-next-app-fixture",\n  "private": true,\n  "version": "0.0.0"\n}\n`,
+      'tsconfig.json': `{\n  "compilerOptions": {\n    "target": "ES2020",\n    "module": "CommonJS",\n    "jsx": "react-jsx"\n  }\n}\n`,
+      'node_modules/react/index.js': REACT_INDEX_SOURCE,
+      'node_modules/react/jsx-runtime.js': REACT_JSX_RUNTIME_SOURCE,
+      'app/page.tsx': `import { useState } from 'react';\n\nexport default function HomePage({ searchParams = {}, params = {} }) {\n  const [open, setOpen] = useState(false);\n\n  return (\n    <main>\n      <button data-open={open} onClick={() => setOpen(true)}>Open</button>\n      <pre>{JSON.stringify({ searchParams, params, open })}</pre>\n    </main>\n  );\n}\n`,
+      'app/api/health/route.ts': `export async function GET(request, context = { params: {} }) {\n  const url = new URL(request.url);\n  return new Response(JSON.stringify({\n    ok: true,\n    path: url.pathname,\n    params: context.params || {}\n  }), {\n    status: 200,\n    headers: {\n      'content-type': 'application/json'\n    }\n  });\n}\n`
+    };
+  }
+
   test('generates deterministic tests, writes a source map artifact, and removes stale generated files', async () => {
     await withProjectFixture(
       {
@@ -444,7 +466,56 @@ describe('code scan generation', () => {
 
         const payload = JSON.parse(run.output);
         expect(payload.summary.failed).toBe(0);
-        expect(payload.summary.passed).toBe(11);
+        expect(payload.summary.passed).toBe(14);
+      }
+    );
+  });
+
+  test('adds react interaction and hook state adapters for stateful React modules', async () => {
+    await withProjectFixture(
+      createInteractiveReactFixture(),
+      async ({ tempDir }) => {
+        const generated = runCli(tempDir, ['generate', 'src', '--write-hints', '--json']);
+        expect(generated.status).toBe(0);
+        const payload = parseJsonOutput(generated);
+
+        expect(payload.summary.generated).toBe(2);
+        expect(payload.hintFiles.created).toEqual([
+          'src/components/CounterButton.themis.json',
+          'src/hooks/useToggle.themis.json'
+        ]);
+
+        const run = runCli(tempDir, ['test', '--json']);
+        expect(run.status).toBe(0);
+        const runPayload = JSON.parse(run.output);
+        const allTestNames = runPayload.files.flatMap((file) => file.tests.map((test) => test.fullName));
+        expect(allTestNames.some((name) => name.includes('react component adapter') && name.includes('interaction contract'))).toBe(true);
+        expect(allTestNames.some((name) => name.includes('react hook adapter') && name.includes('interaction contract'))).toBe(true);
+      }
+    );
+  });
+
+  test('detects Next app components and route handlers with framework-specific adapters', async () => {
+    await withProjectFixture(
+      createNextAppFixture(),
+      async ({ tempDir }) => {
+        const generated = runCli(tempDir, ['generate', 'app', '--write-hints', '--json']);
+        expect(generated.status).toBe(0);
+        const payload = parseJsonOutput(generated);
+
+        expect(payload.summary.generated).toBe(2);
+        expect(payload.entries.find((entry) => entry.sourceFile === 'app/page.tsx').moduleKind).toBe('next-app-component');
+        expect(payload.entries.find((entry) => entry.sourceFile === 'app/api/health/route.ts').moduleKind).toBe('next-route-handler');
+        expect(payload.entries.find((entry) => entry.sourceFile === 'app/page.tsx').scenarios[0].kind).toBe('next-app-component');
+        expect(payload.entries.find((entry) => entry.sourceFile === 'app/api/health/route.ts').scenarios[0].kind).toBe('next-route-handler');
+
+        const run = runCli(tempDir, ['test', '--json']);
+        expect(run.status).toBe(0);
+        const runPayload = JSON.parse(run.output);
+        const allTestNames = runPayload.files.flatMap((file) => file.tests.map((test) => test.fullName));
+        expect(allTestNames.some((name) => name.includes('next app component adapter'))).toBe(true);
+        expect(allTestNames.some((name) => name.includes('next interaction contract'))).toBe(true);
+        expect(allTestNames.some((name) => name.includes('next route handler adapter'))).toBe(true);
       }
     );
   });
@@ -520,7 +591,7 @@ describe('code scan generation', () => {
         expect(run.status).toBe(0);
         const runPayload = JSON.parse(run.output);
         expect(runPayload.summary.failed).toBe(0);
-        expect(runPayload.summary.passed).toBe(13);
+        expect(runPayload.summary.passed).toBe(15);
 
         const allTestNames = runPayload.files.flatMap((file) => file.tests.map((test) => test.fullName));
         expect(allTestNames.some((name) => name.includes('route handler adapter'))).toBe(true);

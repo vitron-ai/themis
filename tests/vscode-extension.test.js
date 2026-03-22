@@ -120,6 +120,184 @@ describe('vscode extension scaffold', () => {
       );
 
       writeFile(workspaceRoot, '.themis/report.html', '<html><body>Themis report</body></html>\n');
+      writeFile(
+        workspaceRoot,
+        '.themis/generate-last.json',
+        `${JSON.stringify({
+          schema: 'themis.generate.result.v1',
+          mode: {
+            review: false,
+            update: false,
+            clean: false,
+            changed: false,
+            plan: false,
+            writeHints: true
+          },
+          source: {
+            targetDir: 'src',
+            outputDir: 'tests/generated'
+          },
+          filters: {
+            plan: false,
+            changed: false,
+            files: [],
+            scenario: null,
+            minConfidence: null,
+            matchSource: null,
+            matchExport: null,
+            include: null,
+            exclude: null
+          },
+          gates: {
+            strict: true,
+            failOnSkips: true,
+            failOnConflicts: true,
+            requireConfidence: 'high',
+            failed: true,
+            failures: [
+              { code: 'confidence', count: 1, message: '1 generated file fell below required confidence high.' }
+            ]
+          },
+          summary: {
+            scanned: 2,
+            generated: 2,
+            created: 1,
+            updated: 1,
+            unchanged: 0,
+            removed: 0,
+            skipped: 0,
+            conflicts: 0
+          },
+          scannedFiles: ['src/components/CounterButton.tsx', 'src/hooks/useToggle.ts'],
+          generatedFiles: ['tests/generated/components/CounterButton.generated.test.js', 'tests/generated/hooks/useToggle.generated.test.js'],
+          removedFiles: [],
+          skippedFiles: [],
+          conflictFiles: [],
+          hintFiles: {
+            created: ['src/components/CounterButton.themis.json'],
+            updated: [],
+            unchanged: ['src/hooks/useToggle.themis.json']
+          },
+          entries: [
+            {
+              action: 'create',
+              sourceFile: 'src/components/CounterButton.tsx',
+              testFile: 'tests/generated/components/CounterButton.generated.test.js',
+              moduleKind: 'react-component',
+              confidence: 'medium',
+              exactExports: true,
+              exportNames: ['CounterButton'],
+              hintsFile: 'src/components/CounterButton.themis.json',
+              sourceHash: 'abc',
+              scenarios: [{ kind: 'react-component', confidence: 'medium', exports: ['CounterButton'], caseCount: 2 }],
+              reason: null
+            }
+          ],
+          backlog: {
+            summary: {
+              total: 1,
+              errors: 1,
+              warnings: 0,
+              skipped: 0,
+              conflicts: 0,
+              confidence: 1
+            },
+            items: [
+              {
+                type: 'confidence',
+                severity: 'error',
+                sourceFile: 'src/components/CounterButton.tsx',
+                testFile: 'tests/generated/components/CounterButton.generated.test.js',
+                moduleKind: 'react-component',
+                confidence: 'medium',
+                stage: null,
+                hintsFile: 'src/components/CounterButton.themis.json',
+                reason: 'Confidence medium is below required high.',
+                suggestedAction: 'Expand the hint file and rerun generate.',
+                suggestedCommand: 'npx themis generate src/components/CounterButton.tsx --update'
+              }
+            ]
+          },
+          artifacts: {
+            generateMap: '.themis/generate-map.json',
+            helperFile: 'tests/generated/_themis.contract-runtime.js',
+            generateResult: '.themis/generate-last.json',
+            generateHandoff: '.themis/generate-handoff.json',
+            generateBacklog: '.themis/generate-backlog.json'
+          },
+          promptReady: {
+            summary: 'Mode: generate.',
+            targets: [],
+            unresolved: [],
+            nextActions: ['Run npx themis test.'],
+            prompt: 'Review the following Themis generation result.'
+          },
+          hints: {
+            runTests: 'npx themis test',
+            plan: 'npx themis generate src --plan',
+            review: 'npx themis generate src --review --json',
+            updateOnly: 'npx themis generate src --update',
+            clean: 'npx themis generate src --clean',
+            changed: 'npx themis generate src --changed',
+            strict: 'npx themis generate src --strict',
+            writeHints: 'npx themis generate src --write-hints',
+            fileTarget: 'npx themis generate src/path/to/file.ts'
+          }
+        })}\n`
+      );
+      writeFile(
+        workspaceRoot,
+        '.themis/generate-backlog.json',
+        `${JSON.stringify({
+          schema: 'themis.generate.backlog.v1',
+          source: {
+            targetDir: 'src',
+            outputDir: 'tests/generated'
+          },
+          filters: {
+            plan: false,
+            changed: false,
+            files: [],
+            scenario: null,
+            minConfidence: null,
+            matchSource: null,
+            matchExport: null,
+            include: null,
+            exclude: null
+          },
+          gates: {
+            strict: true,
+            failOnSkips: true,
+            failOnConflicts: true,
+            requireConfidence: 'high',
+            failed: true,
+            failures: [{ code: 'confidence', count: 1, message: '1 generated file fell below required confidence high.' }]
+          },
+          summary: {
+            total: 1,
+            errors: 1,
+            warnings: 0,
+            skipped: 0,
+            conflicts: 0,
+            confidence: 1
+          },
+          items: [
+            {
+              type: 'confidence',
+              severity: 'error',
+              sourceFile: 'src/components/CounterButton.tsx',
+              testFile: 'tests/generated/components/CounterButton.generated.test.js',
+              moduleKind: 'react-component',
+              confidence: 'medium',
+              stage: null,
+              hintsFile: 'src/components/CounterButton.themis.json',
+              reason: 'Confidence medium is below required high.',
+              suggestedAction: 'Expand the hint file and rerun generate.',
+              suggestedCommand: 'npx themis generate src/components/CounterButton.tsx --update'
+            }
+          ]
+        })}\n`
+      );
 
       const state = loadThemisWorkspaceState(workspaceRoot);
       expect(state.hasWorkspace).toBe(true);
@@ -135,14 +313,28 @@ describe('vscode extension scaffold', () => {
       expect(state.comparison.status).toBe('changed');
       expect(state.failures).toHaveLength(1);
       expect(state.verdictLabel).toBe('Action Needed');
+      expect(state.generation.summary.generated).toBe(2);
+      expect(state.generation.gates.failed).toBe(true);
+      expect(state.generation.hintFiles.created).toEqual([path.join(workspaceRoot, 'src/components/CounterButton.themis.json')]);
 
       const tree = buildResultsTree(state);
-      expect(tree[0].label).toBe('Action Needed');
-      expect(tree[1].label).toBe('Run diff +1 failures • +4.1ms');
-      expect(tree[2].label).toBe('Open HTML report');
-      expect(tree[3].label).toBe('Failures (1)');
-      expect(tree[3].children[0].command.id).toBe('themis.openFailure');
-      expect(tree[3].children[0].description).toBe('sample.test.ts:4');
+      const verdict = tree.find((entry) => entry.id === 'verdict');
+      const comparison = tree.find((entry) => entry.id === 'comparison');
+      const report = tree.find((entry) => entry.id === 'report');
+      const generation = tree.find((entry) => entry.id === 'generation');
+      const failuresGroup = tree.find((entry) => entry.id === 'failures');
+
+      expect(verdict.label).toBe('Action Needed');
+      expect(comparison.label).toBe('Run diff +1 failures • +4.1ms');
+      expect(report.label).toBe('Open HTML report');
+      expect(generation.label).toBe('Generated Review (2)');
+      expect(generation.children[0].label).toBe('Mapped targets (1)');
+      expect(generation.children[1].label).toBe('Generation backlog (1)');
+      expect(generation.children[2].label).toBe('Hint sidecars (2)');
+      expect(generation.children[0].children[0].children[0].command.id).toBe('themis.openArtifactFile');
+      expect(failuresGroup.label).toBe('Failures (1)');
+      expect(failuresGroup.children[0].command.id).toBe('themis.openFailure');
+      expect(failuresGroup.children[0].description).toBe('sample.test.ts:4');
     });
   });
 
@@ -192,5 +384,6 @@ describe('vscode extension scaffold', () => {
     expect(commands).toContain('themis.rerunFailed');
     expect(commands).toContain('themis.openHtmlReport');
     expect(commands).toContain('themis.refreshResults');
+    expect(commands).toContain('themis.openArtifactFile');
   });
 });

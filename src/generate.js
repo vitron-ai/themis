@@ -13,9 +13,20 @@ const GENERATED_BACKLOG_ARTIFACT = path.join('.themis', 'generate-backlog.json')
 const SOURCE_EXTENSIONS = new Set(['.js', '.jsx', '.ts', '.tsx']);
 const TEST_FILE_PATTERN = /\.(test|spec)\.(js|jsx|ts|tsx)$/;
 const HTTP_METHOD_EXPORTS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', 'HEAD'];
-const SCENARIO_PRIORITY = ['react-component', 'react-hook', 'route-handler', 'node-service', 'module-contract'];
+const SCENARIO_PRIORITY = [
+  'next-app-component',
+  'next-route-handler',
+  'react-component',
+  'react-hook',
+  'route-handler',
+  'node-service',
+  'module-contract'
+];
 const CONFIDENCE_PRIORITY = ['low', 'medium', 'high'];
 const HINT_FILE_SUFFIX = '.themis.json';
+const NEXT_APP_FILE_BASENAMES = new Set(['page', 'layout', 'template', 'loading', 'error', 'default']);
+const INTERACTION_EVENT_PRIORITY = ['onClick', 'onSubmit', 'onChange', 'onInput'];
+const STATEFUL_METHOD_PRIORITY = ['toggle', 'enable', 'disable', 'increment', 'decrement', 'open', 'close', 'reset', 'submit'];
 const SCAFFOLD_HINT_META = Object.freeze({
   generatedBy: 'themis',
   kind: 'scaffold',
@@ -313,6 +324,239 @@ function normalizeElementType(type) {
   return normalizeBehaviorValue(type);
 }
 
+function loadModuleWithReactHarness(sourceFile, run) {
+  const harness = { stateRecords: [] };
+
+  return withPatchedModule(sourceFile, 'react', (actualReact) => {
+    const base = actualReact && (typeof actualReact === 'object' || typeof actualReact === 'function')
+      ? actualReact
+      : {};
+
+    function useState(initialValue) {
+      let currentValue = typeof initialValue === 'function' ? initialValue() : initialValue;
+      const record = {
+        initial: normalizeBehaviorValue(currentValue),
+        updates: []
+      };
+      harness.stateRecords.push(record);
+
+      function setValue(nextValue) {
+        currentValue = typeof nextValue === 'function' ? nextValue(currentValue) : nextValue;
+        record.updates.push(normalizeBehaviorValue(currentValue));
+        return currentValue;
+      }
+
+      return [currentValue, setValue];
+    }
+
+    return {
+      ...base,
+      useState
+    };
+  }, () => {
+    const resolvedSource = require.resolve(sourceFile);
+    delete require.cache[resolvedSource];
+    const moduleExports = require(sourceFile);
+    return run({
+      moduleExports,
+      stateRecords: harness.stateRecords
+    });
+  });
+}
+
+function withPatchedModule(sourceFile, request, buildExports, run) {
+  let resolvedRequest;
+  try {
+    resolvedRequest = require.resolve(request, { paths: [path.dirname(sourceFile)] });
+  } catch (error) {
+    return run();
+  }
+
+  const hadExisting = Object.prototype.hasOwnProperty.call(require.cache, resolvedRequest);
+  const previousCacheEntry = require.cache[resolvedRequest];
+
+  delete require.cache[resolvedRequest];
+  const actualExports = require(resolvedRequest);
+  delete require.cache[resolvedRequest];
+  require.cache[resolvedRequest] = {
+    id: resolvedRequest,
+    filename: resolvedRequest,
+    loaded: true,
+    exports: buildExports(actualExports)
+  };
+
+  try {
+    return run();
+  } finally {
+    if (hadExisting) {
+      require.cache[resolvedRequest] = previousCacheEntry;
+    } else {
+      delete require.cache[resolvedRequest];
+    }
+  }
+}
+
+function runComponentInteractionContract(sourceFile, exportName, props) {
+  return loadModuleWithReactHarness(sourceFile, ({ moduleExports, stateRecords } = {}) => {
+    const component = readExportValue(moduleExports || require(sourceFile), exportName);
+    const rendered = component(props);
+    const interactions = collectElementInteractions(rendered).slice(0, 4).map((interaction) => {
+      const beforeState = normalizeBehaviorValue(stateRecords);
+      const result = interaction.invoke();
+      return {
+        label: interaction.label,
+        eventName: interaction.eventName,
+        elementType: interaction.elementType,
+        syntheticEvent: interaction.syntheticEvent,
+        result: normalizeBehaviorValue(result),
+        beforeState,
+        afterState: normalizeBehaviorValue(stateRecords)
+      };
+    });
+
+    return {
+      rendered: normalizeBehaviorValue(rendered),
+      state: normalizeBehaviorValue(stateRecords),
+      interactions
+    };
+  });
+}
+
+function runHookInteractionContract(sourceFile, exportName, args) {
+  return loadModuleWithReactHarness(sourceFile, ({ moduleExports, stateRecords } = {}) => {
+    const hook = readExportValue(moduleExports || require(sourceFile), exportName);
+    const result = hook(...args);
+    const interactions = collectStatefulMethodInteractions(result).slice(0, 6).map((interaction) => {
+      const beforeState = normalizeBehaviorValue(stateRecords);
+      const returnValue = interaction.invoke();
+      return {
+        label: interaction.label,
+        methodName: interaction.methodName,
+        returnValue: normalizeBehaviorValue(returnValue),
+        beforeState,
+        afterState: normalizeBehaviorValue(stateRecords)
+      };
+    });
+
+    return {
+      result: normalizeBehaviorValue(result),
+      state: normalizeBehaviorValue(stateRecords),
+      interactions
+    };
+  });
+}
+
+function collectElementInteractions(node, ancestry = []) {
+  const interactions = [];
+  visitElementInteractions(node, ancestry, interactions);
+  return interactions;
+}
+
+function visitElementInteractions(node, ancestry, interactions) {
+  if (!isReactLikeElement(node)) {
+    return;
+  }
+
+  const elementType = normalizeElementType(node.type);
+  const currentPath = ancestry.concat([elementType]);
+  const props = node.props || {};
+
+  for (const eventName of ${JSON.stringify(INTERACTION_EVENT_PRIORITY)}) {
+    if (typeof props[eventName] !== 'function') {
+      continue;
+    }
+
+    const syntheticEvent = buildSyntheticEvent(eventName, node);
+    interactions.push({
+      label: currentPath.join(' > ') + '.' + eventName,
+      eventName,
+      elementType,
+      syntheticEvent: normalizeBehaviorValue(syntheticEvent),
+      invoke() {
+        return props[eventName](syntheticEvent);
+      }
+    });
+  }
+
+  for (const child of flattenChildren(props.children)) {
+    visitElementInteractions(child, currentPath, interactions);
+  }
+}
+
+function flattenChildren(children) {
+  if (children === null || children === undefined) {
+    return [];
+  }
+  if (Array.isArray(children)) {
+    const flattened = [];
+    for (const child of children) {
+      flattened.push(...flattenChildren(child));
+    }
+    return flattened;
+  }
+  return [children];
+}
+
+function buildSyntheticEvent(eventName, element) {
+  const props = element && element.props ? element.props : {};
+  const target = {};
+
+  if (eventName === 'onChange' || eventName === 'onInput') {
+    if (Object.prototype.hasOwnProperty.call(props, 'checked')) {
+      target.checked = !Boolean(props.checked);
+    }
+    if (Object.prototype.hasOwnProperty.call(props, 'value')) {
+      target.value = props.value;
+    } else if (!Object.prototype.hasOwnProperty.call(target, 'checked')) {
+      target.value = 'themis';
+    }
+  }
+
+  const event = {
+    type: eventName.slice(2).toLowerCase(),
+    defaultPrevented: false,
+    preventDefault() {
+      this.defaultPrevented = true;
+    },
+    target,
+    currentTarget: {
+      type: normalizeElementType(element && element.type),
+      props: normalizeBehaviorValue(props)
+    }
+  };
+
+  return event;
+}
+
+function collectStatefulMethodInteractions(value) {
+  if (!value || (typeof value !== 'object' && typeof value !== 'function')) {
+    return [];
+  }
+
+  const methods = Object.keys(value)
+    .filter((key) => typeof value[key] === 'function' && value[key].length === 0)
+    .sort((left, right) => {
+      const leftIndex = ${JSON.stringify(STATEFUL_METHOD_PRIORITY)}.indexOf(left);
+      const rightIndex = ${JSON.stringify(STATEFUL_METHOD_PRIORITY)}.indexOf(right);
+      if (leftIndex !== -1 || rightIndex !== -1) {
+        const safeLeft = leftIndex === -1 ? ${JSON.stringify(STATEFUL_METHOD_PRIORITY)}.length : leftIndex;
+        const safeRight = rightIndex === -1 ? ${JSON.stringify(STATEFUL_METHOD_PRIORITY)}.length : rightIndex;
+        if (safeLeft !== safeRight) {
+          return safeLeft - safeRight;
+        }
+      }
+      return left.localeCompare(right);
+    });
+
+  return methods.map((methodName) => ({
+    label: methodName,
+    methodName,
+    invoke() {
+      return value[methodName]();
+    }
+  }));
+}
+
 function normalizeFunction(value) {
   const ownKeys = Object.keys(value).sort();
   const prototypeKeys = value.prototype && value.prototype !== Object.prototype
@@ -391,7 +635,9 @@ module.exports = {
   normalizeBehaviorValue,
   normalizeRouteResult,
   createRequestFromSpec,
-  assertSourceFreshness
+  assertSourceFreshness,
+  runComponentInteractionContract,
+  runHookInteractionContract
 };
 `;
 
@@ -1763,7 +2009,30 @@ function resolveScenarioPlans(analysis) {
   const scenarios = [];
   scenarios.push(buildModuleContractScenario(analysis));
 
-  const reactComponents = resolveReactComponentCases(analysis);
+  const nextAppComponents = resolveNextAppComponentCases(analysis);
+  if (nextAppComponents.length > 0) {
+    scenarios.push({
+      kind: 'next-app-component',
+      confidence: pickHighestConfidence(nextAppComponents.map((entry) => entry.confidence)),
+      exports: nextAppComponents.map((entry) => entry.exportName),
+      cases: nextAppComponents
+    });
+  }
+
+  const nextRouteHandlers = resolveNextRouteCases(analysis);
+  if (nextRouteHandlers.length > 0) {
+    scenarios.push({
+      kind: 'next-route-handler',
+      confidence: pickHighestConfidence(nextRouteHandlers.map((entry) => entry.confidence)),
+      exports: nextRouteHandlers.map((entry) => entry.exportName),
+      cases: nextRouteHandlers
+    });
+  }
+
+  const reservedComponentExports = new Set(nextAppComponents.map((entry) => entry.exportName));
+  const reservedRouteExports = new Set(nextRouteHandlers.map((entry) => entry.exportName));
+
+  const reactComponents = resolveReactComponentCases(analysis, reservedComponentExports);
   if (reactComponents.length > 0) {
     scenarios.push({
       kind: 'react-component',
@@ -1783,7 +2052,7 @@ function resolveScenarioPlans(analysis) {
     });
   }
 
-  const routeHandlers = resolveRouteCases(analysis);
+  const routeHandlers = resolveRouteCases(analysis, reservedRouteExports);
   if (routeHandlers.length > 0) {
     scenarios.push({
       kind: 'route-handler',
@@ -1815,11 +2084,45 @@ function buildModuleContractScenario(analysis) {
   };
 }
 
-function resolveReactComponentCases(analysis) {
+function resolveNextAppComponentCases(analysis) {
+  if (!isNextAppComponentFile(analysis.file)) {
+    return [];
+  }
+
+  const forced = hasScenarioHint(analysis, 'next-app-component');
+  const cases = [];
+
+  for (const entry of analysis.exportEntries) {
+    if (!entry.functionInfo && entry.runtimeKind !== 'class') {
+      continue;
+    }
+
+    if (!forced && !isNextAppEntry(entry)) {
+      continue;
+    }
+
+    const propsSamples = resolveNextAppPropsSamples(analysis, entry);
+    cases.push({
+      exportName: entry.exportedName,
+      displayName: resolveDisplayExportName(analysis, entry),
+      caseName: propsSamples.hinted ? 'renders a hinted next app contract' : 'renders an inferred next app contract',
+      props: propsSamples.props,
+      confidence: propsSamples.confidence
+    });
+  }
+
+  return cases;
+}
+
+function resolveReactComponentCases(analysis, reservedExports = new Set()) {
   const forced = hasScenarioHint(analysis, 'react-component');
   const cases = [];
 
   for (const entry of analysis.exportEntries) {
+    if (reservedExports.has(entry.exportedName)) {
+      continue;
+    }
+
     if (!entry.functionInfo && entry.runtimeKind !== 'class') {
       continue;
     }
@@ -1873,11 +2176,50 @@ function resolveReactHookCases(analysis) {
   return cases;
 }
 
-function resolveRouteCases(analysis) {
+function resolveNextRouteCases(analysis) {
+  if (!isNextRouteFile(analysis.file)) {
+    return [];
+  }
+
+  const forced = hasScenarioHint(analysis, 'next-route-handler');
+  const cases = [];
+
+  for (const entry of analysis.exportEntries) {
+    if (!entry.functionInfo) {
+      continue;
+    }
+
+    if (!forced && !HTTP_METHOD_EXPORTS.includes(entry.exportedName)) {
+      continue;
+    }
+
+    const requestHints = resolveHintCollection(analysis.hints, 'routeRequests', entry.exportedName);
+    const contextHints = resolveHintCollection(analysis.hints, 'routeContext', entry.exportedName);
+    const request = normalizeRouteRequestHint(requestHints, entry.exportedName, analysis.relativeFile);
+    const context = normalizeRouteContextHint(contextHints);
+
+    cases.push({
+      exportName: entry.exportedName,
+      displayName: resolveDisplayExportName(analysis, entry),
+      caseName: requestHints ? 'returns a hinted next route contract' : 'returns an inferred next route contract',
+      request,
+      context,
+      confidence: requestHints ? resolveHintConfidence(analysis) : 'medium'
+    });
+  }
+
+  return cases;
+}
+
+function resolveRouteCases(analysis, reservedExports = new Set()) {
   const forced = hasScenarioHint(analysis, 'route-handler');
   const cases = [];
 
   for (const entry of analysis.exportEntries) {
+    if (reservedExports.has(entry.exportedName)) {
+      continue;
+    }
+
     if (!entry.functionInfo) {
       continue;
     }
@@ -1942,6 +2284,37 @@ function resolveNodeServiceCases(analysis, existingScenarios) {
   }
 
   return cases;
+}
+
+function resolveNextAppPropsSamples(analysis, entry) {
+  const hinted = resolveHintCollection(analysis.hints, 'componentProps', entry.exportedName);
+  if (hinted) {
+    const props = Array.isArray(hinted) ? hinted[0] : hinted;
+    return {
+      props: cloneSerializable(props) || {},
+      hinted: true,
+      confidence: resolveHintConfidence(analysis)
+    };
+  }
+
+  const base = resolveComponentPropsSamples(analysis, entry);
+  const props = isPlainObject(base.props) ? { ...base.props } : {};
+
+  if (!Object.prototype.hasOwnProperty.call(props, 'params')) {
+    props.params = {};
+  }
+  if (!Object.prototype.hasOwnProperty.call(props, 'searchParams')) {
+    props.searchParams = {};
+  }
+  if (path.parse(analysis.file).name.toLowerCase() === 'layout' && !Object.prototype.hasOwnProperty.call(props, 'children')) {
+    props.children = 'Themis child';
+  }
+
+  return {
+    props,
+    hinted: base.hinted,
+    confidence: base.confidence === 'low' ? 'medium' : base.confidence
+  };
 }
 
 function resolveComponentPropsSamples(analysis, entry) {
@@ -2194,10 +2567,26 @@ function buildHintScaffold(analysis) {
     }
   };
 
-  const componentCases = resolveReactComponentCases(analysis);
+  const nextAppCases = resolveNextAppComponentCases(analysis);
+  const nextRouteCases = resolveNextRouteCases(analysis);
+  const reservedComponentExports = new Set(nextAppCases.map((entry) => entry.exportName));
+  const reservedRouteExports = new Set(nextRouteCases.map((entry) => entry.exportName));
+  const componentCases = resolveReactComponentCases(analysis, reservedComponentExports);
   const hookCases = resolveReactHookCases(analysis);
-  const routeCases = resolveRouteCases(analysis);
+  const routeCases = resolveRouteCases(analysis, reservedRouteExports);
   const reservedScenarios = [buildModuleContractScenario(analysis)];
+  if (nextAppCases.length > 0) {
+    reservedScenarios.push({
+      kind: 'next-app-component',
+      exports: nextAppCases.map((entry) => entry.exportName)
+    });
+  }
+  if (nextRouteCases.length > 0) {
+    reservedScenarios.push({
+      kind: 'next-route-handler',
+      exports: nextRouteCases.map((entry) => entry.exportName)
+    });
+  }
   if (componentCases.length > 0) {
     reservedScenarios.push({
       kind: 'react-component',
@@ -2219,8 +2608,22 @@ function buildHintScaffold(analysis) {
   const serviceCases = resolveNodeServiceCases(analysis, reservedScenarios);
   const scenarioNames = [];
 
+  if (nextAppCases.length > 0) {
+    scaffold.componentProps = buildNamedHintMap(nextAppCases, (entry) => [cloneSerializable(entry.props) || {}]);
+    scenarioNames.push('next-app-component');
+  }
+
+  if (nextRouteCases.length > 0) {
+    scaffold.routeRequests = buildNamedHintMap(nextRouteCases, (entry) => [cloneSerializable(entry.request) || {}]);
+    scaffold.routeContext = buildNamedHintMap(nextRouteCases, (entry) => [cloneSerializable(entry.context) || { params: {} }]);
+    scenarioNames.push('next-route-handler');
+  }
+
   if (componentCases.length > 0) {
-    scaffold.componentProps = buildNamedHintMap(componentCases, (entry) => [cloneSerializable(entry.props) || {}]);
+    scaffold.componentProps = {
+      ...(isPlainObject(scaffold.componentProps) ? scaffold.componentProps : {}),
+      ...buildNamedHintMap(componentCases, (entry) => [cloneSerializable(entry.props) || {}])
+    };
     scenarioNames.push('react-component');
   }
 
@@ -2230,8 +2633,14 @@ function buildHintScaffold(analysis) {
   }
 
   if (routeCases.length > 0) {
-    scaffold.routeRequests = buildNamedHintMap(routeCases, (entry) => [cloneSerializable(entry.request) || {}]);
-    scaffold.routeContext = buildNamedHintMap(routeCases, (entry) => [cloneSerializable(entry.context) || { params: {} }]);
+    scaffold.routeRequests = {
+      ...(isPlainObject(scaffold.routeRequests) ? scaffold.routeRequests : {}),
+      ...buildNamedHintMap(routeCases, (entry) => [cloneSerializable(entry.request) || {}])
+    };
+    scaffold.routeContext = {
+      ...(isPlainObject(scaffold.routeContext) ? scaffold.routeContext : {}),
+      ...buildNamedHintMap(routeCases, (entry) => [cloneSerializable(entry.context) || { params: {} }])
+    };
     scenarioNames.push('route-handler');
   }
 
@@ -2320,6 +2729,20 @@ function isPascalCase(name) {
 function isRouteFile(filePath) {
   const basename = path.parse(filePath).name.toLowerCase();
   return basename === 'route' || basename.endsWith('route') || basename.endsWith('handler');
+}
+
+function isNextRouteFile(filePath) {
+  const relative = normalizePath(filePath);
+  return relative.includes('/app/') && path.parse(filePath).name.toLowerCase() === 'route';
+}
+
+function isNextAppComponentFile(filePath) {
+  const relative = normalizePath(filePath);
+  return relative.includes('/app/') && NEXT_APP_FILE_BASENAMES.has(path.parse(filePath).name.toLowerCase());
+}
+
+function isNextAppEntry(entry) {
+  return entry.exportedName === 'default' || entry.exportedName === 'generateMetadata';
 }
 
 function pickPrimaryScenario(scenarios) {
@@ -2961,7 +3384,9 @@ const {
   normalizeBehaviorValue,
   normalizeRouteResult,
   createRequestFromSpec,
-  assertSourceFreshness
+  assertSourceFreshness,
+  runComponentInteractionContract,
+  runHookInteractionContract
 } = require(${JSON.stringify(helperImport)});
 
 const SOURCE_PATH = ${JSON.stringify(relativeSourcePath)};
@@ -2970,6 +3395,8 @@ const SOURCE_FILE = path.resolve(__dirname, ${JSON.stringify(sourceAbsolutePath)
 const SOURCE_HASH = ${JSON.stringify(analysis.sourceHash)};
 const REGENERATE_COMMAND = ${JSON.stringify(`npx themis generate ${relativeSourcePath}`)};
 const SCANNED_EXPORTS = ${analysis.exactExports ? JSON.stringify(analysis.exportNames, null, 2) : 'null'};
+const NEXT_APP_CASES = ${JSON.stringify(flattenScenarioCases(analysis.scenarios, 'next-app-component'), null, 2)};
+const NEXT_ROUTE_CASES = ${JSON.stringify(flattenScenarioCases(analysis.scenarios, 'next-route-handler'), null, 2)};
 const COMPONENT_CASES = ${JSON.stringify(flattenScenarioCases(analysis.scenarios, 'react-component'), null, 2)};
 const HOOK_CASES = ${JSON.stringify(flattenScenarioCases(analysis.scenarios, 'react-hook'), null, 2)};
 const ROUTE_CASES = ${JSON.stringify(flattenScenarioCases(analysis.scenarios, 'route-handler'), null, 2)};
@@ -2994,6 +3421,37 @@ describe(${JSON.stringify(suiteName)}, () => {
     }).toMatchSnapshot();
   });
 
+  if (NEXT_APP_CASES.length > 0) {
+    describe('next app component adapter', () => {
+      for (const testCase of NEXT_APP_CASES) {
+        test(testCase.exportName + ' ' + testCase.caseName, () => {
+          const moduleExports = loadModuleExports();
+          const component = readExportValue(moduleExports, testCase.exportName);
+          const rendered = component(testCase.props);
+          expect({
+            source: SOURCE_PATH,
+            scenario: 'next-app-component',
+            confidence: testCase.confidence,
+            exportName: testCase.exportName,
+            props: testCase.props,
+            rendered: normalizeBehaviorValue(rendered)
+          }).toMatchSnapshot();
+        });
+
+        test(testCase.exportName + ' next interaction contract', () => {
+          expect({
+            source: SOURCE_PATH,
+            scenario: 'next-app-component',
+            confidence: testCase.confidence,
+            exportName: testCase.exportName,
+            props: testCase.props,
+            interaction: runComponentInteractionContract(SOURCE_FILE, testCase.exportName, testCase.props)
+          }).toMatchSnapshot();
+        });
+      }
+    });
+  }
+
   if (COMPONENT_CASES.length > 0) {
     describe('react component adapter', () => {
       for (const testCase of COMPONENT_CASES) {
@@ -3008,6 +3466,17 @@ describe(${JSON.stringify(suiteName)}, () => {
             exportName: testCase.exportName,
             props: testCase.props,
             rendered: normalizeBehaviorValue(rendered)
+          }).toMatchSnapshot();
+        });
+
+        test(testCase.exportName + ' interaction contract', () => {
+          expect({
+            source: SOURCE_PATH,
+            scenario: 'react-component',
+            confidence: testCase.confidence,
+            exportName: testCase.exportName,
+            props: testCase.props,
+            interaction: runComponentInteractionContract(SOURCE_FILE, testCase.exportName, testCase.props)
           }).toMatchSnapshot();
         });
       }
@@ -3028,6 +3497,39 @@ describe(${JSON.stringify(suiteName)}, () => {
             exportName: testCase.exportName,
             args: testCase.args,
             result: normalizeBehaviorValue(result)
+          }).toMatchSnapshot();
+        });
+
+        test(testCase.exportName + ' interaction contract', () => {
+          expect({
+            source: SOURCE_PATH,
+            scenario: 'react-hook',
+            confidence: testCase.confidence,
+            exportName: testCase.exportName,
+            args: testCase.args,
+            interaction: runHookInteractionContract(SOURCE_FILE, testCase.exportName, testCase.args)
+          }).toMatchSnapshot();
+        });
+      }
+    });
+  }
+
+  if (NEXT_ROUTE_CASES.length > 0) {
+    describe('next route handler adapter', () => {
+      for (const testCase of NEXT_ROUTE_CASES) {
+        test(testCase.exportName + ' ' + testCase.caseName, async () => {
+          const moduleExports = loadModuleExports();
+          const handler = readExportValue(moduleExports, testCase.exportName);
+          const request = createRequestFromSpec(testCase.request);
+          const response = await Promise.resolve(handler(request, testCase.context));
+          expect({
+            source: SOURCE_PATH,
+            scenario: 'next-route-handler',
+            confidence: testCase.confidence,
+            exportName: testCase.exportName,
+            request: testCase.request,
+            context: testCase.context,
+            response: await normalizeRouteResult(response)
           }).toMatchSnapshot();
         });
       }

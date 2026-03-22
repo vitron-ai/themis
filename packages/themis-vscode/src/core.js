@@ -14,7 +14,11 @@ function getArtifactPaths(workspaceRoot) {
     lastRun: path.join(artifactDir, 'last-run.json'),
     failedTests: path.join(artifactDir, 'failed-tests.json'),
     runDiff: path.join(artifactDir, 'run-diff.json'),
-    report: path.join(artifactDir, 'report.html')
+    report: path.join(artifactDir, 'report.html'),
+    generateLast: path.join(artifactDir, 'generate-last.json'),
+    generateMap: path.join(artifactDir, 'generate-map.json'),
+    generateBacklog: path.join(artifactDir, 'generate-backlog.json'),
+    generateHandoff: path.join(artifactDir, 'generate-handoff.json')
   };
 }
 
@@ -39,14 +43,34 @@ function loadThemisWorkspaceState(workspaceRoot) {
   const lastRun = readJsonArtifact(paths.lastRun);
   const failedTests = readJsonArtifact(paths.failedTests);
   const runDiff = readJsonArtifact(paths.runDiff);
-  const parseErrors = [lastRun, failedTests, runDiff]
+  const generateLast = readJsonArtifact(paths.generateLast);
+  const generateMap = readJsonArtifact(paths.generateMap);
+  const generateBacklog = readJsonArtifact(paths.generateBacklog);
+  const generateHandoff = readJsonArtifact(paths.generateHandoff);
+  const parseErrors = [lastRun, failedTests, runDiff, generateLast, generateMap, generateBacklog, generateHandoff]
     .filter((entry) => entry.error)
     .map((entry) => ({ filePath: entry.filePath, message: entry.error }));
   const reportExists = fs.existsSync(paths.report);
   const summary = normalizeSummary(lastRun.value && lastRun.value.summary);
   const failures = normalizeFailures(failedTests.value, lastRun.value);
   const comparison = normalizeComparison(runDiff.value, lastRun.value);
-  const hasArtifacts = Boolean(lastRun.exists || failedTests.exists || runDiff.exists || reportExists);
+  const generation = normalizeGenerationReview(
+    workspaceRoot,
+    generateLast.value,
+    generateMap.value,
+    generateBacklog.value,
+    generateHandoff.value
+  );
+  const hasArtifacts = Boolean(
+    lastRun.exists
+      || failedTests.exists
+      || runDiff.exists
+      || generateLast.exists
+      || generateMap.exists
+      || generateBacklog.exists
+      || generateHandoff.exists
+      || reportExists
+  );
 
   return {
     workspaceRoot,
@@ -57,9 +81,14 @@ function loadThemisWorkspaceState(workspaceRoot) {
     lastRun: lastRun.value,
     failedTestsArtifact: failedTests.value,
     runDiff: runDiff.value,
+    generateLast: generateLast.value,
+    generateMap: generateMap.value,
+    generateBacklog: generateBacklog.value,
+    generateHandoff: generateHandoff.value,
     summary,
     failures,
     comparison,
+    generation,
     reportExists,
     statusText: buildStatusText(summary),
     verdictLabel: buildVerdictLabel(summary, hasArtifacts)
@@ -127,6 +156,18 @@ function buildResultsTree(state) {
     icon: 'globe',
     command: state.reportExists ? { id: 'themis.openHtmlReport' } : null
   });
+
+  if (state.generation) {
+    items.push({
+      id: 'generation',
+      kind: 'group',
+      label: buildGenerationLabel(state.generation),
+      description: buildGenerationDescription(state.generation),
+      tooltip: buildGenerationTooltip(state.generation),
+      icon: state.generation.gates && state.generation.gates.failed ? 'warning' : 'symbol-array',
+      children: buildGenerationChildren(state.generation)
+    });
+  }
 
   if (state.parseErrors.length > 0) {
     items.push({
@@ -326,6 +367,336 @@ function normalizeComparison(runDiff, lastRun) {
     delta: normalizeDelta(comparison.delta),
     newFailures: Array.isArray(comparison.newFailures) ? comparison.newFailures : [],
     resolvedFailures: Array.isArray(comparison.resolvedFailures) ? comparison.resolvedFailures : []
+  };
+}
+
+function normalizeGenerationReview(workspaceRoot, generateLast, generateMap, generateBacklog, generateHandoff) {
+  const payload = generateLast && typeof generateLast === 'object' ? generateLast : null;
+  const mapEntries = Array.isArray(generateMap && generateMap.entries) ? generateMap.entries : [];
+  const backlogItems = Array.isArray(generateBacklog && generateBacklog.items)
+    ? generateBacklog.items
+    : Array.isArray(payload && payload.backlog && payload.backlog.items)
+      ? payload.backlog.items
+      : [];
+
+  if (!payload && mapEntries.length === 0 && backlogItems.length === 0) {
+    return null;
+  }
+
+  return {
+    source: payload && payload.source ? payload.source : null,
+    summary: normalizeGenerateSummary(payload && payload.summary),
+    gates: normalizeGenerateGates(payload && payload.gates),
+    hintFiles: normalizeHintFiles(
+      workspaceRoot,
+      payload && payload.hintFiles,
+      payload && payload.handoff && payload.handoff.hintFiles,
+      generateHandoff && generateHandoff.hintFiles
+    ),
+    entries: normalizeGenerateEntries(workspaceRoot, payload && payload.entries, mapEntries),
+    backlog: {
+      summary: normalizeGenerateBacklogSummary(
+        payload && payload.backlog && payload.backlog.summary,
+        generateBacklog && generateBacklog.summary,
+        generateHandoff && generateHandoff.backlog
+      ),
+      items: normalizeGenerateBacklogItems(workspaceRoot, backlogItems)
+    },
+    handoff: generateHandoff && typeof generateHandoff === 'object' ? generateHandoff : null
+  };
+}
+
+function normalizeGenerateSummary(summary) {
+  if (!summary || typeof summary !== 'object') {
+    return null;
+  }
+
+  return {
+    scanned: Number(summary.scanned || 0),
+    generated: Number(summary.generated || 0),
+    created: Number(summary.created || 0),
+    updated: Number(summary.updated || 0),
+    unchanged: Number(summary.unchanged || 0),
+    removed: Number(summary.removed || 0),
+    skipped: Number(summary.skipped || 0),
+    conflicts: Number(summary.conflicts || 0)
+  };
+}
+
+function normalizeGenerateGates(gates) {
+  if (!gates || typeof gates !== 'object') {
+    return null;
+  }
+
+  return {
+    strict: Boolean(gates.strict),
+    failed: Boolean(gates.failed),
+    failOnSkips: Boolean(gates.failOnSkips),
+    failOnConflicts: Boolean(gates.failOnConflicts),
+    requireConfidence: gates.requireConfidence || null,
+    failures: Array.isArray(gates.failures) ? gates.failures : []
+  };
+}
+
+function normalizeHintFiles(workspaceRoot, ...candidates) {
+  for (const candidate of candidates) {
+    if (!candidate || typeof candidate !== 'object') {
+      continue;
+    }
+
+    return {
+      created: Array.isArray(candidate.created) ? candidate.created.map((entry) => resolveWorkspacePath(workspaceRoot, entry)).filter(Boolean) : [],
+      updated: Array.isArray(candidate.updated) ? candidate.updated.map((entry) => resolveWorkspacePath(workspaceRoot, entry)).filter(Boolean) : [],
+      unchanged: Array.isArray(candidate.unchanged) ? candidate.unchanged.map((entry) => resolveWorkspacePath(workspaceRoot, entry)).filter(Boolean) : []
+    };
+  }
+
+  return {
+    created: [],
+    updated: [],
+    unchanged: []
+  };
+}
+
+function normalizeGenerateEntries(workspaceRoot, entries, fallbackEntries) {
+  const input = Array.isArray(entries) && entries.length > 0 ? entries : fallbackEntries;
+  return input.map((entry, index) => ({
+    id: `generate-entry-${index}`,
+    action: String(entry.action || 'generate'),
+    sourceFile: resolveWorkspacePath(workspaceRoot, entry.sourceFile),
+    testFile: resolveWorkspacePath(workspaceRoot, entry.testFile),
+    moduleKind: String(entry.moduleKind || 'module-contract'),
+    confidence: String(entry.confidence || 'low'),
+    hintsFile: resolveWorkspacePath(workspaceRoot, entry.hintsFile),
+    reason: entry.reason ? String(entry.reason) : null,
+    scenarios: Array.isArray(entry.scenarios) ? entry.scenarios.map((scenario) => scenario.kind || scenario) : []
+  }));
+}
+
+function normalizeGenerateBacklogSummary(...candidates) {
+  for (const candidate of candidates) {
+    if (!candidate || typeof candidate !== 'object') {
+      continue;
+    }
+
+    return {
+      total: Number(candidate.total || 0),
+      errors: Number(candidate.errors || 0),
+      warnings: Number(candidate.warnings || 0),
+      skipped: Number(candidate.skipped || 0),
+      conflicts: Number(candidate.conflicts || 0),
+      confidence: Number(candidate.confidence || 0)
+    };
+  }
+
+  return {
+    total: 0,
+    errors: 0,
+    warnings: 0,
+    skipped: 0,
+    conflicts: 0,
+    confidence: 0
+  };
+}
+
+function normalizeGenerateBacklogItems(workspaceRoot, items) {
+  return items.map((item, index) => ({
+    id: `generate-backlog-${index}`,
+    type: String(item.type || 'backlog'),
+    severity: String(item.severity || 'warning'),
+    sourceFile: resolveWorkspacePath(workspaceRoot, item.sourceFile),
+    testFile: resolveWorkspacePath(workspaceRoot, item.testFile),
+    hintsFile: resolveWorkspacePath(workspaceRoot, item.hintsFile),
+    reason: String(item.reason || ''),
+    suggestedAction: String(item.suggestedAction || ''),
+    suggestedCommand: item.suggestedCommand ? String(item.suggestedCommand) : null
+  }));
+}
+
+function resolveWorkspacePath(workspaceRoot, targetPath) {
+  if (!targetPath || typeof targetPath !== 'string') {
+    return null;
+  }
+  if (path.isAbsolute(targetPath) || !workspaceRoot) {
+    return targetPath;
+  }
+  return path.join(workspaceRoot, targetPath);
+}
+
+function buildGenerationLabel(generation) {
+  const summary = generation.summary;
+  const backlog = generation.backlog.summary;
+  const total = summary ? summary.generated : generation.entries.length;
+  return `Generated Review (${total})`;
+}
+
+function buildGenerationDescription(generation) {
+  const summary = generation.summary;
+  const backlog = generation.backlog.summary;
+  const created = summary ? summary.created : generation.entries.filter((entry) => entry.action === 'create').length;
+  const updated = summary ? summary.updated : generation.entries.filter((entry) => entry.action === 'update').length;
+  return `${created} created • ${updated} updated • ${backlog.total} backlog`;
+}
+
+function buildGenerationTooltip(generation) {
+  const summary = generation.summary;
+  const backlog = generation.backlog.summary;
+  const lines = [
+    generation.source && generation.source.targetDir ? `Target: ${generation.source.targetDir}` : 'Generated review artifacts',
+    summary
+      ? `Generated ${summary.generated}, created ${summary.created}, updated ${summary.updated}, skipped ${summary.skipped}, conflicts ${summary.conflicts}`
+      : `Entries: ${generation.entries.length}`,
+    `Backlog: ${backlog.total} (${backlog.errors} error, ${backlog.warnings} warning)`
+  ];
+
+  if (generation.gates) {
+    lines.push(`Gates: ${generation.gates.failed ? 'failed' : 'passed'}`);
+  }
+
+  return lines.join('\n');
+}
+
+function buildGenerationChildren(generation) {
+  const children = [];
+
+  children.push({
+    id: 'generation-targets',
+    kind: 'group',
+    label: `Mapped targets (${generation.entries.length})`,
+    description: generation.entries.length > 0 ? 'Open source, generated tests, or hint sidecars' : 'No generated mappings',
+    tooltip: 'Source-to-generated-test mappings from the latest Themis generate run.',
+    icon: 'files',
+    children: generation.entries.length > 0
+      ? generation.entries.map((entry) => buildGenerateEntryItem(entry))
+      : [
+          {
+            id: 'generation-targets-empty',
+            kind: 'info',
+            label: 'No generated targets',
+            description: '',
+            tooltip: 'Run `npx themis generate src` to populate generated mappings.',
+            icon: 'info'
+          }
+        ]
+  });
+
+  children.push({
+    id: 'generation-backlog',
+    kind: 'group',
+    label: `Generation backlog (${generation.backlog.summary.total})`,
+    description: generation.backlog.summary.total > 0 ? 'Resolve skips, conflicts, and low-confidence entries' : 'No generation backlog',
+    tooltip: 'Unresolved generation backlog from .themis/generate-backlog.json.',
+    icon: generation.backlog.summary.errors > 0 ? 'warning' : 'pass',
+    children: generation.backlog.items.length > 0
+      ? generation.backlog.items.map((item) => buildGenerateBacklogItem(item))
+      : [
+          {
+            id: 'generation-backlog-empty',
+            kind: 'info',
+            label: 'No backlog items',
+            description: '',
+            tooltip: 'The latest generate run does not report unresolved backlog.',
+            icon: 'pass'
+          }
+        ]
+  });
+
+  const hintTotal = generation.hintFiles.created.length + generation.hintFiles.updated.length + generation.hintFiles.unchanged.length;
+  children.push({
+    id: 'generation-hints',
+    kind: 'group',
+    label: `Hint sidecars (${hintTotal})`,
+    description: hintTotal > 0 ? 'Review scaffolded or reused hint files' : 'No hint sidecars tracked',
+    tooltip: 'Hint sidecars from the latest generate run.',
+    icon: 'edit',
+    children: hintTotal > 0
+      ? buildHintFileItems(generation.hintFiles)
+      : [
+          {
+            id: 'generation-hints-empty',
+            kind: 'info',
+            label: 'No hint sidecars recorded',
+            description: '',
+            tooltip: 'Run `npx themis generate src --write-hints` to scaffold hint files.',
+            icon: 'info'
+          }
+        ]
+  });
+
+  return children;
+}
+
+function buildGenerateEntryItem(entry) {
+  const children = [
+    buildOpenFileItem(`${entry.id}-source`, 'Source', entry.sourceFile, 'Open the source file that produced this generated test.')
+  ];
+
+  if (entry.testFile) {
+    children.push(buildOpenFileItem(`${entry.id}-test`, 'Generated test', entry.testFile, 'Open the generated Themis test file.'));
+  }
+
+  if (entry.hintsFile) {
+    children.push(buildOpenFileItem(`${entry.id}-hint`, 'Hint sidecar', entry.hintsFile, 'Open the hint sidecar used for this generated mapping.'));
+  }
+
+  return {
+    id: entry.id,
+    kind: 'group',
+    label: `${entry.action.toUpperCase()} ${path.basename(entry.sourceFile)}`,
+    description: `${entry.moduleKind} • ${entry.confidence}`,
+    tooltip: [entry.sourceFile, entry.testFile || '(no generated test)', entry.reason || ''].filter(Boolean).join('\n'),
+    icon: entry.action === 'conflict' ? 'warning' : 'symbol-event',
+    children
+  };
+}
+
+function buildGenerateBacklogItem(item) {
+  return {
+    id: item.id,
+    kind: 'artifact',
+    label: `${item.severity.toUpperCase()} ${path.basename(item.sourceFile)}`,
+    description: item.type,
+    tooltip: [item.reason, item.suggestedAction, item.suggestedCommand || ''].filter(Boolean).join('\n\n'),
+    icon: item.severity === 'error' ? 'warning' : 'info',
+    command: {
+      id: 'themis.openArtifactFile',
+      arguments: [
+        {
+          filePath: item.hintsFile || item.testFile || item.sourceFile,
+          lineNumber: 1,
+          columnNumber: 1
+        }
+      ]
+    }
+  };
+}
+
+function buildHintFileItems(hintFiles) {
+  return [
+    ...hintFiles.created.map((filePath, index) => buildOpenFileItem(`hint-created-${index}`, 'CREATED', filePath, 'Open a scaffolded hint sidecar.')),
+    ...hintFiles.updated.map((filePath, index) => buildOpenFileItem(`hint-updated-${index}`, 'UPDATED', filePath, 'Open an updated hint sidecar.')),
+    ...hintFiles.unchanged.map((filePath, index) => buildOpenFileItem(`hint-unchanged-${index}`, 'UNCHANGED', filePath, 'Open a reused hint sidecar.'))
+  ];
+}
+
+function buildOpenFileItem(id, labelPrefix, filePath, tooltip) {
+  return {
+    id,
+    kind: 'artifact',
+    label: `${labelPrefix}: ${path.basename(filePath)}`,
+    description: filePath,
+    tooltip,
+    icon: 'go-to-file',
+    command: {
+      id: 'themis.openArtifactFile',
+      arguments: [
+        {
+          filePath,
+          lineNumber: 1,
+          columnNumber: 1
+        }
+      ]
+    }
   };
 }
 

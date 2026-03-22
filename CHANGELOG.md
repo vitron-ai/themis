@@ -6,7 +6,7 @@ All notable changes to this project are documented in this file.
 
 ### Changed
 
-- Added a first-party `themis generate` / `themis scan` code-scan flow that generates deterministic contract tests for exported modules, React components, hooks, route handlers, and Node services; emits richer machine-readable `--json` results for agents; writes `.themis/generate-map.json`, `.themis/generate-last.json`, `.themis/generate-handoff.json`, and `.themis/generate-backlog.json`; supports hint sidecars, automatic `--write-hints` scaffolding, targeted regeneration, planning mode, scenario/confidence steering, review/update/clean workflows, strict quality gates, and backlog remediation commands; and fails generated tests with direct regeneration guidance when scanned sources drift.
+- Added a first-party `themis generate` / `themis scan` code-scan flow that generates deterministic contract tests for exported modules, React components, hooks, Next app/router files, route handlers, and Node services; emits richer machine-readable `--json` results for agents; writes `.themis/generate-map.json`, `.themis/generate-last.json`, `.themis/generate-handoff.json`, and `.themis/generate-backlog.json`; supports interaction/state adapters for React components and hooks, automatic `--write-hints` scaffolding, targeted regeneration, planning mode, scenario/confidence steering, review/update/clean workflows, strict quality gates, and backlog remediation commands; and fails generated tests with direct regeneration guidance when scanned sources drift.
 - Moved the package line from alpha to beta and defined beta compatibility expectations for CLI, artifacts, and the JS/TS package surface.
 - Tightened npm/package positioning around Themis as an intent-first unit test framework for AI agents in Node.js and TypeScript.
 - Updated publish-facing docs to consistently frame Themis as an AI verdict engine for human and agent review loops.
@@ -16,6 +16,7 @@ All notable changes to this project are documented in this file.
 - Added project-aware JS/TS runtime support for TSX, ESM `.js`, `tsconfig` path aliases, `setupFiles`, and `jsdom` environments.
 - Added first-party snapshots, mocks, run-diff artifacts, and watch mode for tighter agent rerun loops.
 - Added an in-repo VS Code extension scaffold for artifact-driven result viewing, reruns, and HTML report opening.
+- Expanded the VS Code extension scaffold with generated-review navigation for source/test/hint mappings and unresolved generation backlog.
 - Refreshed README, AGENTS, and supporting docs to match the current package scope, JS/TS feature set, artifact contracts, and extension surface.
 
 ## 0.1.0-alpha.1 - 2026-02-13
