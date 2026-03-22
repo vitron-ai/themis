@@ -24,7 +24,7 @@ It is built to be the best test loop for agent workflows: deterministic reruns, 
 - [Commands](#commands)
 - [Agent Guide](#agent-guide)
 - [VS Code](#vs-code)
-- [Snapshots And Mocks](#snapshots-and-mocks)
+- [Mocks And UI Primitives](#mocks-and-ui-primitives)
 - [Intent Syntax](#intent-syntax)
 - [Config](#config)
 - [TypeScript](#typescript)
@@ -53,7 +53,9 @@ Themis is built for modern Node.js and TypeScript projects:
 - `tsconfig` path alias resolution
 - `node` and `jsdom` environments
 - `setupFiles` for harness bootstrapping
-- first-party snapshots, mocks, and spies
+- `testIgnore` patterns for deterministic discovery boundaries
+- first-party mocks, spies, and deterministic UI primitives
+- compatibility imports for `@jest/globals`, `vitest`, and `@testing-library/react`
 - `--watch` and `--rerun-failed` for tight local and agent rerun loops
 
 ## Visuals
@@ -89,6 +91,13 @@ Stay in a local rerun loop while editing:
 npx themis test --watch --reporter next
 ```
 
+Incrementally migrate existing Jest/Vitest suites:
+
+```bash
+npx themis migrate jest
+npx themis test
+```
+
 ## Code Scan
 
 Themis can scan your JS/TS source tree and generate deterministic unit-layer tests for exported modules, React components, React hooks, Next app components, Next route handlers, generic route handlers, and Node services:
@@ -101,15 +110,16 @@ npx themis test
 Generated files land under `tests/generated` by default. Each generated test:
 
 - checks the scanned export names when Themis can resolve them exactly
-- snapshots a normalized runtime contract for the module surface
+- asserts the normalized runtime export contract directly in generated source
 - adds scenario adapters for React components/hooks, Next app/router files, route handlers, and service functions when Themis can infer or read useful inputs
 - captures React interaction and hook state-transition contracts when event handlers or stateful methods are available
-- snapshots DOM-state contracts for generated React and Next component adapters so humans and agents can review visible structure, roles, attributes, and interaction-driven UI changes
+- asserts DOM-state and behavioral flow contracts directly for generated React and Next component adapters
+- emits async behavioral flow contracts for generated React and Next component adapters when flow plans are inferred or hinted, including richer inferred input/submit/loading/success paths for common async forms
 - fails with a regeneration hint when the source drifts after the scan
 
-Themis also supports per-file generation hints with sidecars like `src/components/Button.themis.json` so humans and agents can provide props, args, route requests, and route context. When those sidecars do not exist yet, `--write-hints` can scaffold them automatically from the current source analysis.
+Themis also supports per-file generation hints with sidecars like `src/components/Button.themis.json` so humans and agents can provide props, component flows, args, route requests, and route context. When those sidecars do not exist yet, `--write-hints` can scaffold them automatically from the current source analysis.
 
-For repo-wide generation defaults, add `themis.generate.js` or `themis.generate.cjs` at the project root. Providers in that file can match source paths, supply shared props/args/interaction plans, register runtime mocks, and wrap generated component renders so DOM-state snapshots include the same provider shells humans use in app tests.
+For repo-wide generation defaults, add `themis.generate.js` or `themis.generate.cjs` at the project root. Providers in that file can match source paths, supply shared props/args/flow plans, register runtime mocks for generated UI scenarios, and wrap generated component renders so generated DOM contracts run inside the same provider shells humans use in app tests. Providers can also declare preset wrapper metadata for router, React Query, Zustand, and Redux-style app state patterns.
 
 For CI and agent loops, Themis can also enforce generation quality instead of only writing files. Strict runs emit a structured backlog, fail on unresolved scan debt, and hand back exact remediation commands.
 
@@ -177,6 +187,8 @@ See [`docs/why-themis.md`](docs/why-themis.md) for positioning, differentiators,
 - `npx themis generate src --changed`: regenerates against changed files in the current git worktree.
 - `npx themis generate src --scenario react-hook --min-confidence high`: targets one adapter family at a confidence threshold.
 - `npx themis generate app --scenario next-route-handler`: focuses generation on Next app router request handlers.
+- `npx themis migrate jest`: scaffolds a Themis config/setup bridge for existing Jest suites.
+- `npx themis migrate vitest`: scaffolds the same bridge for Vitest suites.
 - `npx themis generate src --require-confidence high`: enforces a quality bar for all selected generated tests.
 - `npx themis generate src --files src/routes/ping.ts`: targets one or more explicit source files.
 - `npx themis generate src --match-source "routes/" --match-export "GET|POST"`: narrows generation by source path and exported symbol.
@@ -191,7 +203,6 @@ See [`docs/why-themis.md`](docs/why-themis.md) for positioning, differentiators,
 - `npx themis test --watch`: reruns the suite when watched project files change.
 - `npx themis test --workers 8`: overrides worker count (positive integer).
 - `npx themis test --environment jsdom`: runs tests in a browser-like DOM environment.
-- `npx themis test -u`: updates stored snapshots.
 - `npx themis test --stability 3`: runs the suite three times and classifies each test as `stable_pass`, `stable_fail`, or `unstable`.
 - `npx themis test --match "intent DSL"`: runs only tests whose full name matches regex.
 - `npx themis test --rerun-failed`: reruns failing tests from `.themis/failed-tests.json`.
@@ -235,7 +246,7 @@ The extension is intentionally artifact-driven:
 
 It does not replace the CLI. The CLI and `.themis/*` artifacts remain the source of truth.
 
-## Snapshots And Mocks
+## Mocks And UI Primitives
 
 Themis now ships first-party test utilities for agent-generated tests:
 
@@ -249,9 +260,11 @@ const { fetchUser } = require('../src/api');
 test('captures a stable UI contract', () => {
   const user = fetchUser();
   expect(fetchUser).toHaveBeenCalledTimes(1);
-  expect(user).toMatchSnapshot();
+  expect(user).toMatchObject({ id: 'u_1', name: 'Ada' });
 });
 ```
+
+Themis intentionally avoids first-party snapshot-file workflows. Prefer direct assertions, generated contract tests, and explicit flow expectations over large opaque snapshots.
 
 Available globals:
 
@@ -262,7 +275,6 @@ Available globals:
 - `clearAllMocks()`
 - `resetAllMocks()`
 - `restoreAllMocks()`
-- `expect(value).toMatchSnapshot()`
 
 For UI-oriented `jsdom` tests, Themis also ships a lightweight DOM layer:
 
@@ -355,11 +367,13 @@ Easter egg aliases are also available: `cook`, `yeet`, `vibecheck`, `wipe`.
   "reporter": "next",
   "environment": "node",
   "setupFiles": ["tests/setup.ts"],
-  "tsconfigPath": "tsconfig.json"
+  "tsconfigPath": "tsconfig.json",
+  "testIgnore": ["^tests/generated(?:/|$)"]
 }
 ```
 
 Modern JS/TS projects can opt into `environment: "jsdom"` for DOM-driven tests and `setupFiles` for hooks, polyfills, or harness bootstrapping.
+Use `testIgnore` when you need local generated output, fixture folders, or scratch suites to stay out of the default discovery pass.
 
 ## TypeScript
 

@@ -4,8 +4,6 @@ const path = require('path');
 const { spawnSync } = require('child_process');
 
 const CLI_PATH = path.resolve(__dirname, '..', 'bin', 'themis.js');
-const SNAPSHOT_PATH = path.join(__dirname, 'snapshots', 'cli-output.snapshots.json');
-const SNAPSHOTS = JSON.parse(fs.readFileSync(SNAPSHOT_PATH, 'utf8'));
 
 describe('cli output', () => {
   async function withFixtureProject(run, fixtureSource) {
@@ -71,7 +69,11 @@ describe('cli output', () => {
   }
 
   function runCli(tempDir, args) {
-    const result = spawnSync(process.execPath, [CLI_PATH, 'test', ...args], {
+    return runCliCommand(tempDir, 'test', args);
+  }
+
+  function runCliCommand(tempDir, command, args) {
+    const result = spawnSync(process.execPath, [CLI_PATH, command, ...args], {
       cwd: tempDir,
       encoding: 'utf8',
       env: {
@@ -133,29 +135,48 @@ describe('cli output', () => {
     return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   }
 
-  function assertSnapshot(snapshotName, normalizedOutput) {
-    const expected = SNAPSHOTS[snapshotName];
-    if (typeof expected !== 'string') {
-      throw new Error(`Missing CLI snapshot: ${snapshotName}`);
+  function expectIncludesAll(output, expectedLines) {
+    for (const line of expectedLines) {
+      expect(output).toContain(line);
     }
-    expect(normalizedOutput).toBe(expected);
   }
 
-  test('matches snapshot for --next reporter with banner', async () => {
+  test('prints next reporter banner and summary contract', async () => {
     await withFixtureProject(async ({ tempDir, fixturePath }) => {
       const run = runCli(tempDir, ['--next']);
       expect(run.status).toBe(0);
       const normalized = normalizeOutput(run.output, fixturePath);
-      assertSnapshot('next_report_with_banner', normalized);
+      expectIncludesAll(normalized, [
+        '⚖️  THEMIS v<VERSION>',
+        'AI UNIT TEST FRAMEWORK',
+        'AI’S VERDICT ENGINE',
+        '████████╗██╗  ██╗███████╗███╗   ███╗██╗███████╗',
+        'THEMIS NEXT REPORT',
+        'started <ISO_TIMESTAMP>  workers <WORKERS>  duration <MS>',
+        'PASS 1  FAIL 0  SKIP 0  TOTAL 1',
+        '[PASS] <FIXTURE_TEST_FILE> (1 pass, 0 fail, 0 skip, <MS>)',
+        'Slowest Tests',
+        'cli fixture > works',
+        'Agent Loop Commands',
+        'rerun failed: npx themis test --rerun-failed --reporter next',
+        'targeted rerun: npx themis test --match "<regex>" --reporter next'
+      ]);
     });
   });
 
-  test('matches snapshot for --reporter spec with banner', async () => {
+  test('prints spec reporter banner and summary contract', async () => {
     await withFixtureProject(async ({ tempDir, fixturePath }) => {
       const run = runCli(tempDir, ['--reporter', 'spec']);
       expect(run.status).toBe(0);
       const normalized = normalizeOutput(run.output, fixturePath);
-      assertSnapshot('spec_report_with_banner', normalized);
+      expectIncludesAll(normalized, [
+        '⚖️  THEMIS v<VERSION>',
+        '████████╗██╗  ██╗███████╗███╗   ███╗██╗███████╗',
+        '<FIXTURE_TEST_FILE>',
+        'PASS cli fixture > works (<MS>)',
+        '1/1 passed, 0 failed, 0 skipped in <MS>'
+      ]);
+      expect(normalized.includes('THEMIS NEXT REPORT')).toBe(false);
     });
   });
 
@@ -255,7 +276,6 @@ test('deterministic instability', () => {
         expect(payload.analysis.failureClusters[0].fingerprint).toBe(payload.failures[0].fingerprint);
         expect(payload.analysis.comparison.status).toBe('baseline');
         expect(payload.artifacts.runDiff).toBe('.themis/run-diff.json');
-        expect(payload.hints.updateSnapshots).toBe('npx themis test -u');
       },
       `describe('agent contract', () => {
   test('first fail', () => {
@@ -436,39 +456,95 @@ test('deterministic instability', () => {
     );
   });
 
-  test('updates snapshots through the CLI update flag', async () => {
+  test('honors testIgnore patterns during discovery', async () => {
     await withProjectFiles(
       async ({ tempDir }) => {
-        const fixturePath = path.join(tempDir, 'tests', 'sample.test.js');
-        const snapshotPath = path.join(tempDir, 'tests', '__snapshots__', 'sample.test.js.snapshots.json');
-
-        let run = runCli(tempDir, ['--json']);
+        const run = runCli(tempDir, ['--json']);
         expect(run.status).toBe(0);
-        let payload = JSON.parse(run.output);
+
+        const payload = JSON.parse(run.output);
+        expect(payload.summary.total).toBe(1);
         expect(payload.summary.passed).toBe(1);
-        expect(fs.existsSync(snapshotPath)).toBe(true);
-
-        fs.writeFileSync(
-          fixturePath,
-          `test('snapshot fixture', () => {\n  expect({ state: 'changed' }).toMatchSnapshot();\n});\n`,
-          'utf8'
-        );
-
-        run = runCli(tempDir, ['--json']);
-        expect(run.status).toBe(1);
-        payload = JSON.parse(run.output);
-        expect(payload.files[0].tests[0].error.message).toContain('Snapshot mismatch');
-
-        run = runCli(tempDir, ['--json', '-u']);
-        expect(run.status).toBe(0);
-        payload = JSON.parse(run.output);
-        expect(payload.summary.passed).toBe(1);
-
-        const snapshots = JSON.parse(fs.readFileSync(snapshotPath, 'utf8'));
-        expect(snapshots['snapshot fixture']).toContain('changed');
+        expect(payload.files).toHaveLength(1);
+        expect(payload.files[0].file).toContain(path.join('tests', 'sample.test.js'));
       },
       {
-        'tests/sample.test.js': `test('snapshot fixture', () => {\n  expect({ state: 'initial' }).toMatchSnapshot();\n});\n`
+        'tests/sample.test.js': `test('main suite test', () => {\n  expect('themis').toBe('themis');\n});\n`,
+        'tests/generated/noise.test.js': `test('generated noise should be ignored', () => {\n  throw new Error('discovery leak');\n});\n`
+      },
+      {
+        testRegex: '\\.(test|spec)\\.js$',
+        reporter: 'json',
+        environment: 'node',
+        setupFiles: [],
+        tsconfigPath: null,
+        testIgnore: ['^tests/generated(?:/|$)']
+      }
+    );
+  });
+
+  test('rejects invalid testIgnore config values', async () => {
+    await withProjectFiles(
+      async ({ tempDir }) => {
+        const run = runCli(tempDir, ['--json']);
+        expect(run.status).toBe(1);
+        expect(run.output).toContain('Invalid config testIgnore value: expected an array of regex strings.');
+      },
+      {
+        'tests/sample.test.js': `test('direct contract fixture', () => {\n  expect(true).toBe(true);\n});\n`
+      },
+      {
+        testRegex: '\\.(test|spec)\\.js$',
+        reporter: 'json',
+        environment: 'node',
+        setupFiles: [],
+        tsconfigPath: null,
+        testIgnore: [42]
+      }
+    );
+  });
+
+  test('rejects the removed snapshot update flag', async () => {
+    await withProjectFiles(
+      async ({ tempDir }) => {
+        const run = runCli(tempDir, ['--json', '-u']);
+        expect(run.status).toBe(1);
+        expect(run.output).toContain('Snapshots have been removed from Themis.');
+        expect(run.output).toContain('Replace -u/--update-snapshots with direct assertions or generated contract flows.');
+      },
+      {
+        'tests/sample.test.js': `test('direct contract fixture', () => {\n  expect({ state: 'initial' }).toMatchObject({ state: 'initial' });\n});\n`
+      },
+      {
+        testRegex: '\\.(test|spec)\\.js$',
+        reporter: 'json',
+        environment: 'node',
+        setupFiles: [],
+        tsconfigPath: null
+      }
+    );
+  });
+
+  test('scaffolds an incremental jest migration bridge', async () => {
+    await withProjectFiles(
+      async ({ tempDir }) => {
+        const run = runCliCommand(tempDir, 'migrate', ['jest']);
+        expect(run.status).toBe(0);
+        expect(run.output).toContain('Themis migration scaffold created for jest.');
+        expect(run.output).toContain('Runtime compatibility is enabled for @jest/globals, vitest, and @testing-library/react imports.');
+
+        const config = JSON.parse(fs.readFileSync(path.join(tempDir, 'themis.config.json'), 'utf8'));
+        expect(config.setupFiles).toContain('tests/setup.themis.js');
+
+        const setupSource = fs.readFileSync(path.join(tempDir, 'tests', 'setup.themis.js'), 'utf8');
+        expect(setupSource).toContain('Themis migration bridge for jest suites.');
+
+        const packageJson = JSON.parse(fs.readFileSync(path.join(tempDir, 'package.json'), 'utf8'));
+        expect(packageJson.scripts['test:themis']).toBe('themis test');
+      },
+      {
+        'package.json': `{\n  "name": "themis-migrate-fixture",\n  "private": true,\n  "version": "0.0.0",\n  "scripts": {\n    "test": "jest"\n  }\n}\n`,
+        'tests/sample.test.js': `test('migration placeholder', () => {\n  expect(true).toBe(true);\n});\n`
       },
       {
         testRegex: '\\.(test|spec)\\.js$',

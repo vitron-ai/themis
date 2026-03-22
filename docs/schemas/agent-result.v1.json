@@ -50,15 +50,12 @@
     "hints": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["rerunFailed", "targetedRerun", "updateSnapshots", "diffLastRun", "repairGenerated"],
+      "required": ["rerunFailed", "targetedRerun", "diffLastRun", "repairGenerated"],
       "properties": {
         "rerunFailed": {
           "type": "string"
         },
         "targetedRerun": {
-          "type": "string"
-        },
-        "updateSnapshots": {
           "type": "string"
         },
         "diffLastRun": {

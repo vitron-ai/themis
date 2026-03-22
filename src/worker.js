@@ -10,8 +10,7 @@ const { collectAndRun } = require('./runtime');
       cwd: workerData.cwd,
       environment: workerData.environment,
       setupFiles: workerData.setupFiles,
-      tsconfigPath: workerData.tsconfigPath,
-      updateSnapshots: workerData.updateSnapshots
+      tsconfigPath: workerData.tsconfigPath
     });
     parentPort.postMessage({ ok: true, result });
   } catch (error) {

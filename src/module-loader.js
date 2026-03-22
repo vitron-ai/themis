@@ -13,6 +13,9 @@ const DEFAULT_TS_COMPILER_OPTIONS = {
 
 function createModuleLoader(options = {}) {
   const projectRoot = safeRealpath(path.resolve(options.cwd || process.cwd()));
+  const virtualModules = options.virtualModules && typeof options.virtualModules === 'object'
+    ? options.virtualModules
+    : {};
   const tsconfigPath = options.tsconfigPath === null
     ? null
     : resolveTsconfigPath(projectRoot, options.tsconfigPath);
@@ -53,6 +56,10 @@ function createModuleLoader(options = {}) {
   }
 
   Module._resolveFilename = function themisResolveFilename(request, parent, isMain, resolutionOptions) {
+    if (Object.prototype.hasOwnProperty.call(virtualModules, request)) {
+      return request;
+    }
+
     const aliasedRequest = resolveConfiguredRequest({
       request,
       parentFile: parent && parent.filename,
@@ -70,13 +77,19 @@ function createModuleLoader(options = {}) {
   };
 
   Module._load = function themisModuleLoad(request, parent, isMain) {
+    if (Object.prototype.hasOwnProperty.call(virtualModules, request)) {
+      const virtualValue = virtualModules[request];
+      return typeof virtualValue === 'function' ? virtualValue() : virtualValue;
+    }
+
     const resolvedRequest = resolveRequestValue({
       request,
       parentFile: parent && parent.filename,
       projectRoot,
       compilerContext,
       originalResolveFilename,
-      isMain
+      isMain,
+      virtualModules
     });
 
     if (mockRegistry.has(resolvedRequest)) {
@@ -116,7 +129,8 @@ function createModuleLoader(options = {}) {
         parentFile,
         projectRoot,
         compilerContext,
-        originalResolveFilename
+        originalResolveFilename,
+        virtualModules
       });
     },
     registerMock(request, parentFile, factoryOrExports) {
@@ -158,8 +172,13 @@ function resolveRequestValue({
   projectRoot,
   compilerContext,
   originalResolveFilename,
-  isMain = false
+  isMain = false,
+  virtualModules = null
 }) {
+  if (virtualModules && Object.prototype.hasOwnProperty.call(virtualModules, request)) {
+    return request;
+  }
+
   const normalizedParent = parentFile ? safeRealpath(path.resolve(parentFile)) : path.join(projectRoot, '__themis_entry__.js');
   const parentModule = {
     id: normalizedParent,

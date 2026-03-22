@@ -117,12 +117,6 @@ function createExpect(context = {}) {
           );
         }
       },
-      toMatchSnapshot(snapshotName) {
-        if (!context.snapshotState) {
-          throw new Error('toMatchSnapshot() is only available inside the Themis runtime');
-        }
-        context.snapshotState.matchSnapshot(received, snapshotName);
-      },
       toHaveTextContent(expected) {
         const node = assertDomNode(received, 'toHaveTextContent');
         const actual = normalizeText(node.textContent);

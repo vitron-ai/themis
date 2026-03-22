@@ -76,7 +76,6 @@ export interface RunOptions {
   environment?: TestEnvironment;
   setupFiles?: string[];
   tsconfigPath?: string | null;
-  updateSnapshots?: boolean;
 }
 
 export interface ThemisConfig {
@@ -87,6 +86,15 @@ export interface ThemisConfig {
   environment: TestEnvironment;
   setupFiles: string[];
   tsconfigPath: string | null;
+  testIgnore: string[];
+}
+
+export interface MigrationResult {
+  source: 'jest' | 'vitest';
+  configPath: string;
+  setupPath: string;
+  packageJsonPath: string | null;
+  packageUpdated: boolean;
 }
 
 export interface GenerateOptions {
@@ -249,7 +257,7 @@ export interface GeneratePromptReady {
   prompt: string;
 }
 
-export type FixHandoffCategory = 'source-drift' | 'snapshot-drift' | 'generated-contract-failure';
+export type FixHandoffCategory = 'source-drift' | 'generated-contract-failure';
 
 export interface FixHandoffItem {
   file: string;
@@ -277,7 +285,6 @@ export interface FixHandoffPayload {
     totalFailures: number;
     generatedFailures: number;
     staleSources: number;
-    snapshotMismatches: number;
     contractFailures: number;
   };
   artifacts: {
@@ -415,6 +422,7 @@ export function runTests(files: string[], options?: RunOptions): Promise<RunResu
 export function discoverTests(cwd: string, config: ThemisConfig): string[];
 export function loadConfig(cwd: string): ThemisConfig;
 export function initConfig(cwd: string): void;
+export function runMigrate(cwd: string, framework: 'jest' | 'vitest'): MigrationResult;
 export const DEFAULT_CONFIG: ThemisConfig;
 export function generateTestsFromSource(cwd: string, options?: GenerateOptions): GenerateSummary;
 export function buildGeneratePayload(summary: GenerateSummary, cwd?: string): GeneratePayload;
@@ -464,7 +472,6 @@ export interface ExpectMatchers<TReceived = unknown> {
   toHaveBeenCalled(): void;
   toHaveBeenCalledTimes(expected: number): void;
   toHaveBeenCalledWith(...expectedArgs: unknown[]): void;
-  toMatchSnapshot(snapshotName?: string): void;
   toHaveTextContent(expected: string): void;
   toHaveAttribute(name: string, expectedValue?: string): void;
   toBeInTheDocument(): void;

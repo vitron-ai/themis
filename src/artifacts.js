@@ -267,7 +267,6 @@ function buildFixHandoffPayload(cwd, result, context) {
     totalFailures: Number(result.summary?.failed || 0),
     generatedFailures: items.length,
     staleSources: items.filter((item) => item.category === 'source-drift').length,
-    snapshotMismatches: items.filter((item) => item.category === 'snapshot-drift').length,
     contractFailures: items.filter((item) => item.category === 'generated-contract-failure').length
   };
 
@@ -295,18 +294,12 @@ function classifyFixCategory(message) {
   ) {
     return 'source-drift';
   }
-  if (lower.includes('snapshot')) {
-    return 'snapshot-drift';
-  }
   return 'generated-contract-failure';
 }
 
 function resolveFixAction(category, entry, backlogMatch) {
   if (category === 'source-drift') {
     return `Regenerate the generated test for ${entry.sourceFile}.`;
-  }
-  if (category === 'snapshot-drift') {
-    return `Review the generated snapshot expectations for ${entry.sourceFile}.`;
   }
   if (backlogMatch && backlogMatch.suggestedAction) {
     return backlogMatch.suggestedAction;
@@ -317,9 +310,6 @@ function resolveFixAction(category, entry, backlogMatch) {
 function resolveFixCommand(category, entry, backlogMatch) {
   if (backlogMatch && backlogMatch.suggestedCommand) {
     return backlogMatch.suggestedCommand;
-  }
-  if (category === 'snapshot-drift') {
-    return 'npx themis test -u';
   }
   if (entry && entry.sourceFile) {
     return `npx themis generate ${entry.sourceFile} --update`;
@@ -332,9 +322,6 @@ function buildFixNextActions(summary) {
   if (summary.generatedFailures > 0) {
     actions.push('Review .themis/fix-handoff.json and start with source-drift items.');
     actions.push('Regenerate narrow targets before rerunning the full suite.');
-  }
-  if (summary.snapshotMismatches > 0) {
-    actions.push('Only update snapshots after reviewing generated behavior changes.');
   }
   if (summary.generatedFailures === 0) {
     actions.push('No generated-test repair work was detected in this run.');

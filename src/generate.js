@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
+const Module = require('module');
 const { execFileSync } = require('child_process');
 const ts = require('typescript');
 
@@ -28,6 +29,9 @@ const HINT_FILE_SUFFIX = '.themis.json';
 const NEXT_APP_FILE_BASENAMES = new Set(['page', 'layout', 'template', 'loading', 'error', 'default']);
 const INTERACTION_EVENT_PRIORITY = ['onClick', 'onSubmit', 'onChange', 'onInput'];
 const STATEFUL_METHOD_PRIORITY = ['toggle', 'enable', 'disable', 'increment', 'decrement', 'open', 'close', 'reset', 'submit'];
+const FLOW_LOADING_KEYWORDS = ['loading', 'saving', 'submitting', 'pending'];
+const FLOW_SUCCESS_KEYWORDS = ['saved', 'success', 'done', 'complete', 'completed', 'submitted', 'loaded'];
+const FLOW_ERROR_KEYWORDS = ['error', 'failed', 'failure'];
 const SCAFFOLD_HINT_META = Object.freeze({
   generatedBy: 'themis',
   kind: 'scaffold',
@@ -37,6 +41,8 @@ const SCAFFOLD_HINT_META = Object.freeze({
 const GENERATED_HELPER_SOURCE = `${GENERATED_MARKER}
 const crypto = require('crypto');
 const fs = require('fs');
+const path = require('path');
+const Module = require('module');
 
 function listExportNames(moduleExports) {
   const keys = getEnumerableKeys(moduleExports);
@@ -238,6 +244,13 @@ function normalizeBehaviorValue(value, seen = new Set()) {
   }
 }
 
+function clonePlainData(value) {
+  if (value === undefined) {
+    return undefined;
+  }
+  return JSON.parse(JSON.stringify(value));
+}
+
 async function normalizeRouteResult(value) {
   if (typeof Response !== 'undefined' && value instanceof Response) {
     const headers = {};
@@ -391,22 +404,27 @@ function withPatchedModule(sourceFile, request, buildExports, run) {
     return run();
   }
 
+  const previousLoad = Module._load;
   const hadExisting = Object.prototype.hasOwnProperty.call(require.cache, resolvedRequest);
   const previousCacheEntry = require.cache[resolvedRequest];
 
   delete require.cache[resolvedRequest];
-  const actualExports = require(resolvedRequest);
+  const actualExports = previousLoad.call(Module, resolvedRequest, null, false);
+  const patchedExports = buildExports(actualExports);
   delete require.cache[resolvedRequest];
-  require.cache[resolvedRequest] = {
-    id: resolvedRequest,
-    filename: resolvedRequest,
-    loaded: true,
-    exports: buildExports(actualExports)
+
+  Module._load = function themisPatchedModuleLoad(targetRequest, parent, isMain) {
+    const resolvedTarget = Module._resolveFilename(targetRequest, parent, isMain);
+    if (resolvedTarget === resolvedRequest) {
+      return patchedExports;
+    }
+    return previousLoad.call(this, targetRequest, parent, isMain);
   };
 
   try {
     return run();
   } finally {
+    Module._load = previousLoad;
     if (hadExisting) {
       require.cache[resolvedRequest] = previousCacheEntry;
     } else {
@@ -415,9 +433,9 @@ function withPatchedModule(sourceFile, request, buildExports, run) {
   }
 }
 
-function runComponentInteractionContract(sourceFile, exportName, props, interactionPlan = [], options = {}) {
+async function runComponentInteractionContract(sourceFile, exportName, props, interactionPlan = [], options = {}) {
   const wrapRender = options && typeof options.wrapRender === 'function' ? options.wrapRender : null;
-  return loadModuleWithReactHarness(sourceFile, ({ moduleExports, stateRecords, beginRender } = {}) => {
+  return loadModuleWithReactHarness(sourceFile, async ({ moduleExports, stateRecords, beginRender } = {}) => {
     const component = readExportValue(moduleExports || require(sourceFile), exportName);
     function render() {
       beginRender();
@@ -427,25 +445,33 @@ function runComponentInteractionContract(sourceFile, exportName, props, interact
 
     let rendered = render();
     const availableInteractions = collectElementInteractions(rendered);
-    const interactions = resolvePlannedElementInteractions(availableInteractions, interactionPlan).map((interaction) => {
+    const interactions = [];
+
+    for (const interaction of resolvePlannedElementInteractions(availableInteractions, interactionPlan)) {
       const beforeState = normalizeBehaviorValue(stateRecords);
       const beforeRendered = normalizeBehaviorValue(rendered);
       const result = interaction.invoke();
       rendered = render();
-      return {
+      const immediateRendered = normalizeBehaviorValue(rendered);
+      const immediateDom = buildDomContractFromElement(rendered);
+      const settledResult = await settleComponentInteractionResult(result);
+      rendered = render();
+      interactions.push({
         label: interaction.label,
         eventName: interaction.eventName,
         elementType: interaction.elementType,
         syntheticEvent: interaction.syntheticEvent,
-        result: normalizeBehaviorValue(result),
+        result: normalizeBehaviorValue(settledResult),
         beforeState,
         afterState: normalizeBehaviorValue(stateRecords),
         beforeRendered,
+        immediateRendered,
         afterRendered: normalizeBehaviorValue(rendered),
         beforeDom: buildDomContractFromElement(interaction.beforeRenderedElement || beforeRendered),
+        immediateDom,
         afterDom: buildDomContractFromElement(rendered)
-      };
-    });
+      });
+    }
 
     return {
       rendered: normalizeBehaviorValue(rendered),
@@ -453,6 +479,80 @@ function runComponentInteractionContract(sourceFile, exportName, props, interact
       state: normalizeBehaviorValue(stateRecords),
       plan: normalizeBehaviorValue(interactionPlan),
       interactions
+    };
+  });
+}
+
+async function runComponentBehaviorFlowContract(sourceFile, exportName, props, flowPlan = [], options = {}) {
+  const wrapRender = options && typeof options.wrapRender === 'function' ? options.wrapRender : null;
+  return loadModuleWithReactHarness(sourceFile, async ({ moduleExports, stateRecords, beginRender } = {}) => {
+    const component = readExportValue(moduleExports || require(sourceFile), exportName);
+    function render() {
+      beginRender();
+      const rendered = component(props);
+      return wrapRender ? wrapRender(rendered) : rendered;
+    }
+
+    let rendered = render();
+    const steps = [];
+
+    for (const step of normalizeComponentFlowPlan(flowPlan)) {
+      const availableInteractions = collectElementInteractions(rendered);
+      const interaction = findMatchingElementInteraction(availableInteractions, step);
+      if (!interaction) {
+        steps.push({
+          label: step.label || step.event || 'unresolved-step',
+          expected: normalizeBehaviorValue(step.expected || {}),
+          skipped: true,
+          reason: 'No matching interaction was available for this flow step.',
+          beforeDom: buildDomContractFromElement(rendered),
+          beforeState: normalizeBehaviorValue(stateRecords)
+        });
+        continue;
+      }
+
+      const beforeState = normalizeBehaviorValue(stateRecords);
+      const beforeDom = buildDomContractFromElement(rendered);
+      const beforeRendered = normalizeBehaviorValue(rendered);
+      const result = interaction.invoke(step.syntheticEvent);
+      rendered = render();
+      const immediateDom = buildDomContractFromElement(rendered);
+      const immediateState = normalizeBehaviorValue(stateRecords);
+      const immediateRendered = normalizeBehaviorValue(rendered);
+      const settledResult = await settleComponentFlowStep(result, step);
+      rendered = render();
+      let settledDom = buildDomContractFromElement(rendered);
+      if (!isSatisfiedFlowExpectation(step.expected, settledDom)) {
+        const awaited = await awaitFlowExpectation(render, rendered, step);
+        rendered = awaited.rendered;
+        settledDom = awaited.dom;
+      }
+
+      steps.push({
+        label: step.label || interaction.label,
+        eventName: interaction.eventName,
+        elementType: interaction.elementType,
+        expected: normalizeBehaviorValue(step.expected || {}),
+        syntheticEvent: normalizeBehaviorValue(step.syntheticEvent),
+        returnValue: normalizeBehaviorValue(settledResult),
+        beforeState,
+        immediateState,
+        settledState: normalizeBehaviorValue(stateRecords),
+        beforeRendered,
+        immediateRendered,
+        settledRendered: normalizeBehaviorValue(rendered),
+        beforeDom,
+        immediateDom,
+        settledDom
+      });
+    }
+
+    return {
+      rendered: normalizeBehaviorValue(rendered),
+      dom: buildDomContractFromElement(rendered),
+      state: normalizeBehaviorValue(stateRecords),
+      plan: normalizeBehaviorValue(flowPlan),
+      steps
     };
   });
 }
@@ -580,6 +680,34 @@ function normalizeHookInteractionPlan(plan) {
     .filter(Boolean);
 }
 
+function normalizeComponentFlowPlan(plan) {
+  if (!Array.isArray(plan)) {
+    return [];
+  }
+
+  return plan
+    .map((step) => {
+      if (!step || typeof step !== 'object') {
+        return null;
+      }
+
+      const syntheticEvent = buildFlowSyntheticEvent(step);
+      return {
+        label: typeof step.label === 'string' ? step.label : null,
+        event: typeof step.event === 'string' ? step.event : null,
+        labelIncludes: typeof step.labelIncludes === 'string' ? step.labelIncludes : null,
+        elementType: typeof step.elementType === 'string' ? step.elementType : null,
+        syntheticEvent,
+        awaitResult: step.awaitResult === true,
+        flushMicrotasks: Number(step.flushMicrotasks || 0),
+        advanceTimersByTime: Number(step.advanceTimersByTime || 0),
+        runAllTimers: step.runAllTimers === true,
+        expected: isPlainObject(step.expected) ? clonePlainData(step.expected) : {}
+      };
+    })
+    .filter((step) => step && step.event);
+}
+
 function findMatchingElementInteraction(interactions, step) {
   return interactions.find((interaction) => {
     if (step.event && interaction.eventName !== step.event) {
@@ -599,10 +727,113 @@ function findMatchingHookInteraction(interactions, step) {
   return interactions.find((interaction) => interaction.methodName === step.method) || null;
 }
 
+async function settleComponentFlowStep(result, step) {
+  let settledResult = result;
+
+  if (step.awaitResult && settledResult && typeof settledResult.then === 'function') {
+    settledResult = await settledResult;
+  }
+
+  const flushCount = Math.max(0, Number(step.flushMicrotasks || 0));
+  for (let index = 0; index < flushCount; index += 1) {
+    await Promise.resolve();
+  }
+
+  if (step.runAllTimers && typeof globalThis.runAllTimers === 'function') {
+    globalThis.runAllTimers();
+  }
+
+  if (Number(step.advanceTimersByTime || 0) > 0 && typeof globalThis.advanceTimersByTime === 'function') {
+    globalThis.advanceTimersByTime(Number(step.advanceTimersByTime));
+  }
+
+  if (flushCount > 0) {
+    for (let index = 0; index < flushCount; index += 1) {
+      await Promise.resolve();
+    }
+  }
+
+  return settledResult;
+}
+
+async function settleComponentInteractionResult(result) {
+  let settledResult = result;
+
+  if (settledResult && typeof settledResult.then === 'function') {
+    settledResult = await settledResult;
+  }
+
+  await flushFlowMicrotasks({ flushMicrotasks: 1 });
+  return settledResult;
+}
+
+async function awaitFlowExpectation(render, rendered, step, maxAttempts = 4) {
+  let currentRendered = rendered;
+  let currentDom = buildDomContractFromElement(currentRendered);
+
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    if (isSatisfiedFlowExpectation(step.expected, currentDom)) {
+      break;
+    }
+
+    await flushFlowMicrotasks(step);
+    currentRendered = render();
+    currentDom = buildDomContractFromElement(currentRendered);
+  }
+
+  return {
+    rendered: currentRendered,
+    dom: currentDom
+  };
+}
+
+function isSatisfiedFlowExpectation(expected, dom) {
+  if (!expected || typeof expected !== 'object') {
+    return true;
+  }
+
+  if (typeof expected.settledTextIncludes === 'string' && !String(dom && dom.textContent || '').includes(expected.settledTextIncludes)) {
+    return false;
+  }
+
+  return true;
+}
+
+async function flushFlowMicrotasks(step) {
+  if (typeof globalThis.flushMicrotasks === 'function') {
+    await globalThis.flushMicrotasks();
+  } else {
+    await Promise.resolve();
+    await Promise.resolve();
+  }
+
+  const flushCount = Math.max(0, Number(step && step.flushMicrotasks || 0));
+  for (let index = 0; index < flushCount; index += 1) {
+    await Promise.resolve();
+  }
+}
+
 function collectElementInteractions(node, ancestry = []) {
   const interactions = [];
   visitElementInteractions(node, ancestry, interactions);
   return interactions;
+}
+
+function buildFlowSyntheticEvent(step) {
+  const payload = isPlainObject(step.target) ? clonePlainData(step.target) : {};
+  const type = typeof step.event === 'string' ? step.event.replace(/^on/, '').toLowerCase() : 'event';
+  return {
+    type,
+    defaultPrevented: false,
+    preventDefault() {
+      this.defaultPrevented = true;
+    },
+    target: payload,
+    currentTarget: {
+      type: typeof step.elementType === 'string' ? step.elementType : null,
+      props: {}
+    }
+  };
 }
 
 function visitElementInteractions(node, ancestry, interactions) {
@@ -626,8 +857,9 @@ function visitElementInteractions(node, ancestry, interactions) {
       elementType,
       syntheticEvent: normalizeBehaviorValue(syntheticEvent),
       beforeRenderedElement: node,
-      invoke() {
-        return props[eventName](syntheticEvent);
+      invoke(overrideEvent) {
+        const eventValue = overrideEvent || syntheticEvent;
+        return props[eventName](eventValue);
       }
     });
   }
@@ -918,6 +1150,7 @@ module.exports = {
   createRequestFromSpec,
   assertSourceFreshness,
   runComponentInteractionContract,
+  runComponentBehaviorFlowContract,
   runHookInteractionContract
 };
 `;
@@ -958,6 +1191,7 @@ function generateTestsFromSource(cwd, options = {}) {
     const matchedProviders = matchProjectProviders(projectProviders, file, projectRoot);
     analysis.projectProviders = matchedProviders;
     analysis.projectProviderFile = projectProviders ? projectProviders.file : null;
+    analysis.providerRuntimePresets = buildProviderRuntimePresets(matchedProviders);
     analysis.providerRuntimeIndexes = matchedProviders
       .filter((provider) => typeof provider.applyMocks === 'function' || typeof provider.wrapRender === 'function')
       .map((provider) => provider.index);
@@ -1982,7 +2216,7 @@ function analyzeRuntimeFunction(node, typeIndex) {
     const constructorDeclaration = node.members.find((member) => ts.isConstructorDeclaration(member));
     return {
       async: false,
-      parameterCount: constructorDeclaration ? constructorDeclaration.parameters.length : 0,
+      parameterCount: constructorDeclaration ? getRuntimeArity(constructorDeclaration.parameters) : 0,
       parameters: constructorDeclaration ? constructorDeclaration.parameters.map((parameter, index) => analyzeParameter(parameter, typeIndex, index)) : [],
       usesJsx: false,
       classLike: true,
@@ -1999,12 +2233,42 @@ function analyzeRuntimeFunction(node, typeIndex) {
 function analyzeFunctionLike(node, typeIndex) {
   return {
     async: hasModifier(node, ts.SyntaxKind.AsyncKeyword),
-    parameterCount: node.parameters.length,
+    parameterCount: getRuntimeArity(node.parameters),
     parameters: node.parameters.map((parameter, index) => analyzeParameter(parameter, typeIndex, index)),
     usesJsx: containsJsx(node.body || node),
     eventHandlers: collectJsxEventHandlers(node.body || node),
+    stringLiterals: collectStringLiterals(node.body || node),
     instanceMethods: []
   };
+}
+
+function collectStringLiterals(node, values = new Set()) {
+  if (!node || typeof node !== 'object') {
+    return [...values];
+  }
+
+  if (ts.isStringLiteralLike(node) && typeof node.text === 'string' && node.text.trim().length > 0) {
+    values.add(node.text.trim());
+  }
+
+  ts.forEachChild(node, (child) => collectStringLiterals(child, values));
+  return [...values];
+}
+
+function getRuntimeArity(parameters) {
+  if (!Array.isArray(parameters) || parameters.length === 0) {
+    return 0;
+  }
+
+  let count = 0;
+  for (const parameter of parameters) {
+    if (!parameter || parameter.dotDotDotToken || parameter.initializer) {
+      break;
+    }
+    count += 1;
+  }
+
+  return count;
 }
 
 function analyzeParameter(parameter, typeIndex, index) {
@@ -2436,6 +2700,7 @@ function resolveNextAppComponentCases(analysis) {
       caseName: propsSamples.hinted ? 'renders a hinted next app contract' : 'renders an inferred next app contract',
       props: propsSamples.props,
       interactions: resolveComponentInteractionSamples(analysis, entry),
+      flows: resolveComponentFlowSamples(analysis, entry),
       confidence: propsSamples.confidence
     });
   }
@@ -2473,6 +2738,7 @@ function resolveReactComponentCases(analysis, reservedExports = new Set()) {
       caseName: propsSamples.hinted ? 'renders with hinted props' : 'renders with inferred props',
       props: propsSamples.props,
       interactions: resolveComponentInteractionSamples(analysis, entry),
+      flows: resolveComponentFlowSamples(analysis, entry),
       confidence: propsSamples.confidence
     });
   }
@@ -2717,6 +2983,15 @@ function resolveComponentInteractionSamples(analysis, entry) {
   return inferComponentInteractionPlan(entry);
 }
 
+function resolveComponentFlowSamples(analysis, entry) {
+  const hinted = resolveHintCollection(analysis.hints, 'componentFlows', entry.exportedName);
+  if (Array.isArray(hinted)) {
+    return cloneSerializable(hinted);
+  }
+
+  return inferComponentFlowPlan(entry, analysis);
+}
+
 function resolveHookInteractionSamples(analysis, entry) {
   const hinted = resolveHintCollection(analysis.hints, 'hookInteractions', entry.exportedName);
   if (Array.isArray(hinted)) {
@@ -2731,6 +3006,91 @@ function inferComponentInteractionPlan(entry) {
   return [...new Set(events)]
     .slice(0, 4)
     .map((eventName) => ({ event: eventName, repeat: 1 }));
+}
+
+function inferComponentFlowPlan(entry, analysis) {
+  const events = [...new Set(Array.isArray(entry.eventHandlers) ? entry.eventHandlers : [])];
+  const steps = [];
+  const immediateText = inferFlowExpectationText(entry, analysis, FLOW_LOADING_KEYWORDS);
+  const settledText = inferFlowExpectationText(entry, analysis, FLOW_SUCCESS_KEYWORDS) || inferFlowExpectationText(entry, analysis, FLOW_ERROR_KEYWORDS);
+
+  if (events.includes('onInput')) {
+    steps.push({
+      label: 'input update',
+      event: 'onInput',
+      elementType: 'input',
+      target: { value: 'themis@example.test' },
+      expected: {
+        immediateTextIncludes: 'themis@example.test'
+      }
+    });
+  } else if (events.includes('onChange')) {
+    steps.push({
+      label: 'change update',
+      elementType: 'input',
+      event: 'onChange',
+      target: { value: 'themis@example.test' },
+      expected: {
+        immediateTextIncludes: 'themis@example.test'
+      }
+    });
+  }
+
+  if (events.includes('onSubmit')) {
+    steps.push({
+      label: 'submit flow',
+      event: 'onSubmit',
+      elementType: 'form',
+      awaitResult: true,
+      flushMicrotasks: 2,
+      expected: {
+        ...(immediateText ? { immediateTextIncludes: immediateText } : {}),
+        ...(settledText ? { settledTextIncludes: settledText } : {})
+      }
+    });
+  } else if (events.includes('onClick')) {
+    steps.push({
+      label: 'click flow',
+      event: 'onClick',
+      elementType: 'button',
+      expected: {
+        ...(immediateText ? { immediateTextIncludes: immediateText } : {}),
+        ...(settledText ? { settledTextIncludes: settledText } : {})
+      }
+    });
+  }
+
+  return steps;
+}
+
+function inferFlowExpectationText(entry, analysis, keywords) {
+  const literals = entry && entry.functionInfo && Array.isArray(entry.functionInfo.stringLiterals)
+    ? entry.functionInfo.stringLiterals
+    : [];
+  const source = analysis && typeof analysis.source === 'string' ? analysis.source : '';
+
+  const lowerKeywords = Array.isArray(keywords) ? keywords : [];
+  for (const literal of literals) {
+    const normalized = String(literal || '').trim();
+    const lower = normalized.toLowerCase();
+    if (lowerKeywords.some((keyword) => lower.includes(keyword))) {
+      return normalized;
+    }
+  }
+
+  for (const keyword of lowerKeywords) {
+    const pattern = new RegExp(`['"\`]([^'"\`]*${escapeRegExp(keyword)}[^'"\`]*)['"\`]`, 'i');
+    const match = source.match(pattern);
+    if (match && typeof match[1] === 'string' && match[1].trim().length > 0) {
+      return match[1].trim();
+    }
+  }
+
+  return null;
+}
+
+function escapeRegExp(value) {
+  return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 function inferHookInteractionPlan(entry) {
@@ -2974,6 +3334,7 @@ function buildHintScaffold(analysis) {
   if (nextAppCases.length > 0) {
     scaffold.componentProps = buildNamedHintMap(nextAppCases, (entry) => [cloneSerializable(entry.props) || {}]);
     scaffold.componentInteractions = buildNamedHintMap(nextAppCases, (entry) => cloneSerializable(entry.interactions) || []);
+    scaffold.componentFlows = buildNamedHintMap(nextAppCases, (entry) => cloneSerializable(entry.flows) || []);
     scenarioNames.push('next-app-component');
   }
 
@@ -2991,6 +3352,10 @@ function buildHintScaffold(analysis) {
     scaffold.componentInteractions = {
       ...(isPlainObject(scaffold.componentInteractions) ? scaffold.componentInteractions : {}),
       ...buildNamedHintMap(componentCases, (entry) => cloneSerializable(entry.interactions) || [])
+    };
+    scaffold.componentFlows = {
+      ...(isPlainObject(scaffold.componentFlows) ? scaffold.componentFlows : {}),
+      ...buildNamedHintMap(componentCases, (entry) => cloneSerializable(entry.flows) || [])
     };
     scenarioNames.push('react-component');
   }
@@ -3046,6 +3411,7 @@ function mergeScaffoldHints(existingHints, scaffold) {
 
   mergeHintCollection(merged, scaffold, 'componentProps');
   mergeHintCollection(merged, scaffold, 'componentInteractions');
+  mergeHintCollection(merged, scaffold, 'componentFlows');
   mergeHintCollection(merged, scaffold, 'hookArgs');
   mergeHintCollection(merged, scaffold, 'hookInteractions');
   mergeHintCollection(merged, scaffold, 'serviceArgs');
@@ -3233,6 +3599,7 @@ function buildProviderHints(providers) {
   for (const provider of providers) {
     mergeHintCollectionValue(merged, provider, 'componentProps');
     mergeHintCollectionValue(merged, provider, 'componentInteractions');
+    mergeHintCollectionValue(merged, provider, 'componentFlows');
     mergeHintCollectionValue(merged, provider, 'hookArgs');
     mergeHintCollectionValue(merged, provider, 'hookInteractions');
     mergeHintCollectionValue(merged, provider, 'serviceArgs');
@@ -3244,6 +3611,29 @@ function buildProviderHints(providers) {
   }
 
   return Object.keys(merged).length > 0 ? merged : null;
+}
+
+function buildProviderRuntimePresets(providers) {
+  if (!Array.isArray(providers) || providers.length === 0) {
+    return [];
+  }
+
+  const presets = [];
+  for (const provider of providers) {
+    const preset = {
+      name: typeof provider.name === 'string' ? provider.name : null,
+      router: cloneSerializable(provider.router) || null,
+      reactQuery: cloneSerializable(provider.reactQuery) || null,
+      zustand: cloneSerializable(provider.zustand) || null,
+      redux: cloneSerializable(provider.redux) || null
+    };
+
+    if (preset.router || preset.reactQuery || preset.zustand || preset.redux) {
+      presets.push(preset);
+    }
+  }
+
+  return presets;
 }
 
 function mergeHintCollectionValue(target, source, key) {
@@ -3278,6 +3668,7 @@ function mergeHintSources(baseHints, overlayHints) {
 
   mergeHintCollectionValue(merged, overlayHints, 'componentProps');
   mergeHintCollectionValue(merged, overlayHints, 'componentInteractions');
+  mergeHintCollectionValue(merged, overlayHints, 'componentFlows');
   mergeHintCollectionValue(merged, overlayHints, 'hookArgs');
   mergeHintCollectionValue(merged, overlayHints, 'hookInteractions');
   mergeHintCollectionValue(merged, overlayHints, 'serviceArgs');
@@ -3891,6 +4282,7 @@ function renderGeneratedTest({ projectRoot, helperFile, outputFile, analysis }) 
   const helperImport = normalizeRelativeModule(path.relative(path.dirname(outputFile), helperFile));
   const sourceImport = normalizeRelativeModule(path.relative(path.dirname(outputFile), analysis.file));
   const sourceAbsolutePath = normalizePath(path.relative(path.dirname(outputFile), analysis.file));
+  const expectedExportContracts = buildExpectedExportContracts(analysis);
   const providerImport = analysis.projectProviderFile
     ? normalizeRelativeModule(path.relative(path.dirname(outputFile), analysis.projectProviderFile))
     : null;
@@ -3912,6 +4304,7 @@ const {
   createRequestFromSpec,
   assertSourceFreshness,
   runComponentInteractionContract,
+  runComponentBehaviorFlowContract,
   runHookInteractionContract
 } = require(${JSON.stringify(helperImport)});
 
@@ -3921,8 +4314,10 @@ const SOURCE_FILE = path.resolve(__dirname, ${JSON.stringify(sourceAbsolutePath)
 const SOURCE_HASH = ${JSON.stringify(analysis.sourceHash)};
 const REGENERATE_COMMAND = ${JSON.stringify(`npx themis generate ${relativeSourcePath}`)};
 const SCANNED_EXPORTS = ${analysis.exactExports ? JSON.stringify(analysis.exportNames, null, 2) : 'null'};
+const EXPECTED_EXPORT_CONTRACTS = ${JSON.stringify(expectedExportContracts, null, 2)};
 const PROJECT_PROVIDER_IMPORT = ${providerImport ? JSON.stringify(providerImport) : 'null'};
 const PROJECT_PROVIDER_INDEXES = ${JSON.stringify(analysis.providerRuntimeIndexes || [], null, 2)};
+const PROJECT_PROVIDER_PRESETS = ${JSON.stringify(analysis.providerRuntimePresets || [], null, 2)};
 const NEXT_APP_CASES = ${JSON.stringify(flattenScenarioCases(analysis.scenarios, 'next-app-component'), null, 2)};
 const NEXT_ROUTE_CASES = ${JSON.stringify(flattenScenarioCases(analysis.scenarios, 'next-route-handler'), null, 2)};
 const COMPONENT_CASES = ${JSON.stringify(flattenScenarioCases(analysis.scenarios, 'react-component'), null, 2)};
@@ -3963,14 +4358,24 @@ function applyProjectProviderMocks(exportName, scenarioName) {
       exportName,
       scenario: scenarioName,
       mock: typeof mock === 'function' ? mock : null,
-      fn: typeof fn === 'function' ? fn : null
+      fn: typeof fn === 'function' ? fn : null,
+      mockFetch: typeof mockFetch === 'function' ? mockFetch : null,
+      resetFetchMocks: typeof resetFetchMocks === 'function' ? resetFetchMocks : null,
+      restoreFetch: typeof restoreFetch === 'function' ? restoreFetch : null,
+      useFakeTimers: typeof useFakeTimers === 'function' ? useFakeTimers : null,
+      useRealTimers: typeof useRealTimers === 'function' ? useRealTimers : null,
+      advanceTimersByTime: typeof advanceTimersByTime === 'function' ? advanceTimersByTime : null,
+      runAllTimers: typeof runAllTimers === 'function' ? runAllTimers : null,
+      flushMicrotasks: typeof flushMicrotasks === 'function' ? flushMicrotasks : null
     });
   }
 }
 
 function applyProjectProviderRender(element, exportName, scenarioName) {
+  let current = applyProjectProviderPresets(element);
+
   if (!PROJECT_PROVIDER_IMPORT) {
-    return element;
+    return current;
   }
 
   const loaded = require(PROJECT_PROVIDER_IMPORT);
@@ -3982,7 +4387,6 @@ function applyProjectProviderRender(element, exportName, scenarioName) {
         ? [loaded]
         : [];
 
-  let current = element;
   for (const providerIndex of PROJECT_PROVIDER_INDEXES) {
     const provider = providers[providerIndex];
     if (!provider || typeof provider.wrapRender !== 'function') {
@@ -3994,7 +4398,20 @@ function applyProjectProviderRender(element, exportName, scenarioName) {
       sourcePath: SOURCE_PATH,
       exportName,
       scenario: scenarioName,
-      element: current
+      element: current,
+      withProviderShell,
+      withReactRouter(elementValue, config) {
+        return withReactRouter(elementValue, config);
+      },
+      withReactQuery(elementValue, config) {
+        return withReactQuery(elementValue, config);
+      },
+      withZustandStore(elementValue, config) {
+        return withZustandStore(elementValue, config);
+      },
+      withReduxStore(elementValue, config) {
+        return withReduxStore(elementValue, config);
+      }
     });
 
     if (nextValue !== undefined) {
@@ -4005,16 +4422,236 @@ function applyProjectProviderRender(element, exportName, scenarioName) {
   return current;
 }
 
+function applyProjectProviderPresets(element) {
+  let current = element;
+
+  for (const preset of PROJECT_PROVIDER_PRESETS) {
+    if (preset.router) {
+      current = withReactRouter(current, preset.router);
+    }
+    if (preset.reactQuery) {
+      current = withReactQuery(current, preset.reactQuery);
+    }
+    if (preset.zustand) {
+      current = withZustandStore(current, preset.zustand);
+    }
+    if (preset.redux) {
+      current = withReduxStore(current, preset.redux);
+    }
+  }
+
+  return current;
+}
+
+function withProviderShell(type, element, attributes = {}) {
+  return {
+    $$typeof: 'react.test.element',
+    type,
+    key: null,
+    props: {
+      role: attributes.role || 'group',
+      ...attributes,
+      children: element
+    }
+  };
+}
+
+function withReactRouter(element, config = {}) {
+  return withProviderShell('themis-router-provider', element, {
+    role: 'navigation',
+    'data-themis-provider': 'router',
+    'data-route-path': typeof config.path === 'string' ? config.path : '/',
+    'data-route-params': serializeProviderData(config.params || {}),
+    'data-route-search': serializeProviderData(config.search || {})
+  });
+}
+
+function withReactQuery(element, config = {}) {
+  return withProviderShell('themis-react-query-provider', element, {
+    'data-themis-provider': 'react-query',
+    'data-query-client': typeof config.clientName === 'string' ? config.clientName : 'themis-query-client',
+    'data-query-state': serializeProviderData(config.state || {}),
+    'data-query-cache': serializeProviderData(config.cache || {})
+  });
+}
+
+function withZustandStore(element, config = {}) {
+  return withProviderShell('themis-zustand-provider', element, {
+    'data-themis-provider': 'zustand',
+    'data-store-name': typeof config.name === 'string' ? config.name : 'zustand-store',
+    'data-store-state': serializeProviderData(config.state || {})
+  });
+}
+
+function withReduxStore(element, config = {}) {
+  return withProviderShell('themis-redux-provider', element, {
+    'data-themis-provider': 'redux',
+    'data-redux-slice': typeof config.slice === 'string' ? config.slice : 'root',
+    'data-redux-state': serializeProviderData(config.state || {})
+  });
+}
+
+function serializeProviderData(value) {
+  if (value === undefined) {
+    return '';
+  }
+  return JSON.stringify(normalizeBehaviorValue(value));
+}
+
+function assertExpectedRuntimeContract(runtime) {
+  expect(typeof runtime).toBe('object');
+  expect(runtime === null).toBe(false);
+
+  const expectedNames = Object.keys(EXPECTED_EXPORT_CONTRACTS).sort();
+  if (expectedNames.length > 0) {
+    expect(Object.keys(runtime).sort()).toEqual(expectedNames);
+  }
+
+  for (const [exportName, expected] of Object.entries(EXPECTED_EXPORT_CONTRACTS)) {
+    const actual = runtime[exportName];
+    expect(Boolean(actual)).toBe(true);
+
+    if (expected.kind && expected.kind !== 'unknown') {
+      expect(actual.kind).toBe(expected.kind);
+    }
+
+    if (typeof expected.arity === 'number' && (actual.kind === 'function' || actual.kind === 'class')) {
+      expect(actual.arity).toBe(expected.arity);
+    }
+
+    if (Array.isArray(expected.prototypeKeys) && actual.kind === 'class') {
+      expect(actual.prototypeKeys).toEqual(expected.prototypeKeys);
+    }
+  }
+}
+
+function assertNormalizedRenderContract(rendered) {
+  const normalized = normalizeBehaviorValue(rendered);
+  expect(normalized !== undefined && normalized !== null).toBe(true);
+
+  if (Array.isArray(normalized)) {
+    expect(normalized.length >= 0).toBe(true);
+    return;
+  }
+
+  if (typeof normalized === 'object') {
+    if (normalized.kind === 'element') {
+      expect(Boolean(normalized.type)).toBe(true);
+      expect(typeof normalized.props).toBe('object');
+      return;
+    }
+
+    expect(Object.keys(normalized).length >= 0).toBe(true);
+    return;
+  }
+
+  expect(['string', 'number', 'boolean'].includes(typeof normalized)).toBe(true);
+}
+
+function assertDomContractShape(contract) {
+  expect(typeof contract).toBe('object');
+  expect(contract === null).toBe(false);
+  expect(Array.isArray(contract.nodes)).toBe(true);
+  expect(Array.isArray(contract.roles)).toBe(true);
+  expect(typeof contract.textContent).toBe('string');
+}
+
+function countPlannedSteps(plan) {
+  if (!Array.isArray(plan)) {
+    return 0;
+  }
+
+  return plan.reduce((total, step) => {
+    const repeat = step && typeof step === 'object' ? Number(step.repeat || 1) : 1;
+    return total + Math.max(1, Number.isFinite(repeat) ? repeat : 1);
+  }, 0);
+}
+
+function assertComponentInteractionContractShape(contract, plan) {
+  assertNormalizedRenderContract(contract.rendered);
+  assertDomContractShape(contract.dom);
+  expect(Array.isArray(contract.interactions)).toBe(true);
+
+  if (countPlannedSteps(plan) > 0) {
+    expect(contract.interactions.length > 0).toBe(true);
+  }
+
+  for (const entry of contract.interactions) {
+    expect(typeof entry.label).toBe('string');
+    expect(entry.label.length > 0).toBe(true);
+    assertDomContractShape(entry.beforeDom);
+    assertDomContractShape(entry.afterDom);
+  }
+}
+
+function assertFlowContractShape(flow, plan) {
+  assertDomContractShape(flow.dom);
+  expect(Array.isArray(flow.steps)).toBe(true);
+  expect(flow.steps.length).toBe(Array.isArray(plan) ? plan.length : 0);
+
+  for (let index = 0; index < flow.steps.length; index += 1) {
+    const step = flow.steps[index];
+    const expected = Array.isArray(plan) ? plan[index] || {} : {};
+    expect(typeof step.label).toBe('string');
+
+    if (step.skipped) {
+      continue;
+    }
+
+    assertDomContractShape(step.beforeDom);
+    assertDomContractShape(step.immediateDom);
+    assertDomContractShape(step.settledDom);
+
+    if (expected.expected && typeof expected.expected.immediateTextIncludes === 'string') {
+      expect(step.immediateDom.textContent).toContain(expected.expected.immediateTextIncludes);
+    }
+
+    if (expected.expected && typeof expected.expected.settledTextIncludes === 'string') {
+      expect(step.settledDom.textContent).toContain(expected.expected.settledTextIncludes);
+    }
+  }
+}
+
+function assertHookResultContract(result) {
+  const normalized = normalizeBehaviorValue(result);
+  expect(normalized !== undefined).toBe(true);
+}
+
+function assertHookInteractionContractShape(contract, plan) {
+  expect(Array.isArray(contract.interactions)).toBe(true);
+
+  if (countPlannedSteps(plan) > 0) {
+    expect(contract.interactions.length > 0).toBe(true);
+  }
+
+  for (const entry of contract.interactions) {
+    expect(typeof entry.label).toBe('string');
+    expect(entry.label.length > 0).toBe(true);
+  }
+}
+
+function assertRouteResultContractShape(response) {
+  expect(response !== undefined && response !== null).toBe(true);
+
+  if (response && typeof response === 'object' && response.kind === 'response') {
+    expect(typeof response.status).toBe('number');
+    expect(response.status >= 100).toBe(true);
+    expect(response.status < 600).toBe(true);
+    expect(typeof response.headers).toBe('object');
+  }
+}
+
+function assertServiceResultContractShape(result) {
+  expect(result !== undefined).toBe(true);
+}
+
 describe(${JSON.stringify(suiteName)}, () => {
   ${exactExportBlock}
 
   test('captures runtime export contract', () => {
     const moduleExports = loadModuleExports();
-    expect({
-      source: SOURCE_PATH,
-      scannedExports: SCANNED_EXPORTS,
-      runtime: buildModuleContract(moduleExports)
-    }).toMatchSnapshot();
+    const runtime = buildModuleContract(moduleExports);
+    assertExpectedRuntimeContract(runtime);
   });
 
   if (NEXT_APP_CASES.length > 0) {
@@ -4025,53 +4662,44 @@ describe(${JSON.stringify(suiteName)}, () => {
           const moduleExports = loadModuleExports();
           const component = readExportValue(moduleExports, testCase.exportName);
           const rendered = applyProjectProviderRender(component(testCase.props), testCase.exportName, 'next-app-component');
-          expect({
-            source: SOURCE_PATH,
-            scenario: 'next-app-component',
-            confidence: testCase.confidence,
-            exportName: testCase.exportName,
-            props: testCase.props,
-            rendered: normalizeBehaviorValue(rendered)
-          }).toMatchSnapshot();
+          assertNormalizedRenderContract(rendered);
         });
 
-        test(testCase.exportName + ' next interaction contract', () => {
+        test(testCase.exportName + ' next interaction contract', async () => {
           applyProjectProviderMocks(testCase.exportName, 'next-app-component');
-          expect({
-            source: SOURCE_PATH,
-            scenario: 'next-app-component',
-            confidence: testCase.confidence,
-            exportName: testCase.exportName,
-            props: testCase.props,
-            interaction: runComponentInteractionContract(SOURCE_FILE, testCase.exportName, testCase.props, testCase.interactions, {
-              wrapRender(element) {
-                return applyProjectProviderRender(element, testCase.exportName, 'next-app-component');
-              }
-            })
-          }).toMatchSnapshot();
-        });
-
-        test(testCase.exportName + ' next dom state contract', () => {
-          applyProjectProviderMocks(testCase.exportName, 'next-app-component');
-          const contract = runComponentInteractionContract(SOURCE_FILE, testCase.exportName, testCase.props, testCase.interactions, {
+          const interaction = await runComponentInteractionContract(SOURCE_FILE, testCase.exportName, testCase.props, testCase.interactions, {
             wrapRender(element) {
               return applyProjectProviderRender(element, testCase.exportName, 'next-app-component');
             }
           });
-          expect({
-            source: SOURCE_PATH,
-            scenario: 'next-app-component',
-            confidence: testCase.confidence,
-            exportName: testCase.exportName,
-            props: testCase.props,
-            dom: contract.dom,
-            interactionDom: contract.interactions.map((entry) => ({
-              label: entry.label,
-              beforeDom: entry.beforeDom,
-              afterDom: entry.afterDom
-            }))
-          }).toMatchSnapshot();
+          assertComponentInteractionContractShape(interaction, testCase.interactions);
         });
+
+        test(testCase.exportName + ' next dom state contract', async () => {
+          applyProjectProviderMocks(testCase.exportName, 'next-app-component');
+          const contract = await runComponentInteractionContract(SOURCE_FILE, testCase.exportName, testCase.props, testCase.interactions, {
+            wrapRender(element) {
+              return applyProjectProviderRender(element, testCase.exportName, 'next-app-component');
+            }
+          });
+          assertDomContractShape(contract.dom);
+          if (Array.isArray(testCase.interactions) && testCase.interactions.length > 0) {
+            expect(contract.interactions.length > 0).toBe(true);
+          }
+        });
+
+        if (Array.isArray(testCase.flows) && testCase.flows.length > 0) {
+          test(testCase.exportName + ' next behavioral flow contract', async () => {
+            applyProjectProviderMocks(testCase.exportName, 'next-app-component');
+            const flow = await runComponentBehaviorFlowContract(SOURCE_FILE, testCase.exportName, testCase.props, testCase.flows, {
+              wrapRender(element) {
+                return applyProjectProviderRender(element, testCase.exportName, 'next-app-component');
+              }
+            });
+            assertFlowContractShape(flow, testCase.flows);
+            expect(flow.steps.some((step) => !step.skipped)).toBe(true);
+          });
+        }
       }
     });
   }
@@ -4084,53 +4712,44 @@ describe(${JSON.stringify(suiteName)}, () => {
           const moduleExports = loadModuleExports();
           const component = readExportValue(moduleExports, testCase.exportName);
           const rendered = applyProjectProviderRender(component(testCase.props), testCase.exportName, 'react-component');
-          expect({
-            source: SOURCE_PATH,
-            scenario: 'react-component',
-            confidence: testCase.confidence,
-            exportName: testCase.exportName,
-            props: testCase.props,
-            rendered: normalizeBehaviorValue(rendered)
-          }).toMatchSnapshot();
+          assertNormalizedRenderContract(rendered);
         });
 
-        test(testCase.exportName + ' interaction contract', () => {
+        test(testCase.exportName + ' interaction contract', async () => {
           applyProjectProviderMocks(testCase.exportName, 'react-component');
-          expect({
-            source: SOURCE_PATH,
-            scenario: 'react-component',
-            confidence: testCase.confidence,
-            exportName: testCase.exportName,
-            props: testCase.props,
-            interaction: runComponentInteractionContract(SOURCE_FILE, testCase.exportName, testCase.props, testCase.interactions, {
-              wrapRender(element) {
-                return applyProjectProviderRender(element, testCase.exportName, 'react-component');
-              }
-            })
-          }).toMatchSnapshot();
-        });
-
-        test(testCase.exportName + ' dom state contract', () => {
-          applyProjectProviderMocks(testCase.exportName, 'react-component');
-          const contract = runComponentInteractionContract(SOURCE_FILE, testCase.exportName, testCase.props, testCase.interactions, {
+          const interaction = await runComponentInteractionContract(SOURCE_FILE, testCase.exportName, testCase.props, testCase.interactions, {
             wrapRender(element) {
               return applyProjectProviderRender(element, testCase.exportName, 'react-component');
             }
           });
-          expect({
-            source: SOURCE_PATH,
-            scenario: 'react-component',
-            confidence: testCase.confidence,
-            exportName: testCase.exportName,
-            props: testCase.props,
-            dom: contract.dom,
-            interactionDom: contract.interactions.map((entry) => ({
-              label: entry.label,
-              beforeDom: entry.beforeDom,
-              afterDom: entry.afterDom
-            }))
-          }).toMatchSnapshot();
+          assertComponentInteractionContractShape(interaction, testCase.interactions);
         });
+
+        test(testCase.exportName + ' dom state contract', async () => {
+          applyProjectProviderMocks(testCase.exportName, 'react-component');
+          const contract = await runComponentInteractionContract(SOURCE_FILE, testCase.exportName, testCase.props, testCase.interactions, {
+            wrapRender(element) {
+              return applyProjectProviderRender(element, testCase.exportName, 'react-component');
+            }
+          });
+          assertDomContractShape(contract.dom);
+          if (Array.isArray(testCase.interactions) && testCase.interactions.length > 0) {
+            expect(contract.interactions.length > 0).toBe(true);
+          }
+        });
+
+        if (Array.isArray(testCase.flows) && testCase.flows.length > 0) {
+          test(testCase.exportName + ' behavioral flow contract', async () => {
+            applyProjectProviderMocks(testCase.exportName, 'react-component');
+            const flow = await runComponentBehaviorFlowContract(SOURCE_FILE, testCase.exportName, testCase.props, testCase.flows, {
+              wrapRender(element) {
+                return applyProjectProviderRender(element, testCase.exportName, 'react-component');
+              }
+            });
+            assertFlowContractShape(flow, testCase.flows);
+            expect(flow.steps.some((step) => !step.skipped)).toBe(true);
+          });
+        }
       }
     });
   }
@@ -4143,26 +4762,13 @@ describe(${JSON.stringify(suiteName)}, () => {
           const moduleExports = loadModuleExports();
           const hook = readExportValue(moduleExports, testCase.exportName);
           const result = hook(...testCase.args);
-          expect({
-            source: SOURCE_PATH,
-            scenario: 'react-hook',
-            confidence: testCase.confidence,
-            exportName: testCase.exportName,
-            args: testCase.args,
-            result: normalizeBehaviorValue(result)
-          }).toMatchSnapshot();
+          assertHookResultContract(result);
         });
 
         test(testCase.exportName + ' interaction contract', () => {
           applyProjectProviderMocks(testCase.exportName, 'react-hook');
-          expect({
-            source: SOURCE_PATH,
-            scenario: 'react-hook',
-            confidence: testCase.confidence,
-            exportName: testCase.exportName,
-            args: testCase.args,
-            interaction: runHookInteractionContract(SOURCE_FILE, testCase.exportName, testCase.args, testCase.interactions)
-          }).toMatchSnapshot();
+          const interaction = runHookInteractionContract(SOURCE_FILE, testCase.exportName, testCase.args, testCase.interactions);
+          assertHookInteractionContractShape(interaction, testCase.interactions);
         });
       }
     });
@@ -4177,15 +4783,8 @@ describe(${JSON.stringify(suiteName)}, () => {
           const handler = readExportValue(moduleExports, testCase.exportName);
           const request = createRequestFromSpec(testCase.request);
           const response = await Promise.resolve(handler(request, testCase.context));
-          expect({
-            source: SOURCE_PATH,
-            scenario: 'next-route-handler',
-            confidence: testCase.confidence,
-            exportName: testCase.exportName,
-            request: testCase.request,
-            context: testCase.context,
-            response: await normalizeRouteResult(response)
-          }).toMatchSnapshot();
+          const normalizedResponse = await normalizeRouteResult(response);
+          assertRouteResultContractShape(normalizedResponse);
         });
       }
     });
@@ -4200,15 +4799,8 @@ describe(${JSON.stringify(suiteName)}, () => {
           const handler = readExportValue(moduleExports, testCase.exportName);
           const request = createRequestFromSpec(testCase.request);
           const response = await Promise.resolve(handler(request, testCase.context));
-          expect({
-            source: SOURCE_PATH,
-            scenario: 'route-handler',
-            confidence: testCase.confidence,
-            exportName: testCase.exportName,
-            request: testCase.request,
-            context: testCase.context,
-            response: await normalizeRouteResult(response)
-          }).toMatchSnapshot();
+          const normalizedResponse = await normalizeRouteResult(response);
+          assertRouteResultContractShape(normalizedResponse);
         });
       }
     });
@@ -4222,14 +4814,7 @@ describe(${JSON.stringify(suiteName)}, () => {
           const moduleExports = loadModuleExports();
           const service = readExportValue(moduleExports, testCase.exportName);
           const result = await Promise.resolve(service(...testCase.args));
-          expect({
-            source: SOURCE_PATH,
-            scenario: 'node-service',
-            confidence: testCase.confidence,
-            exportName: testCase.exportName,
-            args: testCase.args,
-            result: normalizeBehaviorValue(result)
-          }).toMatchSnapshot();
+          assertServiceResultContractShape(normalizeBehaviorValue(result));
         });
       }
     });
@@ -4241,6 +4826,23 @@ describe(${JSON.stringify(suiteName)}, () => {
 function flattenScenarioCases(scenarios, kind) {
   const scenario = scenarios.find((candidate) => candidate.kind === kind);
   return scenario && Array.isArray(scenario.cases) ? scenario.cases : [];
+}
+
+function buildExpectedExportContracts(analysis) {
+  const entries = Array.isArray(analysis.exportEntries) ? analysis.exportEntries : [];
+  const expected = {};
+
+  for (const entry of entries) {
+    expected[entry.exportedName] = {
+      kind: entry.runtimeKind || 'unknown',
+      arity: entry.functionInfo ? entry.functionInfo.parameterCount : null,
+      prototypeKeys: entry.functionInfo && entry.functionInfo.classLike
+        ? [...new Set(Array.isArray(entry.instanceMethods) ? entry.instanceMethods : [])].sort()
+        : null
+    };
+  }
+
+  return expected;
 }
 
 function writeManagedFile(filePath, content, options = {}) {

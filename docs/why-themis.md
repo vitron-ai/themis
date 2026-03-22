@@ -68,7 +68,7 @@ Themis keeps a lean JS runtime and ships first-party typings:
 
 Themis ships workflow features agents can use directly:
 
-- snapshots with `toMatchSnapshot()`
+- direct contract assertions instead of snapshot-file churn
 - mocks and spies with `fn`, `spyOn`, and `mock`
 - `.themis/run-diff.json` and `.themis/run-history.json`
 - HTML verdict reports for human review

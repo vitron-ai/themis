@@ -190,14 +190,46 @@ describe('code scan generation', () => {
     return {
       'package.json': `{\n  "name": "themis-provider-driven-fixture",\n  "private": true,\n  "version": "0.0.0"\n}\n`,
       'tsconfig.json': `{\n  "compilerOptions": {\n    "target": "ES2020",\n    "module": "CommonJS",\n    "jsx": "react-jsx"\n  }\n}\n`,
-      'themis.generate.js': `module.exports = {\n  providers: [\n    {\n      include: /src\\/components\\//,\n      componentProps: {\n        GreetingButton: [{ label: 'Launch' }]\n      },\n      componentInteractions: {\n        GreetingButton: [{ event: 'onClick', repeat: 2 }]\n      },\n      wrapRender({ element, exportName, scenario }) {\n        return {\n          $$typeof: 'react.test.element',\n          type: 'section',\n          key: null,\n          props: {\n            role: 'region',\n            'aria-label': exportName + ' ' + scenario,\n            'data-provider': 'wrapped',\n            children: element\n          }\n        };\n      }\n    },\n    {\n      include: /src\\/services\\//,\n      serviceArgs: {\n        loadGreeting: [[]]\n      },\n      applyMocks({ scenario, mock, fn }) {\n        if (scenario !== 'node-service' || !mock || !fn) {\n          return;\n        }\n\n        mock('./src/services/greeter.ts', () => ({\n          getGreeting: fn(() => 'Mock hi')\n        }));\n      }\n    },\n    {\n      include: /src\\/hooks\\//,\n      hookArgs: {\n        useRemoteToggle: [[false]]\n      },\n      hookInteractions: {\n        useRemoteToggle: [{ method: 'toggle', repeat: 2 }, { method: 'enable' }]\n      },\n      applyMocks({ scenario, mock, fn }) {\n        if (scenario !== 'react-hook' || !mock || !fn) {\n          return;\n        }\n\n        mock('./src/services/analytics.ts', () => ({\n          track: fn(() => 'tracked')\n        }));\n      }\n    }\n  ]\n};\n`,
+      'themis.generate.js': `module.exports = {\n  providers: [\n    {\n      include: /src\\/components\\//,\n      componentProps: {\n        GreetingButton: [{ label: 'Launch' }]\n      },\n      componentInteractions: {\n        GreetingButton: [{ event: 'onClick', repeat: 2 }]\n      },\n      applyMocks({ scenario, mock, fn }) {\n        if (scenario !== 'react-component' || !mock || !fn) {\n          return;\n        }\n\n        mock('./src/services/greeter.ts', () => ({\n          getGreeting: fn(() => 'Mock hi')\n        }));\n      },\n      wrapRender({ element, exportName, scenario }) {\n        return {\n          $$typeof: 'react.test.element',\n          type: 'section',\n          key: null,\n          props: {\n            role: 'region',\n            'aria-label': exportName + ' ' + scenario,\n            'data-provider': 'wrapped',\n            children: element\n          }\n        };\n      }\n    },\n    {\n      include: /src\\/services\\//,\n      serviceArgs: {\n        loadGreeting: [[]]\n      },\n      applyMocks({ scenario, mock, fn }) {\n        if (scenario !== 'node-service' || !mock || !fn) {\n          return;\n        }\n\n        mock('./src/services/greeter.ts', () => ({\n          getGreeting: fn(() => 'Mock hi')\n        }));\n      }\n    },\n    {\n      include: /src\\/hooks\\//,\n      hookArgs: {\n        useRemoteToggle: [[false]]\n      },\n      hookInteractions: {\n        useRemoteToggle: [{ method: 'toggle', repeat: 2 }, { method: 'enable' }]\n      },\n      applyMocks({ scenario, mock, fn }) {\n        if (scenario !== 'react-hook' || !mock || !fn) {\n          return;\n        }\n\n        mock('./src/services/analytics.ts', () => ({\n          track: fn(() => 'tracked')\n        }));\n      }\n    }\n  ]\n};\n`,
       'node_modules/react/index.js': REACT_INDEX_SOURCE,
       'node_modules/react/jsx-runtime.js': REACT_JSX_RUNTIME_SOURCE,
       'src/components/GreetingButton.tsx': `import { useState } from 'react';\nimport { getGreeting } from '../services/greeter.ts';\n\nexport function GreetingButton({ label = 'Load' }) {\n  const [message, setMessage] = useState('idle');\n\n  return <button onClick={() => setMessage(getGreeting())}>{label}: {message}</button>;\n}\n`,
       'src/hooks/useRemoteToggle.ts': `import { useState } from 'react';\nimport { track } from '../services/analytics.ts';\n\nexport function useRemoteToggle(initial = false) {\n  const [value, setValue] = useState(initial);\n\n  return {\n    value,\n    toggle() {\n      track('toggle');\n      setValue((current) => !current);\n    },\n    enable() {\n      track('enable');\n      setValue(true);\n    }\n  };\n}\n`,
-      'src/services/greeter.ts': `export function getGreeting() {\n  return 'real greeting';\n}\n`,
+      'src/services/greeter.ts': `export function getGreeting() {\n  throw new Error('provider mock required');\n}\n`,
       'src/services/loadGreeting.ts': `import { getGreeting } from './greeter.ts';\n\nexport function loadGreeting() {\n  return getGreeting();\n}\n`,
       'src/services/analytics.ts': `export function track(name) {\n  return name;\n}\n`
+    };
+  }
+
+  function createAsyncUiFlowFixture() {
+    return {
+      'package.json': `{\n  "name": "themis-async-ui-flow-fixture",\n  "private": true,\n  "version": "0.0.0"\n}\n`,
+      'tsconfig.json': `{\n  "compilerOptions": {\n    "target": "ES2020",\n    "module": "CommonJS",\n    "jsx": "react-jsx"\n  }\n}\n`,
+      'themis.generate.js': `module.exports = {\n  providers: [\n    {\n      include: /src\\/components\\//,\n      componentProps: {\n        SignupForm: [{ endpoint: 'https://themis.test/api/signup', initialEmail: 'ada@themis.test' }]\n      },\n      componentFlows: {\n        SignupForm: [\n          {\n            label: 'submit signup',\n            event: 'onSubmit',\n            elementType: 'form',\n            awaitResult: true,\n            flushMicrotasks: 2,\n            expected: {\n              settledTextIncludes: 'saved'\n            }\n          }\n        ]\n      },\n      wrapRender({ element }) {\n        return {\n          $$typeof: 'react.test.element',\n          type: 'div',\n          key: null,\n          props: {\n            role: 'main',\n            'data-app-shell': 'themis',\n            children: element\n          }\n        };\n      },\n      applyMocks({ scenario, mockFetch }) {\n        if (scenario !== 'react-component' || !mockFetch) {\n          return;\n        }\n\n        mockFetch({ json: { state: 'saved' }, status: 201 });\n      }\n    }\n  ]\n};\n`,
+      'node_modules/react/index.js': REACT_INDEX_SOURCE,
+      'node_modules/react/jsx-runtime.js': REACT_JSX_RUNTIME_SOURCE,
+      'src/components/SignupForm.tsx': `import { useState } from 'react';\n\nexport function SignupForm({ endpoint, initialEmail = 'ada@themis.test' }) {\n  const [email, setEmail] = useState(initialEmail);\n  const [status, setStatus] = useState('idle');\n\n  async function submit(event) {\n    event.preventDefault();\n    setStatus('loading');\n    const response = await fetch(endpoint, {\n      method: 'POST',\n      headers: {\n        'content-type': 'application/json'\n      },\n      body: JSON.stringify({ email })\n    });\n    const payload = await response.json();\n    setStatus(payload.state);\n  }\n\n  return (\n    <form onSubmit={submit}>\n      <label htmlFor=\"email\">Email</label>\n      <input id=\"email\" value={email} onInput={(event) => setEmail(event.target.value)} />\n      <button type=\"submit\">Send to {email || 'nobody'}</button>\n      <p role=\"status\">{status}</p>\n    </form>\n  );\n}\n`
+    };
+  }
+
+  function createInferredAsyncUiFlowFixture() {
+    return {
+      'package.json': `{\n  "name": "themis-inferred-ui-flow-fixture",\n  "private": true,\n  "version": "0.0.0"\n}\n`,
+      'tsconfig.json': `{\n  "compilerOptions": {\n    "target": "ES2020",\n    "module": "CommonJS",\n    "jsx": "react-jsx"\n  }\n}\n`,
+      'node_modules/react/index.js': REACT_INDEX_SOURCE,
+      'node_modules/react/jsx-runtime.js': REACT_JSX_RUNTIME_SOURCE,
+      'src/components/AsyncStatusForm.tsx': `import { useState } from 'react';\n\nexport function AsyncStatusForm() {\n  const [email, setEmail] = useState('ada@themis.test');\n  const [status, setStatus] = useState('idle');\n\n  async function submit(event) {\n    event.preventDefault();\n    setStatus('loading');\n    await Promise.resolve();\n    setStatus('saved');\n  }\n\n  return (\n    <form onSubmit={submit}>\n      <label htmlFor=\"email\">Email</label>\n      <input id=\"email\" value={email} onInput={(event) => setEmail(event.target.value)} />\n      <button type=\"submit\">Send {email}</button>\n      <p role=\"status\">{status}</p>\n    </form>\n  );\n}\n`
+    };
+  }
+
+  function createProviderPresetFixture() {
+    return {
+      'package.json': `{\n  "name": "themis-provider-preset-fixture",\n  "private": true,\n  "version": "0.0.0"\n}\n`,
+      'tsconfig.json': `{\n  "compilerOptions": {\n    "target": "ES2020",\n    "module": "CommonJS",\n    "jsx": "react-jsx"\n  }\n}\n`,
+      'themis.generate.js': `module.exports = {\n  providers: [\n    {\n      include: /src\\/components\\//,\n      router: {\n        path: '/teams/themis',\n        params: { team: 'themis' },\n        search: { tab: 'overview' }\n      },\n      reactQuery: {\n        clientName: 'themis-client',\n        state: { greeting: 'warm-cache' }\n      },\n      zustand: {\n        name: 'ui-store',\n        state: { modalOpen: true }\n      },\n      redux: {\n        slice: 'session',\n        state: { user: 'ada' }\n      },\n      wrapRender({ element, withReduxStore }) {\n        return withReduxStore(element, {\n          slice: 'session',\n          state: { user: 'ada-override' }\n        });\n      }\n    }\n  ]\n};\n`,
+      'node_modules/react/index.js': REACT_INDEX_SOURCE,
+      'node_modules/react/jsx-runtime.js': REACT_JSX_RUNTIME_SOURCE,
+      'src/components/Dashboard.tsx': `export function Dashboard() {\n  return <button>Launch dashboard</button>;\n}\n`
     };
   }
 
@@ -228,6 +260,10 @@ describe('code scan generation', () => {
         expect(generatedSource).toContain("matches scanned export names");
         expect(generatedSource).toContain("node service adapter");
         expect(generatedSource).toContain("../../src/math.js");
+        expect(generatedSource.includes('toMatchSnapshot')).toBe(false);
+
+        const widgetTestSource = fs.readFileSync(widgetTestPath, 'utf8');
+        expect(widgetTestSource.includes('toMatchSnapshot')).toBe(false);
 
         const mapPath = resolvePath('.themis', 'generate-map.json');
         expect(fs.existsSync(mapPath)).toBe(true);
@@ -252,6 +288,8 @@ describe('code scan generation', () => {
           '__snapshots__',
           'widget.generated.test.js.snapshots.json'
         );
+        fs.mkdirSync(path.dirname(widgetSnapshotPath), { recursive: true });
+        fs.writeFileSync(widgetSnapshotPath, '{}\n', 'utf8');
         expect(fs.existsSync(widgetSnapshotPath)).toBe(true);
 
         fs.rmSync(resolvePath('src', 'ui', 'widget.ts'));
@@ -549,6 +587,7 @@ describe('code scan generation', () => {
         expect(componentSource).toContain('PROJECT_PROVIDER_IMPORT');
         expect(componentSource).toContain('applyProjectProviderMocks');
         expect(componentSource).toContain('applyProjectProviderRender');
+        expect(componentSource.includes('toMatchSnapshot')).toBe(false);
 
         const run = runCli(tempDir, ['test', '--json']);
         expect(run.status).toBe(0);
@@ -556,27 +595,6 @@ describe('code scan generation', () => {
         expect(runPayload.summary.failed).toBe(0);
         const allTestNames = runPayload.files.flatMap((file) => file.tests.map((test) => test.fullName));
         expect(allTestNames.some((name) => name.includes('GreetingButton dom state contract'))).toBe(true);
-
-        const componentSnapshotPath = resolvePath(
-          'tests',
-          'generated',
-          'components',
-          '__snapshots__',
-          'GreetingButton.generated.test.js.snapshots.json'
-        );
-        const componentSnapshots = fs.readFileSync(componentSnapshotPath, 'utf8');
-        expect(componentSnapshots).toContain("role: 'region'");
-        expect(componentSnapshots).toContain("'data-provider': 'wrapped'");
-
-        const snapshotPath = resolvePath(
-          'tests',
-          'generated',
-          'services',
-          '__snapshots__',
-          'loadGreeting.generated.test.js.snapshots.json'
-        );
-        const snapshots = fs.readFileSync(snapshotPath, 'utf8');
-        expect(snapshots).toContain('Mock hi');
       }
     );
   });
@@ -611,6 +629,84 @@ describe('code scan generation', () => {
         expect(fixHandoff.items[0].suggestedCommand).toBe('npx themis generate src/math.js --update');
       }
     );
+  });
+
+  test('generates async behavioral UI flow contracts with provider-aware wrappers and mocks', async () => {
+    await withProjectFixture(
+      createAsyncUiFlowFixture(),
+      async ({ tempDir, resolvePath }) => {
+        const generated = runCli(tempDir, ['generate', 'src', '--json']);
+        expect(generated.status).toBe(0);
+        const payload = parseJsonOutput(generated);
+
+        expect(payload.summary.generated).toBe(1);
+        const entry = payload.entries.find((item) => item.sourceFile === 'src/components/SignupForm.tsx');
+        expect(entry.moduleKind).toBe('react-component');
+
+        const componentTestPath = resolvePath('tests', 'generated', 'components', 'SignupForm.generated.test.js');
+        const componentSource = fs.readFileSync(componentTestPath, 'utf8');
+        expect(componentSource).toContain('behavioral flow contract');
+        expect(componentSource).toContain('mockFetch');
+        expect(componentSource).toContain('"settledTextIncludes": "saved"');
+        expect(componentSource.includes('toMatchSnapshot')).toBe(false);
+
+        const run = runCli(tempDir, ['test', '--json']);
+        expect(run.status).toBe(0);
+        const runPayload = JSON.parse(run.output);
+        expect(runPayload.summary.failed).toBe(0);
+
+        const allTestNames = runPayload.files.flatMap((file) => file.tests.map((test) => test.fullName));
+        expect(allTestNames.some((name) => name.includes('SignupForm behavioral flow contract'))).toBe(true);
+      }
+    );
+  });
+
+  test('infers richer stateful ui flows for async form components without hints', async () => {
+    await withProjectFixture(createInferredAsyncUiFlowFixture(), async ({ tempDir, resolvePath }) => {
+      const summary = generateTestsFromSource(tempDir);
+      const generatedPath = resolvePath('tests', 'generated', 'components', 'AsyncStatusForm.generated.test.js');
+      const generatedSource = fs.readFileSync(generatedPath, 'utf8');
+
+      expect(summary.generatedFiles).toContain(generatedPath);
+      expect(generatedSource).toContain('"event": "onInput"');
+      expect(generatedSource).toContain('"event": "onSubmit"');
+      expect(generatedSource).toContain('"immediateTextIncludes": "loading"');
+      expect(generatedSource).toContain('"settledTextIncludes": "saved"');
+
+      const result = await runTests([generatedPath], {
+        cwd: tempDir,
+        environment: 'jsdom',
+        maxWorkers: 1,
+        tsconfigPath: 'tsconfig.json'
+      });
+
+      expect(result.summary.failed).toBe(0);
+      expect(result.summary.passed > 0).toBe(true);
+    });
+  });
+
+  test('supports provider preset wrappers for router, react query, zustand, and redux patterns', async () => {
+    await withProjectFixture(createProviderPresetFixture(), async ({ tempDir, resolvePath }) => {
+      const summary = generateTestsFromSource(tempDir);
+      const generatedPath = resolvePath('tests', 'generated', 'components', 'Dashboard.generated.test.js');
+      const generatedSource = fs.readFileSync(generatedPath, 'utf8');
+
+      expect(summary.generatedFiles).toContain(generatedPath);
+      expect(generatedSource).toContain('PROJECT_PROVIDER_PRESETS');
+      expect(generatedSource).toContain('"reactQuery"');
+      expect(generatedSource).toContain('"zustand"');
+      expect(generatedSource).toContain('"redux"');
+
+      const result = await runTests([generatedPath], {
+        cwd: tempDir,
+        environment: 'jsdom',
+        maxWorkers: 1,
+        tsconfigPath: 'tsconfig.json'
+      });
+
+      expect(result.summary.failed).toBe(0);
+      expect(result.summary.passed > 0).toBe(true);
+    });
   });
 
   test('write-hints scaffolds missing hint sidecars and reuses them on repeat runs', async () => {

@@ -14,10 +14,14 @@ All notable changes to this project are documented in this file.
 - Expanded the HTML report with quick actions, failure-first triage, richer file cards, and test-level drilldown.
 - Added embedded brand/report asset visuals to the README.
 - Added project-aware JS/TS runtime support for TSX, ESM `.js`, `tsconfig` path aliases, `setupFiles`, and `jsdom` environments.
-- Added first-party snapshots, mocks, run-diff artifacts, and watch mode for tighter agent rerun loops.
+- Removed first-party snapshot-file workflows in favor of direct contract assertions and generated flow contracts; retained mocks, run-diff artifacts, and watch mode for tighter agent rerun loops.
 - Added a lightweight DOM-oriented `jsdom` UI test layer with `render`, `screen`, `fireEvent`, `waitFor`, `cleanup`, and UI matchers for text, attributes, and document presence.
 - Added deterministic async UI test controls with fake timers, microtask flushing, and first-party fetch mocking for `jsdom` tests.
-- Expanded generated React and Next component adapters with DOM-state contract snapshots and provider-aware `wrapRender(...)` support in `themis.generate.js` / `themis.generate.cjs`.
+- Expanded generated React and Next component adapters with direct DOM-state contract assertions and provider-aware `wrapRender(...)` support in `themis.generate.js` / `themis.generate.cjs`.
+- Added provider-driven `componentFlows` plus richer `applyMocks(...)` context so generated React/Next adapters can emit async behavioral flow contracts with mocked fetch/timer control.
+- Added provider preset wrappers for router, React Query, Zustand, and Redux-style app patterns in `themis.generate.js` / `themis.generate.cjs`, plus richer inferred async input/submit/loading/success component flows.
+- Added an incremental `themis migrate <jest|vitest>` scaffold and runtime compatibility imports for `@jest/globals`, `vitest`, and `@testing-library/react`.
+- Added config-level `testIgnore` discovery patterns so repos can keep generated output, fixture sandboxes, and other local test noise out of default suite runs deterministically.
 - Added an in-repo VS Code extension scaffold for artifact-driven result viewing, reruns, and HTML report opening.
 - Expanded the VS Code extension scaffold with generated-review navigation for source/test/hint mappings and unresolved generation backlog.
 - Refreshed README, AGENTS, and supporting docs to match the current package scope, JS/TS feature set, artifact contracts, and extension surface.

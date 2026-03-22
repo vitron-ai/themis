@@ -30,17 +30,17 @@ Generate deterministic, high-signal tests for Themis with strong behavior covera
 - Prefer temporary directories (`fs.mkdtempSync`) for filesystem fixtures.
 - Keep worker-sensitive tests pinned to a deterministic worker count when needed.
 
-## CLI Output and Snapshots
+## CLI Output Contracts
 
 - Use real CLI invocation via `spawnSync(process.execPath, [CLI_PATH, ...])`.
-- Set `NO_COLOR=1` for stable snapshots.
+- Set `NO_COLOR=1` for stable output assertions.
 - Parse `--json` and `--agent` output as JSON objects. Do not make tests depend on whitespace formatting.
-- Normalize volatile fields before asserting snapshots:
+- Normalize volatile fields before asserting human-reporter output:
   - timestamps
   - durations
   - worker counts
   - temp paths (including `/var` and `/private/var` variants on macOS)
-- Snapshot baselines live in `tests/snapshots/cli-output.snapshots.json`.
+- Prefer direct line-level assertions over large golden-output baselines.
 - Keep machine-facing status contracts canonical (`passed`, `failed`, `skipped`, `total`) even when human lexicons change.
 
 ## Artifact And Extension Contract

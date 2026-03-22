@@ -10,6 +10,7 @@ This document defines the public API surface for Themis `0.1.0-beta.0`.
 themis test [options]
 themis init
 themis generate [path]
+themis migrate <jest|vitest>
 ```
 
 ## `themis init`
@@ -28,11 +29,13 @@ Default behavior:
 - input directory: `src`
 - output directory: `tests/generated`
 - generated files mirror the scanned source tree with `*.generated.test.js`
-- generated tests snapshot normalized runtime export contracts
+- generated tests assert normalized runtime export contracts directly in generated source
 - scenario adapters cover React components, React hooks, Next app components, Next route handlers, generic route handlers, and Node service functions when inputs can be inferred or hinted
-- React component and hook adapters also snapshot inferred interaction/state contracts when event handlers or zero-argument stateful methods are available
-- React and Next component adapters also emit DOM-state snapshots that capture visible text, inferred roles, non-event attributes, and interaction-driven UI changes
-- project-level providers from `themis.generate.js` / `themis.generate.cjs` can match source files, inject shared fixture data, register runtime mocks, and wrap generated component renders for provider-aware DOM contracts
+- React component and hook adapters also assert inferred interaction/state contracts when event handlers or zero-argument stateful methods are available
+- React and Next component adapters also emit direct DOM-state contract assertions that capture visible text, inferred roles, non-event attributes, and interaction-driven UI changes
+- React and Next component adapters can also emit async behavioral flow contracts when `componentFlows` are inferred or supplied, including richer inferred input/submit/loading/success flows for common async forms
+- project-level providers from `themis.generate.js` / `themis.generate.cjs` can match source files, inject shared fixture data, register runtime mocks, and wrap generated component renders for provider-aware DOM contracts and behavioral flow coverage
+- provider presets can declare router, React Query, Zustand, and Redux-style wrapper metadata without hand-writing every wrapper shell
 - `.themis/generate-map.json` records source-to-generated-test mappings plus scenario metadata
 - `.themis/generate-last.json` stores the full machine-readable generate payload
 - `.themis/generate-handoff.json` stores a compact prompt-ready handoff payload for agents
@@ -67,6 +70,7 @@ Per-file hint sidecars are supported via `<source>.themis.json`. These can provi
 
 - `componentProps`
 - `componentInteractions`
+- `componentFlows`
 - `hookArgs`
 - `hookInteractions`
 - `serviceArgs`
@@ -81,7 +85,11 @@ Per-file hint sidecars are supported via `<source>.themis.json`. These can provi
 Project-level provider modules are supported via `themis.generate.js` or `themis.generate.cjs` at the repo root. A provider can expose:
 
 - `include` / `exclude` / `files`: source matching rules
-- any of the same static fixture keys as sidecars (`componentProps`, `componentInteractions`, `hookArgs`, `hookInteractions`, `serviceArgs`, `routeRequests`, `routeContext`, `scenarios`)
+- any of the same static fixture keys as sidecars (`componentProps`, `componentInteractions`, `componentFlows`, `hookArgs`, `hookInteractions`, `serviceArgs`, `routeRequests`, `routeContext`, `scenarios`)
+- `router`: preset router wrapper metadata (`path`, `params`, `search`)
+- `reactQuery`: preset React Query wrapper metadata (`clientName`, `state`, `cache`)
+- `zustand`: preset Zustand wrapper metadata (`name`, `state`)
+- `redux`: preset Redux wrapper metadata (`slice`, `state`)
 - `applyMocks(context)`: runtime mock registration for generated tests
 - `wrapRender(context)`: provider-aware render wrapping for generated React and Next component adapters
 
@@ -93,6 +101,14 @@ Project-level provider modules are supported via `themis.generate.js` or `themis
 - `scenario`
 - `mock`
 - `fn`
+- `mockFetch`
+- `resetFetchMocks`
+- `restoreFetch`
+- `useFakeTimers`
+- `useRealTimers`
+- `advanceTimersByTime`
+- `runAllTimers`
+- `flushMicrotasks`
 
 `wrapRender(context)` receives:
 
@@ -101,6 +117,22 @@ Project-level provider modules are supported via `themis.generate.js` or `themis
 - `exportName`
 - `scenario`
 - `element`
+- `withProviderShell(type, element, attrs)`
+- `withReactRouter(element, config?)`
+- `withReactQuery(element, config?)`
+- `withZustandStore(element, config?)`
+- `withReduxStore(element, config?)`
+
+## `themis migrate`
+
+Scaffolds an incremental migration bridge for existing Jest or Vitest suites.
+
+Behavior:
+
+- writes or updates `themis.config.json`
+- adds `tests/setup.themis.js` to `setupFiles`
+- adds `test:themis` to `package.json` when missing
+- relies on built-in runtime compatibility for `@jest/globals`, `vitest`, and `@testing-library/react`
 
 ## `themis test` options
 
@@ -113,13 +145,22 @@ Project-level provider modules are supported via `themis.generate.js` or `themis
 | `--workers <N>` | positive integer | Override worker count. Invalid values fail fast. |
 | `--environment node\|jsdom` | string | Override the configured test environment. |
 | `-w`, `--watch` | flag | Rerun the selected suite when watched project files change. |
-| `-u`, `--update-snapshots` | flag | Update snapshot files when `toMatchSnapshot()` values change. |
 | `--stability <N>` | positive integer | Run selected tests `N` times and classify stability (`stable_pass`, `stable_fail`, `unstable`). |
 | `--html-output <path>` | string | Output path for `--reporter html` (default: `.themis/report.html`). |
 | `--match "<regex>"` | string | Run only tests whose full name matches regex. |
 | `--rerun-failed` | flag | Rerun failures from `.themis/failed-tests.json`. |
 | `--no-memes` | flag | Disable meme intent aliases (`cook`, `yeet`, `vibecheck`, `wipe`). |
+
+Migration compatibility:
+
+- imports from `@jest/globals` are supported at runtime
+- imports from `vitest` are supported at runtime
+- imports from `@testing-library/react` are supported via Themis `render`, `screen`, `fireEvent`, `waitFor`, `cleanup`, and `act`
 | `--lexicon classic\|themis` | string | Human reporter terminology mode for `next/spec`. |
+
+Snapshot note:
+
+- Themis no longer supports first-party snapshot files or `-u` update flows. Prefer direct assertions and generated contract tests.
 
 ## Exit behavior
 
@@ -217,6 +258,7 @@ The fake timer helpers only patch the current Themis runtime. They do not mutate
 | `environment` | `node\|jsdom` | `"node"` | Test runtime environment. |
 | `setupFiles` | `string[]` | `[]` | Files loaded before each test file. |
 | `tsconfigPath` | `string \| null` | `"tsconfig.json"` | Project tsconfig used for TSX and alias-aware transpilation. |
+| `testIgnore` | `string[]` | `[]` | Regex strings matched against repo-relative paths during discovery. Matching files and directories are skipped. |
 
 ## Programmatic API
 
@@ -243,7 +285,6 @@ Options:
 - `environment?: "node" | "jsdom"`
 - `setupFiles?: string[]`
 - `tsconfigPath?: string | null`
-- `updateSnapshots?: boolean`
 
 ## `runTests(files, options?): Promise<RunResult>`
 
@@ -259,7 +300,6 @@ Options:
 - `environment?: "node" | "jsdom"`
 - `setupFiles?: string[]`
 - `tsconfigPath?: string | null`
-- `updateSnapshots?: boolean`
 
 ## `discoverTests(cwd, config): string[]`
 
@@ -321,9 +361,17 @@ Writes `.themis/generate-last.json`, `.themis/generate-handoff.json`, and `.them
 
 Loads `themis.config.json` and merges with defaults.
 
+Discovery note:
+
+- `testIgnore` is applied to repo-relative file and directory paths before descent, so patterns like `^tests/generated(?:/|$)` keep generated output out of default test runs without changing `testDir`.
+
 ## `initConfig(cwd): void`
 
 Creates `themis.config.json` if missing.
+
+## `runMigrate(cwd, framework): MigrationResult`
+
+Scaffolds an incremental migration bridge for `jest` or `vitest`.
 
 ## `DEFAULT_CONFIG: ThemisConfig`
 
@@ -347,7 +395,6 @@ Built-in matcher API:
 - `toHaveBeenCalled()`
 - `toHaveBeenCalledTimes(expected)`
 - `toHaveBeenCalledWith(...args)`
-- `toMatchSnapshot(name?)`
 
 Machine-facing note:
 

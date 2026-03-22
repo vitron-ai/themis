@@ -85,7 +85,6 @@ function printAgent(result) {
     hints: {
       rerunFailed: 'npx themis test --rerun-failed',
       targetedRerun: 'npx themis test --match "<regex>"',
-      updateSnapshots: 'npx themis test -u',
       diffLastRun: 'cat .themis/run-diff.json',
       repairGenerated: 'cat .themis/fix-handoff.json'
     }

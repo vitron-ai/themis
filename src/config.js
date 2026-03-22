@@ -9,13 +9,18 @@ const DEFAULT_CONFIG = {
   reporter: 'next',
   environment: 'node',
   setupFiles: [],
-  tsconfigPath: 'tsconfig.json'
+  tsconfigPath: 'tsconfig.json',
+  testIgnore: []
 };
 
 function loadConfig(cwd) {
   const configPath = path.join(cwd, 'themis.config.json');
   if (!fs.existsSync(configPath)) {
-    return { ...DEFAULT_CONFIG, setupFiles: [] };
+    return {
+      ...DEFAULT_CONFIG,
+      setupFiles: [],
+      testIgnore: []
+    };
   }
 
   const raw = fs.readFileSync(configPath, 'utf8');
@@ -39,9 +44,22 @@ function normalizeConfig(config) {
     throw new Error('Invalid config tsconfigPath value: expected a string path or null.');
   }
 
+  if (!Array.isArray(config.testIgnore) || !config.testIgnore.every((entry) => typeof entry === 'string')) {
+    throw new Error('Invalid config testIgnore value: expected an array of regex strings.');
+  }
+
+  for (const pattern of config.testIgnore) {
+    try {
+      new RegExp(pattern);
+    } catch (error) {
+      throw new Error(`Invalid config testIgnore pattern "${pattern}": ${error.message}`);
+    }
+  }
+
   return {
     ...config,
-    setupFiles: [...config.setupFiles]
+    setupFiles: [...config.setupFiles],
+    testIgnore: [...config.testIgnore]
   };
 }
 

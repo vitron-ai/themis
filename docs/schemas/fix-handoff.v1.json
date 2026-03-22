@@ -19,12 +19,11 @@
     "summary": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["totalFailures", "generatedFailures", "staleSources", "snapshotMismatches", "contractFailures"],
+      "required": ["totalFailures", "generatedFailures", "staleSources", "contractFailures"],
       "properties": {
         "totalFailures": { "type": "number" },
         "generatedFailures": { "type": "number" },
         "staleSources": { "type": "number" },
-        "snapshotMismatches": { "type": "number" },
         "contractFailures": { "type": "number" }
       }
     },
@@ -77,7 +76,7 @@
           "hintsFile": { "type": ["string", "null"] },
           "category": {
             "type": "string",
-            "enum": ["source-drift", "snapshot-drift", "generated-contract-failure"]
+            "enum": ["source-drift", "generated-contract-failure"]
           },
           "failureCount": { "type": "number" },
           "failedTests": {

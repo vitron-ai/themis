@@ -3,7 +3,6 @@ const path = require('path');
 const { createExpect } = require('./expect');
 const { createModuleLoader } = require('./module-loader');
 const { installTestEnvironment } = require('./environment');
-const { createSnapshotState } = require('./snapshots');
 const { createTestUtils } = require('./test-utils');
 
 const INTENT_PHASE_ALIASES = {
@@ -40,16 +39,32 @@ function collectAndRun(filePath, options = {}) {
   let currentSuite = root;
   const projectRoot = path.resolve(options.cwd || process.cwd());
   const setupFiles = resolveSetupFiles(options.setupFiles, projectRoot);
+  const environment = installTestEnvironment(options.environment || 'node');
+  const runtimeBindings = {
+    api: null,
+    testUtils: null
+  };
   const moduleLoader = createModuleLoader({
     cwd: projectRoot,
-    tsconfigPath: options.tsconfigPath
-  });
-  const environment = installTestEnvironment(options.environment || 'node');
-  const snapshotState = createSnapshotState(path.resolve(filePath), {
-    updateSnapshots: Boolean(options.updateSnapshots)
+    tsconfigPath: options.tsconfigPath,
+    virtualModules: buildCompatibilityVirtualModules(runtimeBindings)
   });
   const testUtils = createTestUtils({ moduleLoader });
-  const runtimeExpect = createExpect({ snapshotState });
+  const runtimeExpect = createExpect();
+  const runtimeApi = buildRuntimeApi({
+    root,
+    options,
+    testUtils,
+    runtimeExpect,
+    getCurrentSuite() {
+      return currentSuite;
+    },
+    setCurrentSuite(nextSuite) {
+      currentSuite = nextSuite;
+    }
+  });
+  runtimeBindings.api = runtimeApi;
+  runtimeBindings.testUtils = testUtils;
 
   if (typeof environment.beforeEach === 'function') {
     root.hooks.beforeEach.push(environment.beforeEach);
@@ -58,51 +73,7 @@ function collectAndRun(filePath, options = {}) {
     root.hooks.afterEach.push(environment.afterEach);
   }
 
-  const previousGlobals = installGlobals({
-    describe(name, fn) {
-      if (typeof fn !== 'function') {
-        throw new Error(`describe(${name}) requires a callback`);
-      }
-      const suite = createSuite(name, currentSuite);
-      currentSuite.suites.push(suite);
-      const parent = currentSuite;
-      currentSuite = suite;
-      try {
-        fn();
-      } finally {
-        currentSuite = parent;
-      }
-    },
-    test(name, fn) {
-      if (typeof fn !== 'function') {
-        throw new Error(`test(${name}) requires a callback`);
-      }
-      currentSuite.tests.push({ name, fn });
-    },
-    intent(name, define) {
-      if (typeof define !== 'function') {
-        throw new Error(`intent(${name}) requires a callback`);
-      }
-      const intentTest = createIntentTest(name, define, {
-        noMemes: Boolean(options.noMemes)
-      });
-      currentSuite.tests.push(intentTest);
-    },
-    beforeAll(fn) {
-      currentSuite.hooks.beforeAll.push(fn);
-    },
-    beforeEach(fn) {
-      currentSuite.hooks.beforeEach.push(fn);
-    },
-    afterEach(fn) {
-      currentSuite.hooks.afterEach.push(fn);
-    },
-    afterAll(fn) {
-      currentSuite.hooks.afterAll.push(fn);
-    },
-    expect: runtimeExpect,
-    ...testUtils
-  });
+  const previousGlobals = installGlobals(runtimeApi);
 
   let loadError = null;
   try {
@@ -136,21 +107,140 @@ function collectAndRun(filePath, options = {}) {
   const results = [];
   const runOptions = {
     matchRegex: options.match ? new RegExp(options.match) : null,
-    allowedFullNames: toSet(options.allowedFullNames),
-    snapshotState
+    allowedFullNames: toSet(options.allowedFullNames)
   };
 
   return runSuite(root, [root], results, runOptions)
-    .then(() => {
-      snapshotState.save();
-      return { file: filePath, tests: results };
-    })
+    .then(() => ({ file: filePath, tests: results }))
     .finally(() => {
       restoreGlobals(previousGlobals);
       testUtils.restoreAllMocks();
       environment.teardown();
       moduleLoader.restore();
     });
+}
+
+function buildRuntimeApi({ root, options, testUtils, runtimeExpect, getCurrentSuite, setCurrentSuite }) {
+  return {
+    describe(name, fn) {
+      if (typeof fn !== 'function') {
+        throw new Error(`describe(${name}) requires a callback`);
+      }
+      const suite = createSuite(name, getCurrentSuite());
+      getCurrentSuite().suites.push(suite);
+      const parent = getCurrentSuite();
+      setCurrentSuite(suite);
+      try {
+        fn();
+      } finally {
+        setCurrentSuite(parent);
+      }
+    },
+    test(name, fn) {
+      if (typeof fn !== 'function') {
+        throw new Error(`test(${name}) requires a callback`);
+      }
+      getCurrentSuite().tests.push({ name, fn });
+    },
+    intent(name, define) {
+      if (typeof define !== 'function') {
+        throw new Error(`intent(${name}) requires a callback`);
+      }
+      const intentTest = createIntentTest(name, define, {
+        noMemes: Boolean(options.noMemes)
+      });
+      getCurrentSuite().tests.push(intentTest);
+    },
+    beforeAll(fn) {
+      getCurrentSuite().hooks.beforeAll.push(fn);
+    },
+    beforeEach(fn) {
+      getCurrentSuite().hooks.beforeEach.push(fn);
+    },
+    afterEach(fn) {
+      getCurrentSuite().hooks.afterEach.push(fn);
+    },
+    afterAll(fn) {
+      getCurrentSuite().hooks.afterAll.push(fn);
+    },
+    expect: runtimeExpect,
+    ...testUtils
+  };
+}
+
+function buildCompatibilityVirtualModules(bindings) {
+  return {
+    '@jest/globals': () => buildJestGlobals(bindings.api, bindings.testUtils),
+    vitest: () => buildVitestGlobals(bindings.api, bindings.testUtils),
+    '@testing-library/react': () => buildTestingLibraryCompat(bindings.api)
+  };
+}
+
+function buildJestGlobals(api, testUtils) {
+  const jestLike = buildJestLikeApi(api, testUtils);
+  return {
+    describe: api.describe,
+    test: api.test,
+    it: api.test,
+    expect: api.expect,
+    beforeAll: api.beforeAll,
+    beforeEach: api.beforeEach,
+    afterEach: api.afterEach,
+    afterAll: api.afterAll,
+    jest: jestLike
+  };
+}
+
+function buildVitestGlobals(api, testUtils) {
+  const jestLike = buildJestLikeApi(api, testUtils);
+  return {
+    describe: api.describe,
+    test: api.test,
+    it: api.test,
+    expect: api.expect,
+    beforeAll: api.beforeAll,
+    beforeEach: api.beforeEach,
+    afterEach: api.afterEach,
+    afterAll: api.afterAll,
+    vi: jestLike
+  };
+}
+
+function buildTestingLibraryCompat(api) {
+  return {
+    render: api.render,
+    screen: api.screen,
+    fireEvent: api.fireEvent,
+    waitFor: api.waitFor,
+    cleanup: api.cleanup,
+    act: async (callback) => {
+      if (typeof callback !== 'function') {
+        return undefined;
+      }
+      return callback();
+    }
+  };
+}
+
+function buildJestLikeApi(api, testUtils) {
+  return {
+    fn: api.fn,
+    spyOn: api.spyOn,
+    mock: api.mock,
+    unmock: api.unmock,
+    clearAllMocks: api.clearAllMocks,
+    resetAllMocks: api.resetAllMocks,
+    restoreAllMocks: api.restoreAllMocks,
+    useFakeTimers: api.useFakeTimers,
+    useRealTimers: api.useRealTimers,
+    advanceTimersByTime: api.advanceTimersByTime,
+    runAllTimers: api.runAllTimers,
+    resetModules() {
+      if (testUtils && typeof testUtils.resetAllMocks === 'function') {
+        testUtils.resetAllMocks();
+      }
+    }
+  };
 }
 
 function resolveSetupFiles(setupFiles, cwd) {
@@ -195,10 +285,6 @@ async function runSuite(suite, lineage, results, options) {
         continue;
       }
 
-      if (options.snapshotState) {
-        options.snapshotState.setCurrentTestName(testName);
-      }
-
       try {
         const beforeEachHooks = collectHooks(nextLineage, 'beforeEach', false);
         for (const hook of beforeEachHooks) {
@@ -211,9 +297,6 @@ async function runSuite(suite, lineage, results, options) {
         status = 'failed';
         error = normalizeError(err);
       } finally {
-        if (options.snapshotState) {
-          options.snapshotState.clearCurrentTestName();
-        }
         if (beforeEachSucceeded) {
           const afterEachHooks = collectHooks(nextLineage, 'afterEach', true);
           for (const hook of afterEachHooks) {

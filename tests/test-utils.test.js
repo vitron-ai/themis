@@ -56,44 +56,16 @@ describe('test utilities', () => {
     );
   });
 
-  test('writes and updates snapshot files', async () => {
+  test('supports direct object contract assertions without snapshot files', async () => {
     await withProjectFixture(
       {
-        'tests/fixture.test.js': `test('stores snapshot', () => {\n  expect({ status: 'ok', count: 2 }).toMatchSnapshot();\n});\n`
+        'tests/fixture.test.js': `test('matches direct contract', () => {\n  const result = {\n    status: 'ok',\n    count: 2,\n    meta: {\n      team: 'themis',\n      stable: true\n    }\n  };\n\n  expect(result).toMatchObject({\n    status: 'ok',\n    meta: {\n      team: 'themis'\n    }\n  });\n  expect(result.count).toBe(2);\n});\n`
       },
       async ({ tempDir, resolvePath }) => {
         const fixturePath = resolvePath('tests', 'fixture.test.js');
-        const snapshotPath = resolvePath('tests', '__snapshots__', 'fixture.test.js.snapshots.json');
-
         const firstRun = await collectAndRun(fixturePath, { cwd: tempDir });
         expect(firstRun.tests[0].status).toBe('passed');
-        expect(fs.existsSync(snapshotPath)).toBe(true);
-
-        const firstSnapshot = JSON.parse(fs.readFileSync(snapshotPath, 'utf8'));
-        expect(Object.keys(firstSnapshot)).toHaveLength(1);
-
-        const secondRun = await collectAndRun(fixturePath, { cwd: tempDir });
-        expect(secondRun.tests[0].status).toBe('passed');
-
-        fs.writeFileSync(
-          fixturePath,
-          `test('stores snapshot', () => {\n  expect({ status: 'changed', count: 2 }).toMatchSnapshot();\n});\n`,
-          'utf8'
-        );
-
-        const mismatchRun = await collectAndRun(fixturePath, { cwd: tempDir });
-        expect(mismatchRun.tests[0].status).toBe('failed');
-        expect(mismatchRun.tests[0].error.message).toContain('Snapshot mismatch');
-
-        const updatedRun = await collectAndRun(fixturePath, {
-          cwd: tempDir,
-          updateSnapshots: true
-        });
-        expect(updatedRun.tests[0].status).toBe('passed');
-
-        const updatedSnapshot = JSON.parse(fs.readFileSync(snapshotPath, 'utf8'));
-        const snapshotValue = updatedSnapshot['stores snapshot'];
-        expect(snapshotValue).toContain('changed');
+        expect(fs.existsSync(resolvePath('tests', '__snapshots__'))).toBe(false);
       }
     );
   });
@@ -105,6 +77,27 @@ describe('test utilities', () => {
         'node_modules/react/index.js': `const Fragment = Symbol.for('react.fragment');\nmodule.exports = { Fragment };\n`,
         'node_modules/react/jsx-runtime.js': `const Fragment = Symbol.for('react.fragment');\nfunction jsx(type, props, key) { return { $$typeof: 'react.test.element', type, key: key || null, props: props || {} }; }\nconst jsxs = jsx;\nmodule.exports = { Fragment, jsx, jsxs };\n`,
         'tests/fixture.test.tsx': `const state = { count: 0 };\n\nfunction Counter() {\n  return <button onClick={() => { state.count += 1; }}>{'Count ' + state.count}</button>;\n}\n\ntest('dom primitives', async () => {\n  const view = render(<Counter />);\n  const button = screen.getByRole('button', { name: 'Count 0' });\n  expect(button).toBeInTheDocument();\n  expect(button).toHaveTextContent('Count 0');\n\n  fireEvent.click(button);\n  view.rerender(<Counter />);\n\n  await waitFor(() => {\n    expect(screen.getByText('Count 1')).toBeInTheDocument();\n  });\n\n  cleanup();\n  expect(screen.queryByText('Count 1')).toBe(null);\n});\n`
+      },
+      async ({ tempDir, resolvePath }) => {
+        const result = await collectAndRun(resolvePath('tests', 'fixture.test.tsx'), {
+          cwd: tempDir,
+          environment: 'jsdom',
+          tsconfigPath: 'tsconfig.json'
+        });
+
+        expect(result.tests).toHaveLength(1);
+        expect(result.tests[0].status).toBe('passed');
+      }
+    );
+  });
+
+  test('supports incremental Jest and Vitest migration imports at runtime', async () => {
+    await withProjectFixture(
+      {
+        'tsconfig.json': `{\n  "compilerOptions": {\n    "target": "ES2020",\n    "module": "CommonJS",\n    "jsx": "react-jsx"\n  }\n}\n`,
+        'node_modules/react/index.js': `const Fragment = Symbol.for('react.fragment');\nmodule.exports = { Fragment };\n`,
+        'node_modules/react/jsx-runtime.js': `const Fragment = Symbol.for('react.fragment');\nfunction jsx(type, props, key) { return { $$typeof: 'react.test.element', type, key: key || null, props: props || {} }; }\nconst jsxs = jsx;\nmodule.exports = { Fragment, jsx, jsxs };\n`,
+        'tests/fixture.test.tsx': `import { describe, test, expect, jest } from '@jest/globals';\nimport { vi } from 'vitest';\nimport { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';\n\nconst state = { count: 0 };\n\nfunction Counter() {\n  return <button onClick={() => { state.count += 1; }}>{'Count ' + state.count}</button>;\n}\n\ndescribe('compat imports', () => {\n  test('runs through Themis compatibility shims', async () => {\n    const clickSpy = jest.fn();\n    const toggleSpy = vi.fn();\n    const view = render(<Counter />);\n    const button = screen.getByRole('button', { name: 'Count 0' });\n\n    fireEvent.click(button);\n    clickSpy('clicked');\n    toggleSpy('toggled');\n    view.rerender(<Counter />);\n\n    await waitFor(() => {\n      expect(screen.getByText('Count 1')).toBeInTheDocument();\n    });\n\n    expect(clickSpy).toHaveBeenCalledWith('clicked');\n    expect(toggleSpy).toHaveBeenCalledWith('toggled');\n    cleanup();\n  });\n});\n`
       },
       async ({ tempDir, resolvePath }) => {
         const result = await collectAndRun(resolvePath('tests', 'fixture.test.tsx'), {

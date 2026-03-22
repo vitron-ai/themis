@@ -4,6 +4,7 @@ const { discoverTests } = require('./discovery');
 const { runTests } = require('./runner');
 const { printSpec, printJson, printAgent, printNext, writeHtmlReport } = require('./reporter');
 const { runInit } = require('./init');
+const { runMigrate } = require('./migrate');
 const { generateTestsFromSource, writeGenerateArtifacts } = require('./generate');
 const { writeRunArtifacts, readFailedTestsArtifact } = require('./artifacts');
 const { buildStabilityReport, hasStabilityBreaches } = require('./stability');
@@ -63,6 +64,20 @@ async function main(argv) {
     if (summary.gates.failed) {
       process.exitCode = 1;
     }
+    return;
+  }
+
+  if (command === 'migrate') {
+    const source = argv[1];
+    const result = runMigrate(cwd, source);
+    console.log(`Themis migration scaffold created for ${result.source}.`);
+    console.log(`Config: ${formatCliPath(cwd, result.configPath)}`);
+    console.log(`Setup: ${formatCliPath(cwd, result.setupPath)}`);
+    if (result.packageUpdated && result.packageJsonPath) {
+      console.log(`Scripts: updated ${formatCliPath(cwd, result.packageJsonPath)} with test:themis`);
+    }
+    console.log('Runtime compatibility is enabled for @jest/globals, vitest, and @testing-library/react imports.');
+    console.log('Next: run npx themis test or npm run test:themis');
     return;
   }
 
@@ -139,8 +154,7 @@ async function main(argv) {
       cwd,
       environment,
       setupFiles: config.setupFiles,
-      tsconfigPath: config.tsconfigPath,
-      updateSnapshots: Boolean(flags.updateSnapshots)
+      tsconfigPath: config.tsconfigPath
     });
     runResults.push(runResult);
   }
@@ -244,8 +258,7 @@ function parseFlags(args) {
       continue;
     }
     if (token === '-u' || token === '--update-snapshots') {
-      flags.updateSnapshots = true;
-      continue;
+      throw new Error('Snapshots have been removed from Themis. Replace -u/--update-snapshots with direct assertions or generated contract flows.');
     }
     if (token === '--reporter') {
       flags.reporter = requireFlagValue(args, i, '--reporter');
@@ -281,6 +294,9 @@ function parseFlags(args) {
       flags.match = requireFlagValue(args, i, '--match');
       i += 1;
       continue;
+    }
+    if (token.startsWith('-')) {
+      throw new Error(`Unsupported test option: ${token}`);
     }
   }
   return flags;
@@ -484,7 +500,8 @@ function printUsage() {
   console.log('  generate [path]         Scan source files and generate Themis contract tests');
   console.log('                         Options: [--json] [--plan] [--output path] [--files a,b] [--match-source regex] [--match-export regex] [--scenario name] [--min-confidence level] [--require-confidence level] [--include regex] [--exclude regex] [--review] [--update] [--clean] [--changed] [--force] [--strict] [--write-hints] [--fail-on-skips] [--fail-on-conflicts]');
   console.log('  scan [path]             Alias for generate');
-  console.log('  test [--json] [--agent] [--next] [--reporter spec|next|json|agent|html] [--workers N] [--stability N] [--environment node|jsdom] [-w|--watch] [-u|--update-snapshots] [--html-output path] [--match regex] [--rerun-failed] [--no-memes] [--lexicon classic|themis]');
+  console.log('  migrate <jest|vitest>   Scaffold an incremental migration bridge for existing suites');
+  console.log('  test [--json] [--agent] [--next] [--reporter spec|next|json|agent|html] [--workers N] [--stability N] [--environment node|jsdom] [-w|--watch] [--html-output path] [--match regex] [--rerun-failed] [--no-memes] [--lexicon classic|themis]');
 }
 
 function printGenerateSummary(summary, cwd) {

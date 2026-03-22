@@ -63,8 +63,7 @@ function runFileInWorker(file, options = {}) {
         cwd: options.cwd || process.cwd(),
         environment: options.environment || 'node',
         setupFiles: Array.isArray(options.setupFiles) ? options.setupFiles : [],
-        tsconfigPath: options.tsconfigPath === undefined ? undefined : options.tsconfigPath,
-        updateSnapshots: Boolean(options.updateSnapshots)
+        tsconfigPath: options.tsconfigPath === undefined ? undefined : options.tsconfigPath
       }
     });
 

@@ -6,15 +6,15 @@ describe('intent DSL typings', () => {
     reporter: 'next',
     environment: 'jsdom',
     setupFiles: ['tests/setup.ts'],
-    tsconfigPath: 'tsconfig.json'
+    tsconfigPath: 'tsconfig.json',
+    testIgnore: ['^tests/generated(?:/|$)']
   };
 
   const modernRunOptions: import('..').RunOptions = {
     environment: modernConfig.environment,
     setupFiles: modernConfig.setupFiles,
     tsconfigPath: modernConfig.tsconfigPath,
-    cwd: '/tmp/themis-project',
-    updateSnapshots: true
+    cwd: '/tmp/themis-project'
   };
 
   expect(modernRunOptions.environment).toBe('jsdom');
