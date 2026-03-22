@@ -261,6 +261,8 @@ describe('schema contracts', () => {
       expect(payload.summary.generated).toBe(1);
       expect(payload.generatedFiles[0]).toBe('tests/generated/math.generated.test.js');
       expect(payload.artifacts.generateBacklog).toBe('.themis/generate-backlog.json');
+      expect(payload.mode.writeHints).toBe(false);
+      expect(payload.hintFiles.created.length).toBe(0);
     } finally {
       fs.rmSync(tempDir, { recursive: true, force: true });
     }
@@ -324,6 +326,7 @@ describe('schema contracts', () => {
       expect(handoffPayload.schema).toBe('themis.generate.handoff.v1');
       expect(handoffPayload.targets[0].sourceFile).toBe('src/math.js');
       expect(handoffPayload.artifacts.generateBacklog).toBe('.themis/generate-backlog.json');
+      expect(handoffPayload.hintFiles.created.length).toBe(0);
     } finally {
       fs.rmSync(tempDir, { recursive: true, force: true });
     }

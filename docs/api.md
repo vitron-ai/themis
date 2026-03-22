@@ -45,6 +45,7 @@ Default behavior:
 | `--update` | flag | Refresh existing generated files only. |
 | `--clean` | flag | Remove generated files for the selected scope. |
 | `--changed` | flag | Limit selection to changed files in the current git worktree. |
+| `--write-hints` | flag | Scaffold missing `.themis.json` hint sidecars and use them in the same generate run. |
 | `--strict` | flag | Fail generation on skips, conflicts, or entries below `high` confidence. |
 | `--fail-on-skips` | flag | Fail generation when any selected source file is skipped. |
 | `--fail-on-conflicts` | flag | Fail generation when conflicts remain unresolved. |
@@ -197,6 +198,7 @@ Options:
 - `targetDir?: string`
 - `outputDir?: string`
 - `force?: boolean`
+- `writeHints?: boolean`
 - `plan?: boolean`
 - `review?: boolean`
 - `update?: boolean`
@@ -215,6 +217,11 @@ Options:
 - `exclude?: string | null`
 
 Returns absolute paths for scanned files, selected generated files, removed stale generated files, skipped files, detailed per-entry actions, prompt text, and artifact locations.
+
+Generate payload note:
+
+- `mode.writeHints` indicates whether scaffold hint generation was enabled
+- `hintFiles` reports created, updated, and unchanged scaffold sidecars for the run
 
 ## `buildGeneratePayload(summary, cwd?): GeneratePayload`
 

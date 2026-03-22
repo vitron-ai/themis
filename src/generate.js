@@ -16,6 +16,11 @@ const HTTP_METHOD_EXPORTS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS',
 const SCENARIO_PRIORITY = ['react-component', 'react-hook', 'route-handler', 'node-service', 'module-contract'];
 const CONFIDENCE_PRIORITY = ['low', 'medium', 'high'];
 const HINT_FILE_SUFFIX = '.themis.json';
+const SCAFFOLD_HINT_META = Object.freeze({
+  generatedBy: 'themis',
+  kind: 'scaffold',
+  version: 1
+});
 
 const GENERATED_HELPER_SOURCE = `${GENERATED_MARKER}
 const crypto = require('crypto');
@@ -411,6 +416,9 @@ function generateTestsFromSource(cwd, options = {}) {
   });
   const analyses = [];
   const skippedFiles = [];
+  const createdHintFiles = [];
+  const updatedHintFiles = [];
+  const unchangedHintFiles = [];
   const selectedSourceKeys = new Set(candidateFiles.map((file) => safeRealpath(file)));
   const existingEntryMap = new Map(existingMap.entries.map((entry) => [entry.sourceKey, entry]));
   const hasSelectionFilters = hasTargetedSelection(normalizedOptions, scanTarget);
@@ -423,6 +431,27 @@ function generateTestsFromSource(cwd, options = {}) {
     analysis.sourceHash = createSourceHash(analysis.source);
     analysis.relativeFile = formatPathForDisplay(projectRoot, file);
 
+    if (normalizedOptions.writeHints) {
+      const hintPlan = planHintScaffold(analysis, projectRoot);
+      if (hintPlan) {
+        if (!normalizedOptions.review && (hintPlan.action === 'create' || hintPlan.action === 'update')) {
+          writeHintFile(hintPlan.file, hintPlan.payload);
+        }
+
+        if (hintPlan.action === 'create') {
+          createdHintFiles.push(hintPlan.file);
+        } else if (hintPlan.action === 'update') {
+          updatedHintFiles.push(hintPlan.file);
+        } else {
+          unchangedHintFiles.push(hintPlan.file);
+        }
+
+        analysis.hints = hintPlan.payload;
+        analysis.hintsFile = hintPlan.file;
+      }
+    }
+
+    analysis.hintOrigin = analysis.hints ? resolveHintOrigin(analysis.hints) : null;
     applyHintExportFilters(analysis);
 
     if (!analysis.hasRuntimeExports) {
@@ -651,12 +680,18 @@ function generateTestsFromSource(cwd, options = {}) {
     clean: normalizedOptions.clean,
     changed: normalizedOptions.changed,
     plan: normalizedOptions.plan,
+    writeHints: normalizedOptions.writeHints,
     filters: buildFilterSummary(normalizedOptions, projectRoot),
     gateOptions: {
       strict: normalizedOptions.strict,
       failOnSkips: normalizedOptions.failOnSkips,
       failOnConflicts: normalizedOptions.failOnConflicts,
       requireConfidence: normalizedOptions.requireConfidence
+    },
+    hintFiles: {
+      created: createdHintFiles,
+      updated: updatedHintFiles,
+      unchanged: unchangedHintFiles
     },
     artifacts: {
       generateMap: mapFile,
@@ -689,7 +724,8 @@ function buildGeneratePayload(summary, cwd) {
       update: summary.update,
       clean: summary.clean,
       changed: summary.changed,
-      plan: Boolean(summary.plan)
+      plan: Boolean(summary.plan),
+      writeHints: Boolean(summary.writeHints)
     },
     source: {
       targetDir: formatPathForDisplay(projectRoot, summary.targetDir),
@@ -716,6 +752,11 @@ function buildGeneratePayload(summary, cwd) {
       stage: entry.stage
     })),
     conflictFiles: summary.conflictFiles.map((file) => formatPathForDisplay(projectRoot, file)),
+    hintFiles: {
+      created: summary.hintFiles.created.map((file) => formatPathForDisplay(projectRoot, file)),
+      updated: summary.hintFiles.updated.map((file) => formatPathForDisplay(projectRoot, file)),
+      unchanged: summary.hintFiles.unchanged.map((file) => formatPathForDisplay(projectRoot, file))
+    },
     entries: summary.entries.map((entry) => ({
       action: entry.action,
       sourceFile: formatPathForDisplay(projectRoot, entry.sourceFile),
@@ -751,6 +792,7 @@ function buildGeneratePayload(summary, cwd) {
       clean: `npx themis generate ${formatPathForDisplay(projectRoot, summary.targetDir)} --clean`,
       changed: `npx themis generate ${formatPathForDisplay(projectRoot, summary.targetDir)} --changed`,
       strict: `npx themis generate ${formatPathForDisplay(projectRoot, summary.targetDir)} --strict`,
+      writeHints: `npx themis generate ${formatPathForDisplay(projectRoot, summary.targetDir)} --write-hints`,
       fileTarget: 'npx themis generate src/path/to/file.ts'
     }
   };
@@ -768,6 +810,7 @@ function buildGenerateHandoff(payload) {
       generateResult: payload.artifacts.generateResult,
       generateBacklog: payload.artifacts.generateBacklog
     },
+    hintFiles: payload.hintFiles,
     targets: payload.promptReady.targets,
     unresolved: payload.promptReady.unresolved,
     backlog: payload.backlog.summary,
@@ -817,6 +860,7 @@ function normalizeGenerateOptions(projectRoot, options) {
     outputDir,
     force: Boolean(options.force),
     strict,
+    writeHints: Boolean(options.writeHints),
     review: Boolean(options.review || options.plan),
     update: Boolean(options.update),
     clean: Boolean(options.clean),
@@ -1857,7 +1901,7 @@ function resolveRouteCases(analysis) {
       caseName: requestHints ? 'returns a hinted response contract' : 'returns an inferred response contract',
       request,
       context,
-      confidence: requestHints ? 'high' : 'medium'
+      confidence: requestHints ? resolveHintConfidence(analysis) : 'medium'
     });
   }
 
@@ -1907,7 +1951,7 @@ function resolveComponentPropsSamples(analysis, entry) {
     return {
       props: cloneSerializable(props) || {},
       hinted: true,
-      confidence: 'high'
+      confidence: resolveHintConfidence(analysis)
     };
   }
 
@@ -1947,7 +1991,7 @@ function resolveArgsSamples(analysis, entry, hintKey) {
     return {
       args: cloneSerializable(args),
       hinted: true,
-      confidence: 'high'
+      confidence: resolveHintConfidence(analysis)
     };
   }
 
@@ -2096,6 +2140,162 @@ function normalizeRouteContextHint(value) {
   return cloneSerializable(hint) || { params: {} };
 }
 
+function resolveHintConfidence(analysis) {
+  return analysis.hintOrigin === 'scaffold' ? 'medium' : 'high';
+}
+
+function resolveHintOrigin(hints) {
+  return isScaffoldHintPayload(hints) ? 'scaffold' : 'user';
+}
+
+function isScaffoldHintPayload(hints) {
+  return Boolean(
+    hints
+    && isPlainObject(hints.$meta)
+    && hints.$meta.generatedBy === SCAFFOLD_HINT_META.generatedBy
+    && hints.$meta.kind === SCAFFOLD_HINT_META.kind
+  );
+}
+
+function planHintScaffold(analysis, projectRoot) {
+  const hintFile = resolveHintFilePath(analysis.file);
+  const scaffold = buildHintScaffold(analysis);
+  const existingHints = analysis.hints;
+
+  if (!scaffold) {
+    return null;
+  }
+
+  if (!existingHints) {
+    return {
+      file: hintFile,
+      action: 'create',
+      payload: scaffold
+    };
+  }
+
+  if (!isScaffoldHintPayload(existingHints)) {
+    return null;
+  }
+
+  const merged = mergeScaffoldHints(existingHints, scaffold);
+  return {
+    file: hintFile,
+    action: serializeHintPayload(existingHints) === serializeHintPayload(merged) ? 'unchanged' : 'update',
+    payload: merged
+  };
+}
+
+function buildHintScaffold(analysis) {
+  const scaffold = {
+    $meta: {
+      ...SCAFFOLD_HINT_META,
+      sourceFile: normalizePath(analysis.relativeFile || analysis.file)
+    }
+  };
+
+  const componentCases = resolveReactComponentCases(analysis);
+  const hookCases = resolveReactHookCases(analysis);
+  const routeCases = resolveRouteCases(analysis);
+  const reservedScenarios = [buildModuleContractScenario(analysis)];
+  if (componentCases.length > 0) {
+    reservedScenarios.push({
+      kind: 'react-component',
+      exports: componentCases.map((entry) => entry.exportName)
+    });
+  }
+  if (hookCases.length > 0) {
+    reservedScenarios.push({
+      kind: 'react-hook',
+      exports: hookCases.map((entry) => entry.exportName)
+    });
+  }
+  if (routeCases.length > 0) {
+    reservedScenarios.push({
+      kind: 'route-handler',
+      exports: routeCases.map((entry) => entry.exportName)
+    });
+  }
+  const serviceCases = resolveNodeServiceCases(analysis, reservedScenarios);
+  const scenarioNames = [];
+
+  if (componentCases.length > 0) {
+    scaffold.componentProps = buildNamedHintMap(componentCases, (entry) => [cloneSerializable(entry.props) || {}]);
+    scenarioNames.push('react-component');
+  }
+
+  if (hookCases.length > 0) {
+    scaffold.hookArgs = buildNamedHintMap(hookCases, (entry) => [cloneSerializable(entry.args) || []]);
+    scenarioNames.push('react-hook');
+  }
+
+  if (routeCases.length > 0) {
+    scaffold.routeRequests = buildNamedHintMap(routeCases, (entry) => [cloneSerializable(entry.request) || {}]);
+    scaffold.routeContext = buildNamedHintMap(routeCases, (entry) => [cloneSerializable(entry.context) || { params: {} }]);
+    scenarioNames.push('route-handler');
+  }
+
+  if (serviceCases.length > 0) {
+    scaffold.serviceArgs = buildNamedHintMap(serviceCases, (entry) => [cloneSerializable(entry.args) || []]);
+    scenarioNames.push('node-service');
+  }
+
+  if (scenarioNames.length === 0) {
+    return null;
+  }
+
+  scaffold.scenarios = [...new Set(scenarioNames)];
+  return scaffold;
+}
+
+function buildNamedHintMap(entries, resolveValue) {
+  const map = {};
+
+  for (const entry of entries) {
+    map[entry.exportName] = resolveValue(entry);
+  }
+
+  return map;
+}
+
+function mergeScaffoldHints(existingHints, scaffold) {
+  const merged = cloneSerializable(existingHints) || {};
+  merged.$meta = {
+    ...SCAFFOLD_HINT_META,
+    ...(isPlainObject(existingHints.$meta) ? existingHints.$meta : {}),
+    sourceFile: scaffold.$meta.sourceFile
+  };
+
+  mergeHintCollection(merged, scaffold, 'componentProps');
+  mergeHintCollection(merged, scaffold, 'hookArgs');
+  mergeHintCollection(merged, scaffold, 'serviceArgs');
+  mergeHintCollection(merged, scaffold, 'routeRequests');
+  mergeHintCollection(merged, scaffold, 'routeContext');
+
+  const existingScenarios = Array.isArray(merged.scenarios) ? merged.scenarios : [];
+  merged.scenarios = [...new Set([...existingScenarios, ...scaffold.scenarios])].sort();
+
+  return merged;
+}
+
+function mergeHintCollection(target, scaffold, key) {
+  if (!isPlainObject(scaffold[key])) {
+    return;
+  }
+
+  const existing = isPlainObject(target[key]) ? { ...target[key] } : {};
+  for (const [entryKey, entryValue] of Object.entries(scaffold[key])) {
+    if (!Object.prototype.hasOwnProperty.call(existing, entryKey)) {
+      existing[entryKey] = cloneSerializable(entryValue);
+    }
+  }
+  target[key] = existing;
+}
+
+function serializeHintPayload(payload) {
+  return `${JSON.stringify(payload, null, 2)}\n`;
+}
+
 function resolveDisplayExportName(analysis, entry) {
   if (entry.exportedName !== 'default') {
     return entry.exportedName;
@@ -2165,6 +2365,11 @@ function readHintFile(filePath) {
 function resolveHintFilePath(filePath) {
   const parsed = path.parse(filePath);
   return path.join(parsed.dir, `${parsed.name}${HINT_FILE_SUFFIX}`);
+}
+
+function writeHintFile(filePath, payload) {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.writeFileSync(filePath, serializeHintPayload(payload), 'utf8');
 }
 
 function buildPlan(analysis, content, action, existing, projectRoot) {
@@ -2518,7 +2723,9 @@ function buildGenerateBacklog(summary, projectRoot) {
       suggestedAction: entry.hintsFile
         ? `Expand ${formatPathForDisplay(projectRoot, hintPath)} with more representative inputs and rerun a targeted refresh.`
         : `Add ${formatPathForDisplay(projectRoot, hintPath)} with representative inputs and rerun a targeted refresh.`,
-      suggestedCommand: `npx themis generate ${formatPathForDisplay(projectRoot, entry.sourceFile)} --update`
+      suggestedCommand: entry.hintsFile
+        ? `npx themis generate ${formatPathForDisplay(projectRoot, entry.sourceFile)} --update`
+        : `npx themis generate ${formatPathForDisplay(projectRoot, entry.sourceFile)} --write-hints --update`
     });
   }
 
@@ -2571,6 +2778,10 @@ function buildPromptSummary(summary, projectRoot) {
     lines.push(`Backlog: ${backlogSummary.total} unresolved item(s) (${backlogSummary.errors} error, ${backlogSummary.warnings} warning).`);
   }
 
+  if (summary.writeHints || summary.hintFiles.created.length > 0 || summary.hintFiles.updated.length > 0) {
+    lines.push(`Hint files: create ${summary.hintFiles.created.length}, update ${summary.hintFiles.updated.length}, unchanged ${summary.hintFiles.unchanged.length}.`);
+  }
+
   if (summary.gates.failed) {
     lines.push(`Gates: failed (${summary.gates.failures.map((failure) => failure.code).join(', ')}).`);
   } else if (
@@ -2615,6 +2826,10 @@ function buildPromptReadyPayload(summary, projectRoot) {
     nextActions.push('Review generated test diffs.');
   }
 
+  if (summary.hintFiles.created.length > 0 || summary.hintFiles.updated.length > 0) {
+    nextActions.push('Review scaffolded hint sidecars before tightening confidence gates.');
+  }
+
   if (summary.backlog.summary.total > 0) {
     nextActions.push(`Resolve ${summary.backlog.summary.total} backlog item(s) from ${formatPathForDisplay(projectRoot, summary.artifacts.generateBacklog)}.`);
   }
@@ -2638,6 +2853,8 @@ function buildPromptReadyPayload(summary, projectRoot) {
       'Review the following Themis generation result and act on the mapped source/test pairs.',
       summary.prompt,
       ...targets.map((target) => `- ${target.action.toUpperCase()} ${target.sourceFile} -> ${target.testFile || '(no file)'}`),
+      ...summary.hintFiles.created.slice(0, 10).map((file) => `- HINT CREATE ${formatPathForDisplay(projectRoot, file)}`),
+      ...summary.hintFiles.updated.slice(0, 10).map((file) => `- HINT UPDATE ${formatPathForDisplay(projectRoot, file)}`),
       ...unresolved.slice(0, 10).map((item) => `- ${item.severity.toUpperCase()} ${item.type}: ${item.sourceFile} (${item.reason})`),
       summary.review
         ? `Then run: npx themis generate ${formatPathForDisplay(projectRoot, summary.targetDir)}${summary.gates.strict ? ' --strict' : ''}`

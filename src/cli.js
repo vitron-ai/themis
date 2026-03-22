@@ -34,6 +34,7 @@ async function main(argv) {
       outputDir: flags.outputDir,
       force: Boolean(flags.force),
       strict: Boolean(flags.strict),
+      writeHints: Boolean(flags.writeHints),
       review: Boolean(flags.review),
       update: Boolean(flags.update),
       clean: Boolean(flags.clean),
@@ -305,6 +306,10 @@ function parseGenerateFlags(args) {
       i += 1;
       continue;
     }
+    if (token === '--write-hints') {
+      flags.writeHints = true;
+      continue;
+    }
     if (token === '--files') {
       flags.files = requireFlagValue(args, i, '--files');
       i += 1;
@@ -380,7 +385,7 @@ function parseGenerateFlags(args) {
     if (token.startsWith('--')) {
       throw new Error(
         'Unsupported generate option: ' + token +
-        '. Use --json, --plan, --output <dir>, --files <paths>, --match-source <regex>, --match-export <regex>, --scenario <name>, --min-confidence <level>, --require-confidence <level>, --include <regex>, --exclude <regex>, --force, --strict, --fail-on-skips, --fail-on-conflicts, --review, --update, --clean, or --changed.'
+        '. Use --json, --plan, --output <dir>, --files <paths>, --match-source <regex>, --match-export <regex>, --scenario <name>, --min-confidence <level>, --require-confidence <level>, --include <regex>, --exclude <regex>, --force, --strict, --write-hints, --fail-on-skips, --fail-on-conflicts, --review, --update, --clean, or --changed.'
       );
     }
     if (flags.targetDir) {
@@ -477,7 +482,7 @@ function printUsage() {
   console.log('Commands:');
   console.log('  init                    Create themis.config.json and sample tests');
   console.log('  generate [path]         Scan source files and generate Themis contract tests');
-  console.log('                         Options: [--json] [--plan] [--output path] [--files a,b] [--match-source regex] [--match-export regex] [--scenario name] [--min-confidence level] [--require-confidence level] [--include regex] [--exclude regex] [--review] [--update] [--clean] [--changed] [--force] [--strict] [--fail-on-skips] [--fail-on-conflicts]');
+  console.log('                         Options: [--json] [--plan] [--output path] [--files a,b] [--match-source regex] [--match-export regex] [--scenario name] [--min-confidence level] [--require-confidence level] [--include regex] [--exclude regex] [--review] [--update] [--clean] [--changed] [--force] [--strict] [--write-hints] [--fail-on-skips] [--fail-on-conflicts]');
   console.log('  scan [path]             Alias for generate');
   console.log('  test [--json] [--agent] [--next] [--reporter spec|next|json|agent|html] [--workers N] [--stability N] [--environment node|jsdom] [-w|--watch] [-u|--update-snapshots] [--html-output path] [--match regex] [--rerun-failed] [--no-memes] [--lexicon classic|themis]');
 }
@@ -497,7 +502,7 @@ function printGenerateSummary(summary, cwd) {
   console.log(`  skipped: ${summary.skippedFiles.length}`);
   console.log(`  conflicts: ${summary.conflictFiles.length}`);
 
-  if (summary.plan || summary.review || summary.update || summary.clean || summary.changed) {
+  if (summary.plan || summary.review || summary.update || summary.clean || summary.changed || summary.writeHints) {
     console.log('');
     console.log('Mode');
     console.log(`  plan: ${summary.plan ? 'yes' : 'no'}`);
@@ -505,6 +510,7 @@ function printGenerateSummary(summary, cwd) {
     console.log(`  update: ${summary.update ? 'yes' : 'no'}`);
     console.log(`  clean: ${summary.clean ? 'yes' : 'no'}`);
     console.log(`  changed: ${summary.changed ? 'yes' : 'no'}`);
+    console.log(`  write-hints: ${summary.writeHints ? 'yes' : 'no'}`);
   }
 
   if (summary.filters.scenario || summary.filters.minConfidence) {
@@ -565,6 +571,17 @@ function printGenerateSummary(summary, cwd) {
     }
     if (summary.conflictFiles.length > 5) {
       console.log(`  ... ${summary.conflictFiles.length - 5} more`);
+    }
+  }
+
+  if (summary.hintFiles.created.length > 0 || summary.hintFiles.updated.length > 0 || summary.hintFiles.unchanged.length > 0) {
+    console.log('');
+    console.log('Hint Files');
+    console.log(`  created: ${summary.hintFiles.created.length}`);
+    console.log(`  updated: ${summary.hintFiles.updated.length}`);
+    console.log(`  unchanged: ${summary.hintFiles.unchanged.length}`);
+    for (const file of [...summary.hintFiles.created, ...summary.hintFiles.updated].slice(0, 5)) {
+      console.log(`  ${formatCliPath(cwd, file)}`);
     }
   }
 

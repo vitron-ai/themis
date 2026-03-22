@@ -93,6 +93,7 @@ export interface GenerateOptions {
   outputDir?: string;
   force?: boolean;
   strict?: boolean;
+  writeHints?: boolean;
   plan?: boolean;
   review?: boolean;
   update?: boolean;
@@ -155,6 +156,12 @@ export interface GenerateArtifacts {
   generateResult: string;
   generateHandoff: string;
   generateBacklog: string;
+}
+
+export interface GenerateHintFiles {
+  created: string[];
+  updated: string[];
+  unchanged: string[];
 }
 
 export interface GenerateGateFailure {
@@ -225,6 +232,7 @@ export interface GeneratePayload {
     clean: boolean;
     changed: boolean;
     plan: boolean;
+    writeHints: boolean;
   };
   source: {
     targetDir: string;
@@ -247,6 +255,7 @@ export interface GeneratePayload {
   removedFiles: string[];
   skippedFiles: GenerateSkippedFile[];
   conflictFiles: string[];
+  hintFiles: GenerateHintFiles;
   entries: GenerateEntrySummary[];
   backlog: GenerateBacklog;
   artifacts: GenerateArtifacts;
@@ -259,6 +268,7 @@ export interface GeneratePayload {
     clean: string;
     changed: string;
     strict: string;
+    writeHints: string;
     fileTarget: string;
   };
 }
@@ -289,6 +299,7 @@ export interface GenerateHandoffPayload {
     generateResult: string;
     generateBacklog: string;
   };
+  hintFiles: GenerateHintFiles;
   targets: GeneratePromptTarget[];
   unresolved: GenerateBacklogItem[];
   backlog: GenerateBacklogSummary;
@@ -316,6 +327,7 @@ export interface GenerateSummary {
   update: boolean;
   clean: boolean;
   changed: boolean;
+  writeHints: boolean;
   filters: GenerateFilterSummary;
   gateOptions: {
     strict: boolean;
@@ -324,6 +336,7 @@ export interface GenerateSummary {
     requireConfidence: string | null;
   };
   gates: GenerateGateSummary;
+  hintFiles: GenerateHintFiles;
   backlog: GenerateBacklog;
   artifacts: GenerateArtifacts;
   prompt: string;

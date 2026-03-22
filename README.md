@@ -105,7 +105,7 @@ Generated files land under `tests/generated` by default. Each generated test:
 - adds scenario adapters for React components/hooks, route handlers, and service functions when Themis can infer or read useful inputs
 - fails with a regeneration hint when the source drifts after the scan
 
-Themis also supports per-file generation hints with sidecars like `src/components/Button.themis.json` so humans and agents can provide props, args, route requests, and route context.
+Themis also supports per-file generation hints with sidecars like `src/components/Button.themis.json` so humans and agents can provide props, args, route requests, and route context. When those sidecars do not exist yet, `--write-hints` can scaffold them automatically from the current source analysis.
 
 For CI and agent loops, Themis can also enforce generation quality instead of only writing files. Strict runs emit a structured backlog, fail on unresolved scan debt, and hand back exact remediation commands.
 
@@ -117,6 +117,7 @@ Use these flags to control the generation loop:
 - `--update`: refresh existing generated files only
 - `--clean`: remove generated files for the selected scope
 - `--changed`: target changed files in a git worktree
+- `--write-hints`: scaffold missing `.themis.json` sidecars so the next generate pass has explicit component props, hook args, service args, and route requests
 - `--scenario`: limit generation to one adapter family such as `react-hook` or `route-handler`
 - `--min-confidence`: keep only entries at or above a confidence threshold
 - `--strict`: fail the generate run on skips, conflicts, or entries below `high` confidence
@@ -161,6 +162,7 @@ See [`docs/why-themis.md`](docs/why-themis.md) for positioning, differentiators,
 - `npx themis generate src --plan`: emits a planning payload and handoff artifact without writing generated tests.
 - `npx themis generate src --review --json`: previews create/update/remove decisions without writing files.
 - `npx themis generate src --review --strict --json`: fails fast on unresolved generation debt while still emitting a machine-readable plan.
+- `npx themis generate src --write-hints`: scaffolds missing hint sidecars and uses them in the same generate pass.
 - `npx themis generate src --update`: refreshes existing generated tests only.
 - `npx themis generate src --clean`: removes generated tests for the selected scope.
 - `npx themis generate src --changed`: regenerates against changed files in the current git worktree.

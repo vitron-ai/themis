@@ -449,6 +449,54 @@ describe('code scan generation', () => {
     );
   });
 
+  test('write-hints scaffolds missing hint sidecars and reuses them on repeat runs', async () => {
+    await withFixtureDirectory(
+      'react-app',
+      async ({ tempDir, resolvePath }) => {
+        const first = runCli(tempDir, ['generate', 'src', '--write-hints', '--json']);
+        expect(first.status).toBe(0);
+
+        const firstPayload = parseJsonOutput(first);
+        expect(firstPayload.mode.writeHints).toBe(true);
+        expect(firstPayload.hintFiles.created).toEqual([
+          'src/components/Button.themis.json',
+          'src/components/Card.themis.json',
+          'src/hooks/useToggle.themis.json'
+        ]);
+        expect(firstPayload.hintFiles.updated).toEqual([]);
+        expect(firstPayload.hintFiles.unchanged).toEqual([]);
+        expect(firstPayload.hints.writeHints).toBe('npx themis generate src --write-hints');
+        expect(firstPayload.entries.find((entry) => entry.sourceFile === 'src/components/Button.tsx').confidence).toBe('medium');
+        expect(firstPayload.entries.find((entry) => entry.sourceFile === 'src/hooks/useToggle.ts').confidence).toBe('medium');
+
+        const buttonHintPath = resolvePath('src', 'components', 'Button.themis.json');
+        const hookHintPath = resolvePath('src', 'hooks', 'useToggle.themis.json');
+        expect(fs.existsSync(buttonHintPath)).toBe(true);
+        expect(fs.existsSync(hookHintPath)).toBe(true);
+
+        const buttonHint = JSON.parse(fs.readFileSync(buttonHintPath, 'utf8'));
+        expect(buttonHint.$meta.kind).toBe('scaffold');
+        expect(buttonHint.componentProps.Button[0].label).toBe('themis');
+
+        const second = runCli(tempDir, ['generate', 'src', '--write-hints', '--json']);
+        expect(second.status).toBe(0);
+        const secondPayload = parseJsonOutput(second);
+        expect(secondPayload.hintFiles.created).toEqual([]);
+        expect(secondPayload.hintFiles.updated).toEqual([]);
+        expect(secondPayload.hintFiles.unchanged).toEqual([
+          'src/components/Button.themis.json',
+          'src/components/Card.themis.json',
+          'src/hooks/useToggle.themis.json'
+        ]);
+
+        const run = runCli(tempDir, ['test', '--json']);
+        expect(run.status).toBe(0);
+        const runPayload = JSON.parse(run.output);
+        expect(runPayload.summary.failed).toBe(0);
+      }
+    );
+  });
+
   test('uses per-file hints to generate high-confidence React, route, and service adapters', async () => {
     await withProjectFixture(
       createMixedAppFixture(),
@@ -508,6 +556,9 @@ describe('code scan generation', () => {
         expect(payload.artifacts.generateMap).toBe('.themis/generate-map.json');
         expect(payload.artifacts.generateResult).toBe('.themis/generate-last.json');
         expect(payload.artifacts.generateHandoff).toBe('.themis/generate-handoff.json');
+        expect(payload.mode.writeHints).toBe(false);
+        expect(payload.hintFiles.created).toEqual([]);
+        expect(payload.hints.writeHints).toBe('npx themis generate src --write-hints');
         expect(payload.promptReady.summary).toContain('Mode: generate');
         expect(payload.promptReady.targets.length).toBe(4);
         expect(payload.hints.plan).toBe('npx themis generate src --plan');
