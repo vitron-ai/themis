@@ -4,19 +4,17 @@ This document defines release expectations for Themis.
 
 ## Current Stage
 
-Current line: `0.1.0-beta.x` (preparing for `0.1.0`)
+Current line: `0.1.x`
 
-Beta means:
+Stable means:
 
-- the core CLI, artifact, and JS/TS package shape should be considered mostly stable
-- compatibility remains a deliberate goal across beta builds
-- breaking changes are still possible, but they should be uncommon and called out clearly
-
-We are currently finishing a release-candidate sprint toward `0.1.0`. Follow [`docs/release-checklist.md`](docs/release-checklist.md) for the remaining sign-off items.
+- the core CLI, artifact, and JS/TS package shape are the public contract
+- compatibility remains a deliberate goal across stable patch releases
+- breaking changes require intentional version bumps and migration notes
 
 ## Versioning Model
 
-Themis follows semantic versioning semantics with pre-release tags:
+Themis follows semantic versioning:
 
 - `0.1.0-alpha.N`: unstable early pre-release
 - `0.1.0-beta.N`: pre-release with mostly stable product shape
@@ -24,7 +22,7 @@ Themis follows semantic versioning semantics with pre-release tags:
 - `0.1.x`: backward-compatible fixes and minor enhancements
 - `0.2.0+`: intentional breaking changes with migration notes
 
-## Compatibility Rules During Beta
+## Compatibility Rules During Stable
 
 - CLI flags should remain stable unless a clear product issue requires change.
 - Programmatic API should prefer additive changes over renames or removals.
@@ -34,7 +32,7 @@ Themis follows semantic versioning semantics with pre-release tags:
 ## Deprecation Policy
 
 - New deprecations are documented in `CHANGELOG.md`.
-- Deprecated APIs should keep at least one pre-release cycle before removal when practical.
+- Deprecated APIs should keep at least one stable release cycle before removal when practical.
 - Meme aliases can be disabled any time with `--no-memes`; strict environments should use this flag.
 
 ## Quality Gates
@@ -46,7 +44,7 @@ Before publishing:
 - `npm run benchmark`
 - `npm run benchmark:gate`
 
-Additional release prep steps are tracked in [`docs/release-checklist.md`](docs/release-checklist.md).
+Release prep steps for major milestones are tracked in [`docs/release-checklist.md`](docs/release-checklist.md).
 
 ## Publishing Policy
 

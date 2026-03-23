@@ -4,10 +4,12 @@ All notable changes to this project are documented in this file.
 
 ## Unreleased
 
+## 0.1.0 - 2026-03-23
+
 ### Changed
 
 - Added a first-party `themis generate` / `themis scan` code-scan flow that generates deterministic contract tests for exported modules, React components, hooks, Next app/router files, route handlers, and Node services; emits richer machine-readable `--json` results for agents; writes `.themis/generate-map.json`, `.themis/generate-last.json`, `.themis/generate-handoff.json`, `.themis/generate-backlog.json`, and `.themis/fix-handoff.json`; supports project-level `themis.generate.js` providers, interaction/state adapters for React components and hooks, automatic `--write-hints` scaffolding, targeted regeneration, planning mode, scenario/confidence steering, review/update/clean workflows, strict quality gates, and backlog remediation commands; and fails generated tests with direct regeneration guidance when scanned sources drift.
-- Moved the package line from alpha to beta and defined beta compatibility expectations for CLI, artifacts, and the JS/TS package surface.
+- Promoted Themis to the first stable `0.1.0` release and defined the stable CLI, artifact, and JS/TS package surface as the public contract baseline.
 - Tightened npm/package positioning around Themis as an intent-first unit test framework for AI agents in Node.js and TypeScript.
 - Updated publish-facing docs to consistently frame Themis as an AI verdict engine for human and agent review loops.
 - Added `npm run pack:check` for npm publish payload validation.
@@ -30,6 +32,8 @@ All notable changes to this project are documented in this file.
 - Added config-level `testIgnore` discovery patterns so repos can keep generated output, fixture sandboxes, and other local test noise out of default suite runs deterministically.
 - Added an in-repo VS Code extension scaffold for artifact-driven result viewing, reruns, and HTML report opening.
 - Expanded the VS Code extension scaffold with generated-review navigation for source/test/hint mappings and unresolved generation backlog.
+- Expanded the VS Code extension scaffold with contract review and migration review actions backed by `.themis/contract-diff.json` and `.themis/migration-report.json`.
+- Added contract-capture options (`normalize`, `maskPaths`, `sortArrays`), richer contract diff summaries, migration codemods, showcase docs, release checklists, and CI proof artifacts for benchmark and migration comparisons.
 - Refreshed README, AGENTS, and supporting docs to match the current package scope, JS/TS feature set, artifact contracts, and extension surface.
 
 ## 0.1.0-alpha.1 - 2026-02-13

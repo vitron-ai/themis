@@ -1,6 +1,6 @@
 # Release Checklist
 
-This checklist tracks the final work before promoting Themis from `0.1.0-beta.x` to `0.1.0`.
+This checklist tracks the release work for Themis `0.1.0` and future stable milestone cuts.
 
 ## Documentation polish
 
@@ -19,7 +19,7 @@ This checklist tracks the final work before promoting Themis from `0.1.0-beta.x`
 
 ## Release actions
 
-- pick the release version (target `0.1.0`)
+- confirm the release version (current target `0.1.0`)
 - bump `package.json` and `packages/themis-vscode/package.json`
 - update `docs/api.md` version header
 - run `npm pack` / `npm publish --dry-run` if publishing
