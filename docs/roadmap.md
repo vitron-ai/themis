@@ -9,6 +9,7 @@
    - Improve `themis migrate` to rewrite Jest/Vitest imports to the generated compatibility module, create prompt-ready diff artifacts, and log a migration report.
    - Build a VS Code pane or CLI summary showing both the original Jest test and the new generated Themis contract, highlighting the migration delta in code and behavior.
    - Provide a recipe in `docs/migration.md` for teams to adopt Themis incrementally, including a helper to wrap Jest tests inside Themis-generated asserts.
+   - Add a native contract-capture workflow that gives teams snapshot-comparable baseline coverage without reviving snapshot-file maintenance.
 
 3. **Proof/polish**
    - Document how to run the generator in "plan" mode for React/Next flows, share the artifact URLs, and point to the new `tests/fixtures/react-app` coverage as proof that CI-enforced flows now run cleanly under the real dependency graph.

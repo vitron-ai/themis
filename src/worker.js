@@ -7,6 +7,7 @@ const { collectAndRun } = require('./runtime');
       match: workerData.match,
       allowedFullNames: workerData.allowedFullNames,
       noMemes: workerData.noMemes,
+      updateContracts: workerData.updateContracts,
       cwd: workerData.cwd,
       environment: workerData.environment,
       setupFiles: workerData.setupFiles,

@@ -42,6 +42,8 @@ It is built to be the best test loop for agent workflows: deterministic reruns, 
 - Best-in-class unit testing for AI agents in Node.js and TypeScript
 - Deterministic execution with fast rerun loops
 - Agent-native JSON and HTML reporting
+- Structured contract workflows instead of opaque snapshot files
+- Incremental migration path from Jest/Vitest without rewriting everything on day one
 - AI verdict engine for human triage and machine automation
 
 ## Modern JS/TS Support
@@ -121,6 +123,8 @@ Generated files land under `tests/generated` by default. Each generated test:
 
 Themis also supports per-file generation hints with sidecars like `src/components/Button.themis.json` so humans and agents can provide props, component flows, args, route requests, and route context. When those sidecars do not exist yet, `--write-hints` can scaffold them automatically from the current source analysis.
 
+This is the core alternative to snapshot-driven testing: generated and hand-written tests assert normalized contracts in readable source, so diffs stay reviewable and updates stay intentional.
+
 For repo-wide generation defaults, add `themis.generate.js` or `themis.generate.cjs` at the project root. Providers in that file can match source paths, supply shared props/args/flow plans, register runtime mocks for generated UI scenarios, and wrap generated component renders so generated DOM contracts run inside the same provider shells humans use in app tests. Providers can also declare preset wrapper metadata for router, Next navigation, auth/session shells, React Query, Zustand, and Redux-style app state patterns, including route history/state, query status, auth permissions, and store selector/action metadata.
 
 For CI and agent loops, Themis can also enforce generation quality instead of only writing files. Strict runs emit a structured backlog, fail on unresolved scan debt, and hand back exact remediation commands.
@@ -169,9 +173,16 @@ Migration scaffolds also write:
 
 See [`docs/why-themis.md`](docs/why-themis.md) for positioning, differentiators, and community messaging.
 
+Short version:
+
+- Themis aims to deliver the benefits people reach for in snapshots, without snapshot rot.
+- Prefer explicit, normalized contracts over broad output dumps.
+- Keep changes reviewable through source assertions, machine-readable artifacts, and diff-oriented rerun workflows.
+
 ## Reference Docs
 
 - API reference: [`docs/api.md`](docs/api.md)
+- Migration guide: [`docs/migration.md`](docs/migration.md)
 - Release policy: [`docs/release-policy.md`](docs/release-policy.md)
 - Publish guide: [`docs/publish.md`](docs/publish.md)
 - VS Code extension notes: [`docs/vscode-extension.md`](docs/vscode-extension.md)
@@ -182,6 +193,7 @@ See [`docs/why-themis.md`](docs/why-themis.md) for positioning, differentiators,
 - Generate backlog schema: [`docs/schemas/generate-backlog.v1.json`](docs/schemas/generate-backlog.v1.json)
 - Fix handoff schema: [`docs/schemas/fix-handoff.v1.json`](docs/schemas/fix-handoff.v1.json)
 - Failures artifact schema: [`docs/schemas/failures.v1.json`](docs/schemas/failures.v1.json)
+- Contract diff schema: [`docs/schemas/contract-diff.v1.json`](docs/schemas/contract-diff.v1.json)
 - Changelog: [`CHANGELOG.md`](CHANGELOG.md)
 - Contributing: [`CONTRIBUTING.md`](CONTRIBUTING.md)
 - Security: [`SECURITY.md`](SECURITY.md)
@@ -202,6 +214,7 @@ See [`docs/why-themis.md`](docs/why-themis.md) for positioning, differentiators,
 - `npx themis generate app --scenario next-route-handler`: focuses generation on Next app router request handlers.
 - `npx themis migrate jest`: scaffolds a Themis config/setup bridge for existing Jest suites.
 - `npx themis migrate jest --rewrite-imports`: rewrites matched Jest/Vitest/Testing Library imports to a local `themis.compat.js` bridge file.
+- `npx themis migrate jest --convert`: applies codemods for common Jest/Vitest matcher/import patterns so suites move closer to native Themis style.
 - `npx themis migrate vitest`: scaffolds the same bridge for Vitest suites.
 - `npx themis generate src --require-confidence high`: enforces a quality bar for all selected generated tests.
 - `npx themis generate src --files src/routes/ping.ts`: targets one or more explicit source files.
@@ -223,6 +236,7 @@ See [`docs/why-themis.md`](docs/why-themis.md) for positioning, differentiators,
 - `npx themis test --stability 3`: runs the suite three times and classifies each test as `stable_pass`, `stable_fail`, or `unstable`.
 - `npx themis test --match "intent DSL"`: runs only tests whose full name matches regex.
 - `npx themis test --rerun-failed`: reruns failing tests from `.themis/failed-tests.json`.
+- `npx themis test --update-contracts --match "suite > case"`: accepts reviewed `captureContract(...)` changes for a narrow slice of the suite.
 - `npx themis test --no-memes`: disables meme phase aliases (`cook`, `yeet`, `vibecheck`, `wipe`).
 - `npx themis test --lexicon classic|themis`: rebrands human-readable status labels in `next/spec` reporters.
 - `npm run validate`: runs test, typecheck, and benchmark gate in one command.
@@ -242,6 +256,7 @@ Each run writes artifacts to `.themis/`:
 - `run-history.json`: rolling recent-run history for agent comparison loops.
 - `fix-handoff.json`: source-oriented repair handoff for generated test failures.
 - `migration-report.json`: compatibility inventory and next actions for migrated Jest/Vitest suites.
+- `contract-diff.json`: contract capture drift, updates, and update commands for `captureContract(...)` workflows.
 - `themis.compat.js`: optional local compat bridge for rewritten migration imports.
 - `report.html`: interactive HTML verdict report.
 
@@ -283,7 +298,21 @@ test('captures a stable UI contract', () => {
 });
 ```
 
-Themis intentionally avoids first-party snapshot-file workflows. Prefer direct assertions, generated contract tests, and explicit flow expectations over large opaque snapshots.
+Contract capture for reviewable baselines:
+
+```js
+test('captures a stable response contract', () => {
+  const payload = {
+    status: 'ok',
+    flags: ['fast', 'deterministic']
+  };
+
+  captureContract('status payload', payload);
+  expect(payload.status).toBe('ok');
+});
+```
+
+Themis intentionally avoids first-party snapshot-file workflows. Prefer direct assertions, generated contract tests, and explicit flow expectations over large opaque snapshots. The goal is comparable baseline coverage with better reviewability: normalized contracts, focused assertions, machine-readable artifacts, and intentional updates instead of broad snapshot re-acceptance.
 
 Available globals:
 

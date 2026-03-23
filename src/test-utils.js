@@ -5,6 +5,7 @@ function createTestUtils(options = {}) {
   const activeMocks = new Set();
   const activeSpies = new Set();
   const moduleLoader = options.moduleLoader;
+  const contractHarness = options.contractHarness || null;
   const renderedContainers = new Set();
   let timerState = null;
   let fetchState = null;
@@ -169,11 +170,23 @@ function createTestUtils(options = {}) {
     mockFetch(handlerOrResponse) {
       return getFetchState().mockFetch(handlerOrResponse);
     },
+    captureContract(name, value, contractOptions) {
+      if (!contractHarness || typeof contractHarness.captureContract !== 'function') {
+        throw new Error('captureContract(...) is unavailable outside the Themis runtime');
+      }
+      return contractHarness.captureContract(name, value, contractOptions);
+    },
     restoreFetch() {
       return getFetchState().restore();
     },
     resetFetchMocks() {
       return getFetchState().reset();
+    },
+    getContractEvents() {
+      if (!contractHarness || typeof contractHarness.getEvents !== 'function') {
+        return [];
+      }
+      return contractHarness.getEvents();
     }
   };
 

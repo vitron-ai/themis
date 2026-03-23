@@ -60,7 +60,10 @@ function runMigrate(cwd, framework, options = {}) {
   const rewriteSummary = options.rewriteImports
     ? rewriteMigrationImports(projectRoot, scan.matches, compatPath)
     : { rewrittenFiles: [], rewrittenImports: 0 };
-  const report = buildMigrationReport(projectRoot, source, scan.matches, rewriteSummary);
+  const conversionSummary = options.convert
+    ? convertMigrationFiles(projectRoot, scan.matches)
+    : { convertedFiles: [], convertedAssertions: 0, removedImports: 0 };
+  const report = buildMigrationReport(projectRoot, source, scan.matches, rewriteSummary, conversionSummary);
   fs.mkdirSync(path.dirname(reportPath), { recursive: true });
   fs.writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`, 'utf8');
 
@@ -74,7 +77,9 @@ function runMigrate(cwd, framework, options = {}) {
     reportPath,
     report,
     rewriteImports: Boolean(options.rewriteImports),
-    rewrittenFiles: rewriteSummary.rewrittenFiles
+    rewrittenFiles: rewriteSummary.rewrittenFiles,
+    convert: Boolean(options.convert),
+    convertedFiles: conversionSummary.convertedFiles
   };
 }
 
@@ -155,7 +160,13 @@ function scanMigrationFiles(projectRoot) {
   };
 }
 
-function buildMigrationReport(projectRoot, source, matches, rewriteSummary = { rewrittenFiles: [], rewrittenImports: 0 }) {
+function buildMigrationReport(
+  projectRoot,
+  source,
+  matches,
+  rewriteSummary = { rewrittenFiles: [], rewrittenImports: 0 },
+  conversionSummary = { convertedFiles: [], convertedAssertions: 0, removedImports: 0 }
+) {
   return {
     schema: 'themis.migration.report.v1',
     source,
@@ -166,7 +177,10 @@ function buildMigrationReport(projectRoot, source, matches, rewriteSummary = { r
       vitest: matches.filter((entry) => entry.imports.includes('vitest')).length,
       testingLibraryReact: matches.filter((entry) => entry.imports.includes('@testing-library/react')).length,
       rewrittenFiles: Array.isArray(rewriteSummary.rewrittenFiles) ? rewriteSummary.rewrittenFiles.length : 0,
-      rewrittenImports: Number(rewriteSummary.rewrittenImports || 0)
+      rewrittenImports: Number(rewriteSummary.rewrittenImports || 0),
+      convertedFiles: Array.isArray(conversionSummary.convertedFiles) ? conversionSummary.convertedFiles.length : 0,
+      convertedAssertions: Number(conversionSummary.convertedAssertions || 0),
+      removedImports: Number(conversionSummary.removedImports || 0)
     },
     files: matches,
     nextActions: [
@@ -176,7 +190,86 @@ function buildMigrationReport(projectRoot, source, matches, rewriteSummary = { r
     ],
     rewrites: Array.isArray(rewriteSummary.rewrittenFiles)
       ? rewriteSummary.rewrittenFiles
+      : [],
+    conversions: Array.isArray(conversionSummary.convertedFiles)
+      ? conversionSummary.convertedFiles
       : []
+  };
+}
+
+function convertMigrationFiles(projectRoot, matches) {
+  const convertedFiles = [];
+  let convertedAssertions = 0;
+  let removedImports = 0;
+
+  for (const match of matches) {
+    const absoluteFile = path.join(projectRoot, match.file);
+    const original = fs.readFileSync(absoluteFile, 'utf8');
+    const converted = convertMigrationSourceText(original);
+    if (converted.source !== original) {
+      fs.writeFileSync(absoluteFile, converted.source, 'utf8');
+      convertedFiles.push(match.file);
+      convertedAssertions += converted.convertedAssertions;
+      removedImports += converted.removedImports;
+    }
+  }
+
+  return {
+    convertedFiles,
+    convertedAssertions,
+    removedImports
+  };
+}
+
+function convertMigrationSourceText(sourceText) {
+  let source = sourceText;
+  let convertedAssertions = 0;
+  let removedImports = 0;
+
+  source = source.replace(
+    /^\s*import\s+\{[^}]*\}\s+from\s+['"]@jest\/globals['"];\s*\n?/gm,
+    () => {
+      removedImports += 1;
+      return '';
+    }
+  );
+  source = source.replace(
+    /^\s*import\s+\{[^}]*\}\s+from\s+['"]vitest['"];\s*\n?/gm,
+    () => {
+      removedImports += 1;
+      return '';
+    }
+  );
+  source = source.replace(
+    /^\s*import\s+\{[^}]*\}\s+from\s+['"]@testing-library\/react['"];\s*\n?/gm,
+    () => {
+      removedImports += 1;
+      return '';
+    }
+  );
+
+  const replacements = [
+    { pattern: /\bit\s*\(/g, replacement: 'test(' },
+    { pattern: /\.toStrictEqual\s*\(/g, replacement: '.toEqual(' },
+    { pattern: /\.toContainEqual\s*\(/g, replacement: '.toContain(' },
+    { pattern: /\.toBeCalledTimes\s*\(/g, replacement: '.toHaveBeenCalledTimes(' },
+    { pattern: /\.toBeCalledWith\s*\(/g, replacement: '.toHaveBeenCalledWith(' },
+    { pattern: /\.toBeCalled\s*\(/g, replacement: '.toHaveBeenCalled(' }
+  ];
+
+  for (const entry of replacements) {
+    source = source.replace(entry.pattern, () => {
+      convertedAssertions += 1;
+      return entry.replacement;
+    });
+  }
+
+  source = source.replace(/\n{3,}/g, '\n\n');
+
+  return {
+    source,
+    convertedAssertions,
+    removedImports
   };
 }
 

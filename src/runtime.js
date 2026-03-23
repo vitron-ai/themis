@@ -3,6 +3,7 @@ const path = require('path');
 const { createExpect } = require('./expect');
 const { createModuleLoader } = require('./module-loader');
 const { installTestEnvironment } = require('./environment');
+const { createContractHarness } = require('./contracts');
 const { createTestUtils } = require('./test-utils');
 
 const INTENT_PHASE_ALIASES = {
@@ -40,6 +41,11 @@ function collectAndRun(filePath, options = {}) {
   const projectRoot = path.resolve(options.cwd || process.cwd());
   const setupFiles = resolveSetupFiles(options.setupFiles, projectRoot);
   const environment = installTestEnvironment(options.environment || 'node');
+  const currentTestRef = {
+    file: filePath,
+    name: '',
+    fullName: ''
+  };
   const runtimeBindings = {
     api: null,
     testUtils: null
@@ -49,7 +55,14 @@ function collectAndRun(filePath, options = {}) {
     tsconfigPath: options.tsconfigPath,
     virtualModules: buildCompatibilityVirtualModules(runtimeBindings)
   });
-  const testUtils = createTestUtils({ moduleLoader });
+  const contractHarness = createContractHarness({
+    cwd: projectRoot,
+    updateContracts: Boolean(options.updateContracts),
+    getCurrentTest() {
+      return currentTestRef;
+    }
+  });
+  const testUtils = createTestUtils({ moduleLoader, contractHarness });
   const runtimeExpect = createExpect();
   const runtimeApi = buildRuntimeApi({
     root,
@@ -92,6 +105,7 @@ function collectAndRun(filePath, options = {}) {
     moduleLoader.restore();
     return {
       file: filePath,
+      contracts: [],
       tests: [
         {
           name: 'load',
@@ -107,11 +121,16 @@ function collectAndRun(filePath, options = {}) {
   const results = [];
   const runOptions = {
     matchRegex: options.match ? new RegExp(options.match) : null,
-    allowedFullNames: toSet(options.allowedFullNames)
+    allowedFullNames: toSet(options.allowedFullNames),
+    currentTestRef
   };
 
   return runSuite(root, [root], results, runOptions)
-    .then(() => ({ file: filePath, tests: results }))
+    .then(() => ({
+      file: filePath,
+      tests: results,
+      contracts: testUtils.getContractEvents()
+    }))
     .finally(() => {
       restoreGlobals(previousGlobals);
       testUtils.restoreAllMocks();
@@ -286,6 +305,10 @@ async function runSuite(suite, lineage, results, options) {
       }
 
       try {
+        if (options.currentTestRef) {
+          options.currentTestRef.name = test.name;
+          options.currentTestRef.fullName = testName;
+        }
         const beforeEachHooks = collectHooks(nextLineage, 'beforeEach', false);
         for (const hook of beforeEachHooks) {
           await hook();
@@ -297,6 +320,10 @@ async function runSuite(suite, lineage, results, options) {
         status = 'failed';
         error = normalizeError(err);
       } finally {
+        if (options.currentTestRef) {
+          options.currentTestRef.name = '';
+          options.currentTestRef.fullName = '';
+        }
         if (beforeEachSucceeded) {
           const afterEachHooks = collectHooks(nextLineage, 'afterEach', true);
           for (const hook of afterEachHooks) {
@@ -373,6 +400,7 @@ function installGlobals(api) {
     'advanceTimersByTime',
     'runAllTimers',
     'flushMicrotasks',
+    'captureContract',
     'mockFetch',
     'restoreFetch',
     'resetFetchMocks'
@@ -408,6 +436,7 @@ function installGlobals(api) {
   global.advanceTimersByTime = api.advanceTimersByTime;
   global.runAllTimers = api.runAllTimers;
   global.flushMicrotasks = api.flushMicrotasks;
+  global.captureContract = api.captureContract;
   global.mockFetch = api.mockFetch;
   global.restoreFetch = api.restoreFetch;
   global.resetFetchMocks = api.resetFetchMocks;

@@ -67,7 +67,8 @@ function printAgent(result) {
     failedTests: '.themis/failed-tests.json',
     runDiff: '.themis/run-diff.json',
     runHistory: '.themis/run-history.json',
-    fixHandoff: '.themis/fix-handoff.json'
+    fixHandoff: '.themis/fix-handoff.json',
+    contractDiff: '.themis/contract-diff.json'
   };
 
   const payload = {
@@ -86,7 +87,8 @@ function printAgent(result) {
       rerunFailed: 'npx themis test --rerun-failed',
       targetedRerun: 'npx themis test --match "<regex>"',
       diffLastRun: 'cat .themis/run-diff.json',
-      repairGenerated: 'cat .themis/fix-handoff.json'
+      repairGenerated: 'cat .themis/fix-handoff.json',
+      reviewContracts: 'cat .themis/contract-diff.json'
     }
   };
 
@@ -150,6 +152,8 @@ function printNext(result, options = {}) {
     .slice(0, 5);
 
   const failures = allTests.filter((test) => test.status === 'failed');
+  const contractItems = collectContractItems(files);
+  const notableContracts = contractItems.filter((item) => item.status !== 'unchanged');
 
   console.log('');
   console.log(style.cyan(bannerLine('=')));
@@ -258,10 +262,27 @@ function printNext(result, options = {}) {
     });
   }
 
+  if (notableContracts.length > 0) {
+    console.log('');
+    console.log(style.bold('Contract Diffs'));
+    for (const item of notableContracts.slice(0, 8)) {
+      const tone = item.status === 'drifted'
+        ? style.red(item.status.toUpperCase())
+        : (item.status === 'updated' ? style.yellow(item.status.toUpperCase()) : style.green(item.status.toUpperCase()));
+      console.log(`  ${tone} ${item.fullName} :: ${item.name}`);
+      console.log(`    ${style.dim(item.contractFile)}`);
+      const summaryLine = formatContractDiffSummary(item.diff);
+      if (summaryLine) {
+        console.log(`    ${style.dim(summaryLine)}`);
+      }
+    }
+  }
+
   console.log('');
   console.log(style.bold('Agent Loop Commands'));
   console.log(`  ${style.cyan('rerun failed:')} npx themis test --rerun-failed --reporter next`);
   console.log(`  ${style.cyan('targeted rerun:')} npx themis test --match \"<regex>\" --reporter next`);
+  console.log(`  ${style.cyan('update contracts:')} npx themis test --update-contracts --match \"<regex>\" --reporter next`);
   console.log(style.cyan(bannerLine('=')));
 }
 
@@ -374,6 +395,36 @@ function collectAgentFailures(files) {
   return failures;
 }
 
+function collectContractItems(files) {
+  const items = [];
+  for (const file of files || []) {
+    for (const contract of file.contracts || []) {
+      items.push({
+        ...contract,
+        file: file.file
+      });
+    }
+  }
+  return items;
+}
+
+function formatContractDiffSummary(diff) {
+  if (!diff) {
+    return '';
+  }
+  const parts = [];
+  if (Array.isArray(diff.changed) && diff.changed.length > 0) {
+    parts.push(`${diff.changed.length} changed`);
+  }
+  if (Array.isArray(diff.added) && diff.added.length > 0) {
+    parts.push(`${diff.added.length} added`);
+  }
+  if (Array.isArray(diff.removed) && diff.removed.length > 0) {
+    parts.push(`${diff.removed.length} removed`);
+  }
+  return parts.join(', ');
+}
+
 function clusterFailures(failures) {
   const byFingerprint = new Map();
 
@@ -464,6 +515,8 @@ function renderHtmlReport(result, options = {}) {
     .slice(0, 8);
 
   const failures = allTests.filter((test) => test.status === 'failed');
+  const contractItems = collectContractItems(files);
+  const notableContracts = contractItems.filter((item) => item.status !== 'unchanged');
   const failureClusters = clusterFailures(collectAgentFailures(files));
   const gateState = stability && stability.runs > 1
     ? (Number(stability.summary?.unstable || 0) === 0 && Number(stability.summary?.stableFail || 0) === 0 ? 'stable' : 'unstable')
@@ -634,6 +687,11 @@ function renderHtmlReport(result, options = {}) {
     '<div class="action-grid">' +
     [
       {
+        title: 'Update Contracts',
+        description: 'Accept reviewed contract changes for a narrow slice of the suite.',
+        command: 'npx themis test --update-contracts --match "<regex>" --reporter html'
+      },
+      {
         title: failures.length > 0 ? 'Rerun Failed' : 'Rerun Workflow',
         description: failures.length > 0
           ? 'Replay only the failing tests from the last recorded run.'
@@ -697,6 +755,24 @@ function renderHtmlReport(result, options = {}) {
       '</div>' +
       '</section>'
     );
+  const contractDiffPanel = notableContracts.length > 0
+    ? (
+      '<section class="panel insight-panel" id="contracts">' +
+      '<h2>Contract Diffs</h2>' +
+      '<div class="cluster-list">' +
+      notableContracts.slice(0, 10).map((item) => {
+        return (
+          '<article class="cluster-item">' +
+          `<div class="cluster-fingerprint">${escapeHtml(item.status.toUpperCase())}</div>` +
+          `<div class="cluster-message">${escapeHtml(`${item.fullName} :: ${item.name}`)}</div>` +
+          `<div class="cluster-count">${escapeHtml(formatContractDiffSummary(item.diff) || item.contractFile)}</div>` +
+          '</article>'
+        );
+      }).join('\n') +
+      '</div>' +
+      '</section>'
+    )
+    : '';
   const stabilityPanel = stabilitySection
     ? stabilitySection.replace('<section class="panel">', '<section class="panel insight-panel" id="stability">')
     : '';
@@ -706,7 +782,7 @@ function renderHtmlReport(result, options = {}) {
   const slowestPanel = slowestSection
     ? slowestSection.replace('<section class="panel">', '<section class="panel insight-panel" id="slowest">')
     : '';
-  const insightsGrid = [stabilityPanel, failureClusterPanel, slowestPanel].filter(Boolean).join('\n');
+  const insightsGrid = [stabilityPanel, failureClusterPanel, contractDiffPanel, slowestPanel].filter(Boolean).join('\n');
   const triageGrid = [quickActionsSection, focusPanel].join('\n');
 
   return `<!doctype html>

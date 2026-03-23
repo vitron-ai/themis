@@ -25,7 +25,7 @@
     "artifacts": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["lastRun", "failedTests", "runDiff", "runHistory", "fixHandoff"],
+      "required": ["lastRun", "failedTests", "runDiff", "runHistory", "fixHandoff", "contractDiff"],
       "properties": {
         "lastRun": {
           "type": "string"
@@ -41,6 +41,9 @@
         },
         "fixHandoff": {
           "type": "string"
+        },
+        "contractDiff": {
+          "type": "string"
         }
       }
     },
@@ -50,7 +53,7 @@
     "hints": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["rerunFailed", "targetedRerun", "diffLastRun", "repairGenerated"],
+      "required": ["rerunFailed", "targetedRerun", "diffLastRun", "repairGenerated", "reviewContracts"],
       "properties": {
         "rerunFailed": {
           "type": "string"
@@ -62,6 +65,9 @@
           "type": "string"
         },
         "repairGenerated": {
+          "type": "string"
+        },
+        "reviewContracts": {
           "type": "string"
         }
       }

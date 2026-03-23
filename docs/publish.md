@@ -16,6 +16,8 @@ This guide covers publishing Themis to npm.
 3. Confirm the public messaging still matches the project:
    - best-in-class unit test framework for AI agents in Node.js and TypeScript
    - AI verdict engine for human and agent review loops
+   - contract-first alternative to snapshot-heavy test maintenance
+   - incremental migration path from Jest/Vitest with fast watch-mode rerun loops
 4. Run:
 
 ```bash

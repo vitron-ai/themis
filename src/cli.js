@@ -80,6 +80,9 @@ async function main(argv) {
     if (result.rewriteImports) {
       console.log(`Imports: rewrote ${result.rewrittenFiles.length} file(s) to local Themis compatibility imports.`);
     }
+    if (result.convertedFiles && result.convertedFiles.length > 0) {
+      console.log(`Codemods: converted ${result.convertedFiles.length} file(s) to Themis-native patterns.`);
+    }
     console.log('Runtime compatibility is enabled for @jest/globals, vitest, and @testing-library/react imports.');
     console.log('Next: run npx themis test or npm run test:themis');
     return;
@@ -180,6 +183,7 @@ async function executeTestRun(cwd, flags) {
       match: flags.match || null,
       allowedFullNames,
       noMemes: Boolean(flags.noMemes),
+      updateContracts: Boolean(flags.updateContracts),
       cwd,
       environment,
       setupFiles: config.setupFiles,
@@ -284,6 +288,10 @@ function parseFlags(args) {
       flags.noMemes = true;
       continue;
     }
+    if (token === '--update-contracts') {
+      flags.updateContracts = true;
+      continue;
+    }
     if (token === '-w' || token === '--watch') {
       flags.watch = true;
       continue;
@@ -345,13 +353,18 @@ function parseFlags(args) {
 function parseMigrateFlags(args) {
   const flags = {
     source: args[0],
-    rewriteImports: false
+    rewriteImports: false,
+    convert: false
   };
 
   for (let i = 1; i < args.length; i += 1) {
     const token = args[i];
     if (token === '--rewrite-imports') {
       flags.rewriteImports = true;
+      continue;
+    }
+    if (token === '--convert') {
+      flags.convert = true;
     }
   }
 
@@ -563,8 +576,8 @@ function printUsage() {
   console.log('  generate [path]         Scan source files and generate Themis contract tests');
   console.log('                         Options: [--json] [--plan] [--output path] [--files a,b] [--match-source regex] [--match-export regex] [--scenario name] [--min-confidence level] [--require-confidence level] [--include regex] [--exclude regex] [--review] [--update] [--clean] [--changed] [--force] [--strict] [--write-hints] [--fail-on-skips] [--fail-on-conflicts]');
   console.log('  scan [path]             Alias for generate');
-  console.log('  migrate <jest|vitest> [--rewrite-imports]   Scaffold an incremental migration bridge for existing suites');
-  console.log('  test [--json] [--agent] [--next] [--reporter spec|next|json|agent|html] [--workers N] [--stability N] [--environment node|jsdom] [--isolation worker|in-process] [--cache] [-w|--watch] [--html-output path] [--match regex] [--rerun-failed] [--no-memes] [--lexicon classic|themis]');
+  console.log('  migrate <jest|vitest> [--rewrite-imports] [--convert]   Scaffold an incremental migration bridge for existing suites');
+  console.log('  test [--json] [--agent] [--next] [--reporter spec|next|json|agent|html] [--workers N] [--stability N] [--environment node|jsdom] [--isolation worker|in-process] [--cache] [--update-contracts] [-w|--watch] [--html-output path] [--match regex] [--rerun-failed] [--no-memes] [--lexicon classic|themis]');
 }
 
 function printGenerateSummary(summary, cwd) {

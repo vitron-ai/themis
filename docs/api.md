@@ -24,6 +24,8 @@ Creates:
 
 Scans a source directory and writes generated Themis unit-layer tests.
 
+Themis uses generation and explicit assertions as a contract-first alternative to snapshot-heavy workflows. The goal is comparable baseline coverage with more reviewable diffs, more intentional updates, and stronger machine-readable artifacts for agents.
+
 Default behavior:
 
 - input directory: `src`
@@ -138,6 +140,8 @@ Project-level provider modules are supported via `themis.generate.js` or `themis
 
 Scaffolds an incremental migration bridge for existing Jest or Vitest suites.
 
+This command is designed for incremental adoption, not forced rewrites. Teams can keep existing suites running under Themis first, then move touched tests toward native Themis contracts and `intent(...)` flows over time.
+
 Behavior:
 
 - writes or updates `themis.config.json`
@@ -146,10 +150,12 @@ Behavior:
 - adds `test:themis` to `package.json` when missing
 - writes `.themis/migration-report.json` with detected compatibility imports and next actions
 - relies on built-in runtime compatibility for `@jest/globals`, `vitest`, and `@testing-library/react`
+- preserves a path to replace snapshot-heavy suites with direct assertions and generated contract tests instead of porting snapshot files as-is
 
 Migration options:
 
 - `--rewrite-imports`: rewrites matched imports from `@jest/globals`, `vitest`, and `@testing-library/react` to the local `themis.compat.js` bridge
+- `--convert`: removes common framework imports and rewrites common Jest/Vitest matcher patterns (`it`, `toStrictEqual`, `toContainEqual`, `toBeCalled*`) into Themis-native forms
 
 ## `themis test` options
 
@@ -163,6 +169,7 @@ Migration options:
 | `--environment node\|jsdom` | string | Override the configured test environment. |
 | `--isolation worker\|in-process` | string | Select worker isolation or a zero-IPC in-process execution mode. |
 | `--cache` | flag | Enable file-level result caching for in-process local loops. |
+| `--update-contracts` | flag | Accept updated `captureContract(...)` baselines for the selected tests. |
 | `-w`, `--watch` | flag | Rerun the selected suite when watched project files change. |
 | `--stability <N>` | positive integer | Run selected tests `N` times and classify stability (`stable_pass`, `stable_fail`, `unstable`). |
 | `--html-output <path>` | string | Output path for `--reporter html` (default: `.themis/report.html`). |
@@ -185,10 +192,14 @@ Execution note:
 
 - `--watch --isolation in-process --cache` is the fastest local rerun mode
 - `--isolation worker` remains the safer mode for CI and global-heavy suites
+- `--watch` is intended for short edit-run-review loops for both humans and AI agents
 
 Snapshot note:
 
-- Themis no longer supports first-party snapshot files or `-u` update flows. Prefer direct assertions and generated contract tests.
+- Themis no longer supports first-party snapshot files or `-u` update flows.
+- Prefer direct assertions, generated contract tests, and explicit flow expectations.
+- The intended replacement is comparable outcome with better reviewability: normalized contracts, readable source assertions, diff-oriented artifacts, and intentional regeneration.
+- `captureContract(name, value)` writes a normalized baseline under `.themis/contracts/`, fails on drift by default, and pairs with `--update-contracts` for explicit acceptance.
 
 ## Exit behavior
 
@@ -211,6 +222,7 @@ Each run writes to `.themis/`:
 - `run-history.json`: rolling recent-run history
 - `fix-handoff.json`: deduped repair artifact for generated test failures (`themis.fix.handoff.v1`)
 - `migration-report.json`: migration inventory for Jest/Vitest bridge scaffolds (`themis.migration.report.v1`)
+- `contract-diff.json`: contract capture drift, updates, and update commands (`themis.contract.diff.v1`)
 
 Formal schemas:
 
@@ -221,6 +233,7 @@ Formal schemas:
 - `docs/schemas/generate-backlog.v1.json`
 - `docs/schemas/fix-handoff.v1.json`
 - `docs/schemas/failures.v1.json`
+- `docs/schemas/contract-diff.v1.json`
 
 Human-facing artifact:
 

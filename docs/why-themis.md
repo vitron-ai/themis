@@ -6,6 +6,7 @@ The core positioning is simple:
 
 - The best unit test framework for AI agents in Node.js and TypeScript
 - An AI verdict engine for human and agent review loops
+- A contract-first alternative to snapshot-heavy test maintenance
 
 ## What "Next-Gen" Means Here
 
@@ -42,6 +43,8 @@ Themis supports structured outputs for tooling loops:
 
 `--rerun-failed`, `--watch`, and test-name filtering (`--match`) reduce iteration time and keep failure focus tight.
 
+The fast local loop matters for AI-assisted editing too: `--watch --isolation in-process --cache` gives agents and humans a short edit-run-review cycle instead of full-suite friction.
+
 ## 4) Modern JS/TS Project Parity
 
 Themis is built for current Node.js and TypeScript repos:
@@ -69,11 +72,38 @@ Themis keeps a lean JS runtime and ships first-party typings:
 Themis ships workflow features agents can use directly:
 
 - direct contract assertions instead of snapshot-file churn
+- generated contract tests that keep baselines in readable source instead of opaque snapshot blobs
+- machine-readable artifacts that let agents inspect and explain changes before updating tests
 - mocks and spies with `fn`, `spyOn`, and `mock`
 - `.themis/run-diff.json` and `.themis/run-history.json`
 - HTML verdict reports for human review
 
-## 8) Performance Discipline, Not Guesswork
+### Comparable To Snapshot Workflows, Without Snapshot Rot
+
+Many teams use snapshots because they want cheap baseline capture, safe review, and easy updates. Themis should meet that need without copying the snapshot mechanism.
+
+Themis favors:
+
+- normalized contract assertions over broad serialized dumps
+- readable generated tests over hidden `.snap` files
+- field-level and behavior-level diffs over large text churn
+- intentional regeneration and migration flows over blanket "accept all changes"
+
+The result is comparable coverage value with clearer semantics for both humans and agents.
+
+## 8) Migration Path From Jest And Vitest
+
+Adoption does not need to be a rewrite.
+
+Themis already supports:
+
+- runtime compatibility for `@jest/globals`, `vitest`, and `@testing-library/react`
+- `themis migrate <jest|vitest>` scaffolding for incremental adoption
+- optional import rewriting to a local compatibility bridge
+
+The strategic direction is clear: start with compatibility, then move suites toward native Themis contracts and intent-first tests as teams touch them.
+
+## 9) Performance Discipline, Not Guesswork
 
 Performance is measured and guarded:
 
@@ -81,13 +111,13 @@ Performance is measured and guarded:
 - regression gate (`npm run benchmark:gate`)
 - threshold config (`benchmark-gate.json`)
 
-## 9) CLI Designed for Humans and Machines
+## 10) CLI Designed for Humans and Machines
 
 - high-signal human reporter (`--next`)
 - strict machine reporter outputs (`--json`, `--agent`)
 - branded banner for human mode only
 
-## 10) Editor Surface Without Replacing The CLI
+## 11) Editor Surface Without Replacing The CLI
 
 Themis includes a thin VS Code extension scaffold that reads `.themis/*` artifacts, reruns tests, and opens the HTML report. The CLI remains the source of truth.
 
@@ -108,4 +138,5 @@ If you describe Themis publicly, use this framing:
 - "The best unit test framework for AI agents in Node.js and TypeScript"
 - "An AI verdict engine for human and agent review loops"
 - "Intent-first testing with deterministic reruns and machine-readable artifacts"
+- "A better alternative to snapshot-heavy workflows: explicit contracts, readable diffs, intentional updates"
 - "JS-fast runtime with first-party TypeScript DX and benchmark-gated discipline"

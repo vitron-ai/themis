@@ -14,6 +14,8 @@ Themis is positioned as:
 
 - the best unit test framework for AI agents in Node.js and TypeScript
 - an AI verdict engine for human and agent review loops
+- a contract-first alternative to snapshot-heavy test maintenance
+- an incremental migration path from Jest/Vitest to native Themis contracts
 
 Keep public-facing changes aligned with that framing. Avoid language that makes the project sound like a throwaway prototype when the change is meant for users.
 

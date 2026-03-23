@@ -7,6 +7,7 @@ const FAILED_TESTS_FILE = 'failed-tests.json';
 const RUN_DIFF_FILE = 'run-diff.json';
 const RUN_HISTORY_FILE = 'run-history.json';
 const FIX_HANDOFF_FILE = 'fix-handoff.json';
+const CONTRACT_DIFF_FILE = 'contract-diff.json';
 const GENERATE_MAP_FILE = 'generate-map.json';
 const GENERATE_BACKLOG_FILE = 'generate-backlog.json';
 
@@ -23,7 +24,8 @@ function writeRunArtifacts(cwd, result) {
     failedTests: path.join(ARTIFACT_DIR, FAILED_TESTS_FILE),
     runDiff: path.join(ARTIFACT_DIR, RUN_DIFF_FILE),
     runHistory: path.join(ARTIFACT_DIR, RUN_HISTORY_FILE),
-    fixHandoff: path.join(ARTIFACT_DIR, FIX_HANDOFF_FILE)
+    fixHandoff: path.join(ARTIFACT_DIR, FIX_HANDOFF_FILE),
+    contractDiff: path.join(ARTIFACT_DIR, CONTRACT_DIFF_FILE)
   };
 
   result.artifacts = {
@@ -83,6 +85,14 @@ function writeRunArtifacts(cwd, result) {
   });
   fs.writeFileSync(historyPath, `${stringifyArtifact(nextHistory)}\n`, 'utf8');
 
+  const contractDiffPayload = buildContractDiffPayload(result, {
+    runId,
+    createdAt: new Date().toISOString(),
+    relativePaths
+  });
+  const contractDiffPath = path.join(artifactDir, CONTRACT_DIFF_FILE);
+  fs.writeFileSync(contractDiffPath, `${stringifyArtifact(contractDiffPayload)}\n`, 'utf8');
+
   const fixHandoffPath = path.join(artifactDir, FIX_HANDOFF_FILE);
   let fixHandoff = null;
   if (failedTests.length > 0) {
@@ -100,9 +110,11 @@ function writeRunArtifacts(cwd, result) {
     diffPath,
     historyPath,
     fixHandoffPath,
+    contractDiffPath,
     failuresPayload,
     comparison,
-    fixHandoff
+    fixHandoff,
+    contractDiffPayload
   };
 }
 
@@ -190,6 +202,55 @@ function collectFailureNames(result) {
     }
   }
   return names.sort();
+}
+
+function buildContractDiffPayload(result, context) {
+  const items = [];
+  for (const fileEntry of result.files || []) {
+    for (const contract of fileEntry.contracts || []) {
+      items.push({
+        key: String(contract.key || ''),
+        name: String(contract.name || ''),
+        file: String(fileEntry.file || contract.file || ''),
+        testName: String(contract.testName || ''),
+        fullName: String(contract.fullName || ''),
+        contractFile: String(contract.contractFile || ''),
+        status: String(contract.status || 'unchanged'),
+        updateCommand: String(contract.updateCommand || ''),
+        diff: normalizeContractDiff(contract.diff)
+      });
+    }
+  }
+
+  const summary = {
+    total: items.length,
+    created: items.filter((item) => item.status === 'created').length,
+    updated: items.filter((item) => item.status === 'updated').length,
+    drifted: items.filter((item) => item.status === 'drifted').length,
+    unchanged: items.filter((item) => item.status === 'unchanged').length
+  };
+
+  return {
+    schema: 'themis.contract.diff.v1',
+    runId: context.runId,
+    createdAt: context.createdAt,
+    artifacts: {
+      contractDiff: context.relativePaths.contractDiff
+    },
+    summary,
+    items
+  };
+}
+
+function normalizeContractDiff(diff) {
+  const safeDiff = diff || {};
+  return {
+    equal: Boolean(safeDiff.equal),
+    unchangedCount: Number(safeDiff.unchangedCount || 0),
+    added: Array.isArray(safeDiff.added) ? safeDiff.added : [],
+    removed: Array.isArray(safeDiff.removed) ? safeDiff.removed : [],
+    changed: Array.isArray(safeDiff.changed) ? safeDiff.changed : []
+  };
 }
 
 function createRunId(startedAt) {

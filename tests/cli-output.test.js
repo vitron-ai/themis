@@ -216,6 +216,42 @@ describe('cli output', () => {
     });
   });
 
+  test('surfaces contract diffs in next reporter and html report', async () => {
+    await withProjectFiles(
+      async ({ tempDir }) => {
+        let run = runCliCommand(tempDir, 'test', ['--next']);
+        expect(run.status).toBe(0);
+
+        fs.writeFileSync(
+          path.join(tempDir, 'tests', 'contract.test.js'),
+          `test('contract drift', () => {\n  captureContract('banner', { label: 'changed' });\n});\n`,
+          'utf8'
+        );
+
+        run = runCliCommand(tempDir, 'test', ['--next']);
+        expect(run.status).toBe(1);
+        expect(run.output).toContain('Contract Diffs');
+        expect(run.output).toContain('DRIFTED');
+
+        run = runCliCommand(tempDir, 'test', ['--reporter', 'html']);
+        expect(run.status).toBe(1);
+        const html = fs.readFileSync(path.join(tempDir, '.themis', 'report.html'), 'utf8');
+        expect(html).toContain('Contract Diffs');
+        expect(html).toContain('Update Contracts');
+      },
+      {
+        'tests/contract.test.js': `test('contract drift', () => {\n  captureContract('banner', { label: 'initial' });\n});\n`
+      },
+      {
+        testRegex: '\\.(test|spec)\\.js$',
+        reporter: 'json',
+        environment: 'node',
+        setupFiles: [],
+        tsconfigPath: null
+      }
+    );
+  });
+
   test('writes next-gen html report with stability and clusters', async () => {
     await withFixtureProject(
       async ({ tempDir }) => {
@@ -621,6 +657,77 @@ test('deterministic instability', () => {
         environment: 'jsdom',
         setupFiles: [],
         tsconfigPath: 'tsconfig.json'
+      }
+    );
+  });
+
+  test('updates captured contracts only when explicitly requested', async () => {
+    await withProjectFiles(
+      async ({ tempDir }) => {
+        let run = runCliCommand(tempDir, 'test', ['--json']);
+        expect(run.status).toBe(0);
+        let payload = JSON.parse(run.output);
+        expect(payload.summary.failed).toBe(0);
+
+        fs.writeFileSync(
+          path.join(tempDir, 'tests', 'contract.test.js'),
+          `test('contract example', () => {\n  captureContract('banner', { label: 'changed', stable: true });\n});\n`,
+          'utf8'
+        );
+
+        run = runCliCommand(tempDir, 'test', ['--json']);
+        expect(run.status).toBe(1);
+        payload = JSON.parse(run.output);
+        expect(payload.summary.failed).toBe(1);
+
+        const contractDiff = JSON.parse(fs.readFileSync(path.join(tempDir, '.themis', 'contract-diff.json'), 'utf8'));
+        expect(contractDiff.summary.drifted).toBe(1);
+
+        run = runCliCommand(tempDir, 'test', ['--json', '--update-contracts']);
+        expect(run.status).toBe(0);
+        payload = JSON.parse(run.output);
+        expect(payload.summary.failed).toBe(0);
+      },
+      {
+        'tests/contract.test.js': `test('contract example', () => {\n  captureContract('banner', { label: 'initial', stable: true });\n});\n`
+      },
+      {
+        testRegex: '\\.(test|spec)\\.js$',
+        reporter: 'json',
+        environment: 'node',
+        setupFiles: [],
+        tsconfigPath: null
+      }
+    );
+  });
+
+  test('converts common Jest matcher patterns into Themis-native assertions', async () => {
+    await withProjectFiles(
+      async ({ tempDir }) => {
+        const run = runCliCommand(tempDir, 'migrate', ['jest', '--convert']);
+        expect(run.status).toBe(0);
+        expect(run.output).toContain('Codemods: converted 1 file(s) to Themis-native patterns.');
+
+        const testSource = fs.readFileSync(path.join(tempDir, 'tests', 'sample.test.js'), 'utf8');
+        expect(testSource.includes('@jest/globals')).toBe(false);
+        expect(testSource).toContain('test(');
+        expect(testSource).toContain('.toEqual(');
+        expect(testSource).toContain('.toHaveBeenCalledTimes(');
+
+        const report = JSON.parse(fs.readFileSync(path.join(tempDir, '.themis', 'migration-report.json'), 'utf8'));
+        expect(report.summary.convertedFiles).toBe(1);
+        expect(report.summary.convertedAssertions).toBe(4);
+      },
+      {
+        'package.json': `{\n  "name": "themis-migrate-convert-fixture",\n  "private": true,\n  "version": "0.0.0",\n  "scripts": {\n    "test": "jest"\n  }\n}\n`,
+        'tests/sample.test.js': `import { describe, it, expect } from '@jest/globals';\n\ndescribe('migration convert', () => {\n  it('normalizes matchers', () => {\n    const worker = fn();\n    worker('ok');\n    expect({ status: 'ok' }).toStrictEqual({ status: 'ok' });\n    expect([1, 2]).toContainEqual(2);\n    expect(worker).toBeCalledTimes(1);\n  });\n});\n`
+      },
+      {
+        testRegex: '\\.(test|spec)\\.js$',
+        reporter: 'json',
+        environment: 'node',
+        setupFiles: [],
+        tsconfigPath: null
       }
     );
   });

@@ -92,7 +92,9 @@ describe('agent reporter', () => {
     expect(payload.analysis.comparison.newFailures).toHaveLength(3);
     expect(payload.artifacts.runDiff).toBe('.themis/run-diff.json');
     expect(payload.artifacts.fixHandoff).toBe('.themis/fix-handoff.json');
+    expect(payload.artifacts.contractDiff).toBe('.themis/contract-diff.json');
     expect(payload.hints.repairGenerated).toBe('cat .themis/fix-handoff.json');
+    expect(payload.hints.reviewContracts).toBe('cat .themis/contract-diff.json');
 
     const byName = {};
     for (const failure of payload.failures) {

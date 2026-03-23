@@ -12,6 +12,7 @@ const GENERATE_MAP_SCHEMA_PATH = path.join(__dirname, '..', 'docs', 'schemas', '
 const GENERATE_HANDOFF_SCHEMA_PATH = path.join(__dirname, '..', 'docs', 'schemas', 'generate-handoff.v1.json');
 const GENERATE_BACKLOG_SCHEMA_PATH = path.join(__dirname, '..', 'docs', 'schemas', 'generate-backlog.v1.json');
 const FIX_HANDOFF_SCHEMA_PATH = path.join(__dirname, '..', 'docs', 'schemas', 'fix-handoff.v1.json');
+const CONTRACT_DIFF_SCHEMA_PATH = path.join(__dirname, '..', 'docs', 'schemas', 'contract-diff.v1.json');
 const CLI_PATH = path.join(__dirname, '..', 'bin', 'themis.js');
 
 describe('schema contracts', () => {
@@ -50,6 +51,10 @@ describe('schema contracts', () => {
 
   function assertMatchesSchema(value, schema, rootSchema, atPath = '$') {
     const workingSchema = schema.$ref ? resolveRef(rootSchema, schema.$ref) : schema;
+
+    if (!workingSchema || Object.keys(workingSchema).length === 0) {
+      return;
+    }
 
     if (Array.isArray(workingSchema.type)) {
       let lastError = null;
@@ -189,7 +194,9 @@ describe('schema contracts', () => {
     expect(payload.analysis.comparison.status).toBe('baseline');
     expect(payload.artifacts.runDiff).toBe('.themis/run-diff.json');
     expect(payload.artifacts.fixHandoff).toBe('.themis/fix-handoff.json');
+    expect(payload.artifacts.contractDiff).toBe('.themis/contract-diff.json');
     expect(payload.hints.repairGenerated).toBe('cat .themis/fix-handoff.json');
+    expect(payload.hints.reviewContracts).toBe('cat .themis/contract-diff.json');
   });
 
   test('failed-tests artifact output matches docs schema contract', () => {
@@ -423,6 +430,66 @@ describe('schema contracts', () => {
       expect(fixPayload.items[0].repairStrategy).toBe('regenerate-source');
       expect(Array.isArray(fixPayload.items[0].candidateFiles)).toBe(true);
       expect(typeof fixPayload.items[0].autofixCommand).toBe('string');
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  test('contract diff artifact matches docs schema contract', () => {
+    const schema = loadSchema(CONTRACT_DIFF_SCHEMA_PATH);
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'themis-contract-diff-schema-'));
+    const result = {
+      meta: {
+        startedAt: new Date().toISOString(),
+        finishedAt: new Date().toISOString(),
+        maxWorkers: 1
+      },
+      summary: {
+        total: 1,
+        passed: 1,
+        failed: 0,
+        skipped: 0,
+        durationMs: 1.5
+      },
+      files: [
+        {
+          file: '/tmp/sample.test.js',
+          tests: [
+            {
+              name: 'works',
+              fullName: 'suite > works',
+              status: 'passed',
+              durationMs: 1.5,
+              error: null
+            }
+          ],
+          contracts: [
+            {
+              key: 'suite-works-banner',
+              name: 'banner',
+              status: 'updated',
+              contractFile: '.themis/contracts/suite-works-banner.json',
+              testName: 'works',
+              fullName: 'suite > works',
+              updateCommand: 'npx themis test --update-contracts --match "suite > works"',
+              diff: {
+                equal: false,
+                unchangedCount: 1,
+                added: [],
+                removed: [],
+                changed: [{ path: '$.label', before: 'before', after: 'after' }]
+              }
+            }
+          ]
+        }
+      ]
+    };
+
+    try {
+      const { contractDiffPath } = writeRunArtifacts(tempDir, result);
+      const payload = JSON.parse(fs.readFileSync(contractDiffPath, 'utf8'));
+      assertMatchesSchema(payload, schema, schema);
+      expect(payload.summary.updated).toBe(1);
     } finally {
       fs.rmSync(tempDir, { recursive: true, force: true });
     }

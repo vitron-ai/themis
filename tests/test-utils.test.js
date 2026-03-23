@@ -70,6 +70,31 @@ describe('test utilities', () => {
     );
   });
 
+  test('captures contract artifacts and fails on drift until explicitly updated', async () => {
+    await withProjectFixture(
+      {
+        'tests/fixture.test.js': `test('captures artifact contract', () => {\n  const state = {\n    status: process.env.THEMIS_CONTRACT_STATE || 'idle',\n    count: 2,\n    meta: { team: 'themis' }\n  };\n\n  captureContract('state contract', state);\n  expect(state.count).toBe(2);\n});\n`
+      },
+      async ({ tempDir, resolvePath }) => {
+        const fixturePath = resolvePath('tests', 'fixture.test.js');
+        let result = await collectAndRun(fixturePath, { cwd: tempDir });
+        expect(result.tests[0].status).toBe('passed');
+        expect(result.contracts[0].status).toBe('created');
+        expect(fs.existsSync(resolvePath('.themis', 'contracts'))).toBe(true);
+
+        process.env.THEMIS_CONTRACT_STATE = 'busy';
+        result = await collectAndRun(fixturePath, { cwd: tempDir });
+        expect(result.tests[0].status).toBe('failed');
+        expect(result.contracts[0].status).toBe('drifted');
+
+        result = await collectAndRun(fixturePath, { cwd: tempDir, updateContracts: true });
+        expect(result.tests[0].status).toBe('passed');
+        expect(result.contracts[0].status).toBe('updated');
+        delete process.env.THEMIS_CONTRACT_STATE;
+      }
+    );
+  });
+
   test('renders react-like elements and supports screen queries plus events in jsdom', async () => {
     await withProjectFixture(
       {

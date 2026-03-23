@@ -44,6 +44,7 @@ declare global {
   var advanceTimersByTime: (ms: number) => void;
   var runAllTimers: () => void;
   var flushMicrotasks: FlushMicrotasks;
+  var captureContract: import('./index').CaptureContract;
   var mockFetch: (handlerOrResponse: unknown) => FetchMock;
   var restoreFetch: () => void;
   var resetFetchMocks: () => void;

@@ -18,6 +18,7 @@ export interface TestResult {
 export interface FileResult {
   file: string;
   tests: TestResult[];
+  contracts?: ContractCaptureEvent[];
 }
 
 export interface RunMeta {
@@ -78,6 +79,7 @@ export interface RunOptions {
   tsconfigPath?: string | null;
   isolation?: 'worker' | 'in-process';
   cache?: boolean;
+  updateContracts?: boolean;
 }
 
 export interface ThemisConfig {
@@ -100,6 +102,8 @@ export interface MigrationResult {
   packageUpdated: boolean;
   rewriteImports: boolean;
   rewrittenFiles: string[];
+  convert?: boolean;
+  convertedFiles?: string[];
   reportPath: string;
   report: {
     schema: 'themis.migration.report.v1';
@@ -112,18 +116,23 @@ export interface MigrationResult {
       testingLibraryReact: number;
       rewrittenFiles: number;
       rewrittenImports: number;
+      convertedFiles: number;
+      convertedAssertions: number;
+      removedImports: number;
     };
     files: Array<{
       file: string;
       imports: string[];
     }>;
     rewrites: string[];
+    conversions?: string[];
     nextActions: string[];
   };
 }
 
 export interface MigrationOptions {
   rewriteImports?: boolean;
+  convert?: boolean;
 }
 
 export interface GenerateOptions {
@@ -208,6 +217,7 @@ export interface RunArtifactPaths {
   runDiff: string;
   runHistory: string;
   fixHandoff: string;
+  contractDiff: string;
 }
 
 export interface RunComparison {
@@ -224,6 +234,32 @@ export interface RunArtifacts {
   runId: string;
   comparison: RunComparison;
   paths: RunArtifactPaths;
+}
+
+export interface ContractDiffEntry {
+  path: string;
+  before?: unknown;
+  after?: unknown;
+}
+
+export interface ContractDiff {
+  equal: boolean;
+  unchangedCount: number;
+  added: ContractDiffEntry[];
+  removed: ContractDiffEntry[];
+  changed: ContractDiffEntry[];
+}
+
+export interface ContractCaptureEvent {
+  key: string;
+  name: string;
+  status: 'created' | 'updated' | 'drifted' | 'unchanged';
+  contractFile: string;
+  file: string;
+  testName: string;
+  fullName: string;
+  updateCommand: string;
+  diff: ContractDiff;
 }
 
 export interface GenerateGateFailure {
@@ -448,6 +484,23 @@ export interface GenerateSummary {
   helperRemoved: boolean;
 }
 
+export interface ContractDiffPayload {
+  schema: 'themis.contract.diff.v1';
+  runId: string;
+  createdAt: string;
+  artifacts: {
+    contractDiff: string;
+  };
+  summary: {
+    total: number;
+    created: number;
+    updated: number;
+    drifted: number;
+    unchanged: number;
+  };
+  items: ContractCaptureEvent[];
+}
+
 export function main(argv: string[]): Promise<void>;
 export function collectAndRun(filePath: string, options?: Omit<RunOptions, 'maxWorkers'>): Promise<FileResult>;
 export function runTests(files: string[], options?: RunOptions): Promise<RunResult>;
@@ -469,6 +522,10 @@ export function writeGenerateArtifacts(summary: GenerateSummary, cwd?: string): 
 export interface MockResult {
   type: 'return' | 'throw';
   value: unknown;
+}
+
+export interface CaptureContract {
+  (name: string, value: unknown, options?: { file?: string }): unknown;
 }
 
 export interface MockState<TArgs extends unknown[] = unknown[]> {

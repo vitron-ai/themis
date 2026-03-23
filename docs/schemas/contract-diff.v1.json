@@ -1,0 +1,120 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/vitron-ai/themis/docs/schemas/contract-diff.v1.json",
+  "title": "Themis Contract Diff v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "runId", "createdAt", "artifacts", "summary", "items"],
+  "properties": {
+    "schema": {
+      "type": "string",
+      "const": "themis.contract.diff.v1"
+    },
+    "runId": {
+      "type": "string"
+    },
+    "createdAt": {
+      "type": "string"
+    },
+    "artifacts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contractDiff"],
+      "properties": {
+        "contractDiff": {
+          "type": "string"
+        }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["total", "created", "updated", "drifted", "unchanged"],
+      "properties": {
+        "total": { "type": "number" },
+        "created": { "type": "number" },
+        "updated": { "type": "number" },
+        "drifted": { "type": "number" },
+        "unchanged": { "type": "number" }
+      }
+    },
+    "items": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/item"
+      }
+    }
+  },
+  "$defs": {
+    "item": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "name", "file", "testName", "fullName", "contractFile", "status", "updateCommand", "diff"],
+      "properties": {
+        "key": { "type": "string" },
+        "name": { "type": "string" },
+        "file": { "type": "string" },
+        "testName": { "type": "string" },
+        "fullName": { "type": "string" },
+        "contractFile": { "type": "string" },
+        "status": {
+          "type": "string",
+          "enum": ["created", "updated", "drifted", "unchanged"]
+        },
+        "updateCommand": { "type": "string" },
+        "diff": {
+          "$ref": "#/$defs/diff"
+        }
+      }
+    },
+    "diff": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["equal", "unchangedCount", "added", "removed", "changed"],
+      "properties": {
+        "equal": { "type": "boolean" },
+        "unchangedCount": { "type": "number" },
+        "added": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/afterEntry" }
+        },
+        "removed": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/beforeEntry" }
+        },
+        "changed": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/changeEntry" }
+        }
+      }
+    },
+    "afterEntry": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["path", "after"],
+      "properties": {
+        "path": { "type": "string" },
+        "after": {}
+      }
+    },
+    "beforeEntry": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["path", "before"],
+      "properties": {
+        "path": { "type": "string" },
+        "before": {}
+      }
+    },
+    "changeEntry": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["path", "before", "after"],
+      "properties": {
+        "path": { "type": "string" },
+        "before": {},
+        "after": {}
+      }
+    }
+  }
+}
