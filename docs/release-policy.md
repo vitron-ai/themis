@@ -4,13 +4,15 @@ This document defines release expectations for Themis.
 
 ## Current Stage
 
-Current line: `0.1.0-beta.x`
+Current line: `0.1.0-beta.x` (preparing for `0.1.0`)
 
 Beta means:
 
 - the core CLI, artifact, and JS/TS package shape should be considered mostly stable
 - compatibility remains a deliberate goal across beta builds
 - breaking changes are still possible, but they should be uncommon and called out clearly
+
+We are currently finishing a release-candidate sprint toward `0.1.0`. Follow [`docs/release-checklist.md`](docs/release-checklist.md) for the remaining sign-off items.
 
 ## Versioning Model
 
@@ -41,7 +43,10 @@ Before publishing:
 
 - `npm test`
 - `npm run typecheck`
+- `npm run benchmark`
 - `npm run benchmark:gate`
+
+Additional release prep steps are tracked in [`docs/release-checklist.md`](docs/release-checklist.md).
 
 ## Publishing Policy
 

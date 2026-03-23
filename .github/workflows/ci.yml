@@ -81,6 +81,8 @@ jobs:
           test -f .themis/agent-result.json
           test -f .themis/last-run.json
           test -f .themis/run-diff.json
+          test -f .themis/contract-diff.json
+          test -f .themis/migration-report.json
 
       - name: Upload showcase artifacts
         uses: actions/upload-artifact@v4
@@ -98,6 +100,18 @@ jobs:
             .themis/run-history.json
             packages/themis-vscode/package.json
             packages/themis-vscode/README.md
+
+      - name: Benchmark proof
+        run: npm run benchmark
+
+      - name: Upload benchmark artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: themis-benchmark-proof
+          retention-days: 14
+          path: |
+            .themis/benchmark-last.json
+            .themis/migration-proof.json
 
   perf-gate:
     name: Perf Gate (Node 20)

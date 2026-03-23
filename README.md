@@ -246,6 +246,12 @@ Short version:
 - `npm run benchmark:gate`: fails when benchmark performance exceeds the configured threshold.
 - `npm run pack:check`: previews the npm publish payload.
 
+## CI & Release Proof
+
+- Compatibility job runs `npm test` on Node 18 and 20.
+- Release surface job runs `npm run typecheck`, `npm run pack:check`, the HTML + agent reports, verifies `.themis/contract-diff.json` and `.themis/migration-report.json`, produces `.themis/benchmark-last.json`/`.themis/migration-proof.json`, and uploads all of the artifacts for later inspection.
+- Perf gate job runs `npm run benchmark:gate` with `BENCH_MAX_AVG_MS=2500` to guard against regressions before publishing.
+
 ## Agent Guide
 
 See [`AGENTS.md`](AGENTS.md) for the AI-agent test authoring contract used in this repository.
