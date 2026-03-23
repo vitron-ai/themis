@@ -95,6 +95,30 @@ describe('test utilities', () => {
     );
   });
 
+  test('normalizes, masks, and sorts captured contract values before diffing', async () => {
+    await withProjectFixture(
+      {
+        'tests/fixture.test.js': `test('captures normalized contract', () => {\n  captureContract('normalized contract', {\n    id: 'req-live',\n    items: ['beta', 'alpha'],\n    meta: {\n      generatedAt: '2026-03-23T10:00:00.000Z'\n    }\n  }, {\n    normalize(value) {\n      return {\n        ...value,\n        meta: {\n          ...value.meta,\n          generatedAt: 'stable'\n        }\n      };\n    },\n    maskPaths: ['$.id'],\n    sortArrays: true\n  });\n});\n`
+      },
+      async ({ tempDir, resolvePath }) => {
+        const fixturePath = resolvePath('tests', 'fixture.test.js');
+        let result = await collectAndRun(fixturePath, { cwd: tempDir });
+        expect(result.tests[0].status).toBe('passed');
+        expect(result.contracts[0].status).toBe('created');
+
+        fs.writeFileSync(
+          fixturePath,
+          `test('captures normalized contract', () => {\n  captureContract('normalized contract', {\n    id: 'req-next',\n    items: ['alpha', 'beta'],\n    meta: {\n      generatedAt: '2026-03-23T11:00:00.000Z'\n    }\n  }, {\n    normalize(value) {\n      return {\n        ...value,\n        meta: {\n          ...value.meta,\n          generatedAt: 'stable'\n        }\n      };\n    },\n    maskPaths: ['$.id'],\n    sortArrays: true\n  });\n});\n`,
+          'utf8'
+        );
+
+        result = await collectAndRun(fixturePath, { cwd: tempDir });
+        expect(result.tests[0].status).toBe('passed');
+        expect(result.contracts[0].status).toBe('unchanged');
+      }
+    );
+  });
+
   test('renders react-like elements and supports screen queries plus events in jsdom', async () => {
     await withProjectFixture(
       {

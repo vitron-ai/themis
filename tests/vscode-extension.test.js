@@ -118,6 +118,58 @@ describe('vscode extension scaffold', () => {
           resolvedFailures: []
         })}\n`
       );
+      writeFile(
+        workspaceRoot,
+        '.themis/contract-diff.json',
+        `${JSON.stringify({
+          schema: 'themis.contract.diff.v1',
+          summary: {
+            total: 1,
+            created: 0,
+            updated: 0,
+            drifted: 1,
+            unchanged: 0
+          },
+          items: [
+            {
+              key: 'suite > fails::banner',
+              name: 'banner',
+              fullName: 'suite > fails',
+              status: 'drifted',
+              file: 'tests/sample.test.ts',
+              contractFile: '.themis/contracts/tests__sample.test.ts/banner.json',
+              updateCommand: 'npx themis test --update-contracts --match "suite > fails"',
+              diff: {
+                changed: [{ path: '$.label', before: 'initial', after: 'changed' }],
+                added: [],
+                removed: []
+              }
+            }
+          ]
+        })}\n`
+      );
+      writeFile(
+        workspaceRoot,
+        '.themis/migration-report.json',
+        `${JSON.stringify({
+          schema: 'themis.migration.report.v1',
+          source: 'jest',
+          summary: {
+            matchedFiles: 1,
+            rewrittenFiles: 1,
+            rewrittenImports: 2,
+            convertedFiles: 1,
+            convertedAssertions: 4
+          },
+          files: [
+            {
+              file: 'tests/sample.test.ts',
+              imports: ['@jest/globals']
+            }
+          ],
+          nextActions: ['Run npx themis test']
+        })}\n`
+      );
 
       writeFile(workspaceRoot, '.themis/report.html', '<html><body>Themis report</body></html>\n');
       writeFile(
@@ -315,18 +367,27 @@ describe('vscode extension scaffold', () => {
       expect(state.verdictLabel).toBe('Action Needed');
       expect(state.generation.summary.generated).toBe(2);
       expect(state.generation.gates.failed).toBe(true);
+      expect(state.contracts.summary.drifted).toBe(1);
+      expect(state.migration.summary.convertedFiles).toBe(1);
       expect(state.generation.hintFiles.created).toEqual([path.join(workspaceRoot, 'src/components/CounterButton.themis.json')]);
 
       const tree = buildResultsTree(state);
       const verdict = tree.find((entry) => entry.id === 'verdict');
       const comparison = tree.find((entry) => entry.id === 'comparison');
       const report = tree.find((entry) => entry.id === 'report');
+      const contracts = tree.find((entry) => entry.id === 'contracts');
+      const migration = tree.find((entry) => entry.id === 'migration');
       const generation = tree.find((entry) => entry.id === 'generation');
       const failuresGroup = tree.find((entry) => entry.id === 'failures');
 
       expect(verdict.label).toBe('Action Needed');
       expect(comparison.label).toBe('Run diff +1 failures • +4.1ms');
       expect(report.label).toBe('Open HTML report');
+      expect(contracts.label).toBe('Contract Review (1)');
+      expect(contracts.children[0].command.id).toBe('themis.updateContracts');
+      expect(contracts.children[1].label).toBe('DRIFTED banner');
+      expect(migration.label).toBe('Migration Review (1)');
+      expect(migration.children[0].command.id).toBe('themis.runMigrationCodemods');
       expect(generation.label).toBe('Generated Review (2)');
       expect(generation.children[0].label).toBe('Mapped targets (1)');
       expect(generation.children[1].label).toBe('Generation backlog (1)');
@@ -382,6 +443,8 @@ describe('vscode extension scaffold', () => {
     const commands = extensionManifest.contributes.commands.map((entry) => entry.command);
     expect(commands).toContain('themis.runTests');
     expect(commands).toContain('themis.rerunFailed');
+    expect(commands).toContain('themis.updateContracts');
+    expect(commands).toContain('themis.runMigrationCodemods');
     expect(commands).toContain('themis.openHtmlReport');
     expect(commands).toContain('themis.refreshResults');
     expect(commands).toContain('themis.openArtifactFile');

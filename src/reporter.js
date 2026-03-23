@@ -414,13 +414,13 @@ function formatContractDiffSummary(diff) {
   }
   const parts = [];
   if (Array.isArray(diff.changed) && diff.changed.length > 0) {
-    parts.push(`${diff.changed.length} changed`);
+    parts.push(`${diff.changed.length} changed${diff.changed[0] ? ` (${diff.changed[0].path})` : ''}`);
   }
   if (Array.isArray(diff.added) && diff.added.length > 0) {
-    parts.push(`${diff.added.length} added`);
+    parts.push(`${diff.added.length} added${diff.added[0] ? ` (${diff.added[0].path})` : ''}`);
   }
   if (Array.isArray(diff.removed) && diff.removed.length > 0) {
-    parts.push(`${diff.removed.length} removed`);
+    parts.push(`${diff.removed.length} removed${diff.removed[0] ? ` (${diff.removed[0].path})` : ''}`);
   }
   return parts.join(', ');
 }

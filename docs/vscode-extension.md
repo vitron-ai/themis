@@ -7,8 +7,10 @@ This is the intended shape of the editor UX:
 - a Themis activity-bar container
 - a results sidebar driven by `.themis/*` artifacts
 - commands to run tests, rerun failures, refresh results, and open the HTML report
+- commands to accept reviewed contract baselines and rerun migration codemods
 - failure navigation that jumps from artifact data into the source file
 - generated-review navigation for source files, generated tests, hint sidecars, and backlog items
+- contract-review and migration-review groups driven by `.themis/contract-diff.json` and `.themis/migration-report.json`
 
 ## Current MVP Scope
 
@@ -17,6 +19,8 @@ The scaffold currently supports:
 - reading `.themis/last-run.json`
 - reading `.themis/failed-tests.json`
 - reading `.themis/run-diff.json`
+- reading `.themis/contract-diff.json`
+- reading `.themis/migration-report.json`
 - reading `.themis/generate-last.json`
 - reading `.themis/generate-map.json`
 - reading `.themis/generate-backlog.json`
@@ -26,6 +30,15 @@ The scaffold currently supports:
 - refreshing when `.themis/*` files change
 
 The extension is intentionally thin. It shells out to Themis commands and treats the CLI plus artifacts as the canonical contract.
+
+Current command surface:
+
+- `Themis: Run Tests`
+- `Themis: Rerun Failed`
+- `Themis: Update Contracts`
+- `Themis: Run Migration Codemods`
+- `Themis: Open HTML Report`
+- `Themis: Refresh Results`
 
 ## Local Development
 

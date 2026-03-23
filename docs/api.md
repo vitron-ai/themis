@@ -200,6 +200,10 @@ Snapshot note:
 - Prefer direct assertions, generated contract tests, and explicit flow expectations.
 - The intended replacement is comparable outcome with better reviewability: normalized contracts, readable source assertions, diff-oriented artifacts, and intentional regeneration.
 - `captureContract(name, value)` writes a normalized baseline under `.themis/contracts/`, fails on drift by default, and pairs with `--update-contracts` for explicit acceptance.
+- `captureContract(name, value, options)` also supports:
+  - `normalize(value)`: rewrite volatile payloads before persistence
+  - `maskPaths: string[]`: replace selected JSON-style paths such as `$.requestId`
+  - `sortArrays: true`: sort normalized array values for order-insensitive contracts
 
 ## Exit behavior
 
@@ -223,6 +227,8 @@ Each run writes to `.themis/`:
 - `fix-handoff.json`: deduped repair artifact for generated test failures (`themis.fix.handoff.v1`)
 - `migration-report.json`: migration inventory for Jest/Vitest bridge scaffolds (`themis.migration.report.v1`)
 - `contract-diff.json`: contract capture drift, updates, and update commands (`themis.contract.diff.v1`)
+- `benchmark-last.json`: latest benchmark comparison payload plus migration proof (`themis.benchmark.result.v1`)
+- `migration-proof.json`: synthetic migration conversion proof emitted by `npm run benchmark` (`themis.migration.proof.v1`)
 
 Formal schemas:
 

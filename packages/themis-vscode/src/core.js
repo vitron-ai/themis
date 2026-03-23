@@ -14,6 +14,8 @@ function getArtifactPaths(workspaceRoot) {
     lastRun: path.join(artifactDir, 'last-run.json'),
     failedTests: path.join(artifactDir, 'failed-tests.json'),
     runDiff: path.join(artifactDir, 'run-diff.json'),
+    contractDiff: path.join(artifactDir, 'contract-diff.json'),
+    migrationReport: path.join(artifactDir, 'migration-report.json'),
     report: path.join(artifactDir, 'report.html'),
     generateLast: path.join(artifactDir, 'generate-last.json'),
     generateMap: path.join(artifactDir, 'generate-map.json'),
@@ -43,17 +45,21 @@ function loadThemisWorkspaceState(workspaceRoot) {
   const lastRun = readJsonArtifact(paths.lastRun);
   const failedTests = readJsonArtifact(paths.failedTests);
   const runDiff = readJsonArtifact(paths.runDiff);
+  const contractDiff = readJsonArtifact(paths.contractDiff);
+  const migrationReport = readJsonArtifact(paths.migrationReport);
   const generateLast = readJsonArtifact(paths.generateLast);
   const generateMap = readJsonArtifact(paths.generateMap);
   const generateBacklog = readJsonArtifact(paths.generateBacklog);
   const generateHandoff = readJsonArtifact(paths.generateHandoff);
-  const parseErrors = [lastRun, failedTests, runDiff, generateLast, generateMap, generateBacklog, generateHandoff]
+  const parseErrors = [lastRun, failedTests, runDiff, contractDiff, migrationReport, generateLast, generateMap, generateBacklog, generateHandoff]
     .filter((entry) => entry.error)
     .map((entry) => ({ filePath: entry.filePath, message: entry.error }));
   const reportExists = fs.existsSync(paths.report);
   const summary = normalizeSummary(lastRun.value && lastRun.value.summary);
   const failures = normalizeFailures(failedTests.value, lastRun.value);
   const comparison = normalizeComparison(runDiff.value, lastRun.value);
+  const contracts = normalizeContractDiff(workspaceRoot, contractDiff.value);
+  const migration = normalizeMigrationReport(workspaceRoot, migrationReport.value);
   const generation = normalizeGenerationReview(
     workspaceRoot,
     generateLast.value,
@@ -65,6 +71,8 @@ function loadThemisWorkspaceState(workspaceRoot) {
     lastRun.exists
       || failedTests.exists
       || runDiff.exists
+      || contractDiff.exists
+      || migrationReport.exists
       || generateLast.exists
       || generateMap.exists
       || generateBacklog.exists
@@ -81,6 +89,8 @@ function loadThemisWorkspaceState(workspaceRoot) {
     lastRun: lastRun.value,
     failedTestsArtifact: failedTests.value,
     runDiff: runDiff.value,
+    contractDiff: contractDiff.value,
+    migrationReport: migrationReport.value,
     generateLast: generateLast.value,
     generateMap: generateMap.value,
     generateBacklog: generateBacklog.value,
@@ -88,6 +98,8 @@ function loadThemisWorkspaceState(workspaceRoot) {
     summary,
     failures,
     comparison,
+    contracts,
+    migration,
     generation,
     reportExists,
     statusText: buildStatusText(summary),
@@ -166,6 +178,30 @@ function buildResultsTree(state) {
       tooltip: buildGenerationTooltip(state.generation),
       icon: state.generation.gates && state.generation.gates.failed ? 'warning' : 'symbol-array',
       children: buildGenerationChildren(state.generation)
+    });
+  }
+
+  if (state.contracts) {
+    items.push({
+      id: 'contracts',
+      kind: 'group',
+      label: buildContractLabel(state.contracts),
+      description: buildContractDescription(state.contracts),
+      tooltip: buildContractTooltip(state.contracts),
+      icon: state.contracts.summary.drifted > 0 ? 'warning' : 'symbol-constant',
+      children: buildContractChildren(state.contracts)
+    });
+  }
+
+  if (state.migration) {
+    items.push({
+      id: 'migration',
+      kind: 'group',
+      label: buildMigrationLabel(state.migration),
+      description: buildMigrationDescription(state.migration),
+      tooltip: buildMigrationTooltip(state.migration),
+      icon: 'git-pull-request',
+      children: buildMigrationChildren(state.migration)
     });
   }
 
@@ -513,6 +549,56 @@ function normalizeGenerateBacklogItems(workspaceRoot, items) {
   }));
 }
 
+function normalizeContractDiff(workspaceRoot, payload) {
+  if (!payload || typeof payload !== 'object' || !Array.isArray(payload.items)) {
+    return null;
+  }
+
+  return {
+    summary: {
+      total: Number(payload.summary && payload.summary.total || 0),
+      created: Number(payload.summary && payload.summary.created || 0),
+      updated: Number(payload.summary && payload.summary.updated || 0),
+      drifted: Number(payload.summary && payload.summary.drifted || 0),
+      unchanged: Number(payload.summary && payload.summary.unchanged || 0)
+    },
+    items: payload.items.map((item, index) => ({
+      id: `contract-${index}`,
+      key: String(item.key || ''),
+      name: String(item.name || ''),
+      status: String(item.status || 'unchanged'),
+      file: resolveWorkspacePath(workspaceRoot, item.file),
+      contractFile: resolveWorkspacePath(workspaceRoot, item.contractFile),
+      fullName: String(item.fullName || ''),
+      updateCommand: String(item.updateCommand || ''),
+      diff: item.diff || { changed: [], added: [], removed: [] }
+    }))
+  };
+}
+
+function normalizeMigrationReport(workspaceRoot, payload) {
+  if (!payload || typeof payload !== 'object') {
+    return null;
+  }
+
+  return {
+    source: String(payload.source || ''),
+    summary: {
+      matchedFiles: Number(payload.summary && payload.summary.matchedFiles || 0),
+      rewrittenFiles: Number(payload.summary && payload.summary.rewrittenFiles || 0),
+      rewrittenImports: Number(payload.summary && payload.summary.rewrittenImports || 0),
+      convertedFiles: Number(payload.summary && payload.summary.convertedFiles || 0),
+      convertedAssertions: Number(payload.summary && payload.summary.convertedAssertions || 0)
+    },
+    files: Array.isArray(payload.files) ? payload.files.map((entry, index) => ({
+      id: `migration-file-${index}`,
+      file: resolveWorkspacePath(workspaceRoot, entry.file),
+      imports: Array.isArray(entry.imports) ? entry.imports : []
+    })) : [],
+    nextActions: Array.isArray(payload.nextActions) ? payload.nextActions : []
+  };
+}
+
 function resolveWorkspacePath(workspaceRoot, targetPath) {
   if (!targetPath || typeof targetPath !== 'string') {
     return null;
@@ -626,6 +712,103 @@ function buildGenerationChildren(generation) {
   return children;
 }
 
+function buildContractLabel(contracts) {
+  return `Contract Review (${contracts.summary.total})`;
+}
+
+function buildContractDescription(contracts) {
+  return `${contracts.summary.drifted} drifted • ${contracts.summary.updated} updated • ${contracts.summary.created} created`;
+}
+
+function buildContractTooltip(contracts) {
+  return [
+    `Drifted: ${contracts.summary.drifted}`,
+    `Updated: ${contracts.summary.updated}`,
+    `Created: ${contracts.summary.created}`
+  ].join('\n');
+}
+
+function buildContractChildren(contracts) {
+  const children = [
+    {
+      id: 'contracts-update-command',
+      kind: 'action',
+      label: 'Run Update Contracts',
+      description: 'Accept reviewed contract changes',
+      tooltip: 'Run `npx themis test --update-contracts` from the workspace root.',
+      icon: 'play',
+      command: { id: 'themis.updateContracts' }
+    }
+  ];
+
+  if (contracts.items.length === 0) {
+    children.push({
+      id: 'contracts-empty',
+      kind: 'info',
+      label: 'No contract diffs',
+      description: '',
+      tooltip: 'The latest run did not record contract drift or updates.',
+      icon: 'pass'
+    });
+    return children;
+  }
+
+  for (const item of contracts.items) {
+    const contractFileItem = buildOpenFileItem(`${item.id}-contract`, 'Contract file', item.contractFile, 'Open the captured contract file.');
+    const sourceFileItem = buildOpenFileItem(`${item.id}-source`, 'Test file', item.file, 'Open the test file that captured this contract.');
+    children.push({
+      id: item.id,
+      kind: 'group',
+      label: `${item.status.toUpperCase()} ${item.name}`,
+      description: path.basename(item.contractFile || item.file || ''),
+      tooltip: [item.fullName, item.updateCommand].filter(Boolean).join('\n'),
+      icon: item.status === 'drifted' ? 'warning' : 'symbol-constant',
+      children: [contractFileItem, sourceFileItem].filter(Boolean)
+    });
+  }
+
+  return children;
+}
+
+function buildMigrationLabel(migration) {
+  return `Migration Review (${migration.summary.matchedFiles})`;
+}
+
+function buildMigrationDescription(migration) {
+  return `${migration.summary.convertedFiles} converted • ${migration.summary.rewrittenFiles} rewritten`;
+}
+
+function buildMigrationTooltip(migration) {
+  return [
+    `Source: ${migration.source || 'unknown'}`,
+    `Matched files: ${migration.summary.matchedFiles}`,
+    `Converted assertions: ${migration.summary.convertedAssertions}`
+  ].join('\n');
+}
+
+function buildMigrationChildren(migration) {
+  const children = [
+    {
+      id: 'migration-run-convert',
+      kind: 'action',
+      label: 'Run Migration Codemods',
+      description: 'Run `themis migrate --convert` in this workspace',
+      tooltip: 'Apply migration codemods for the current framework.',
+      icon: 'play',
+      command: { id: 'themis.runMigrationCodemods' }
+    }
+  ];
+
+  for (const entry of migration.files.slice(0, 20)) {
+    const item = buildOpenFileItem(entry.id, 'Suite', entry.file, `Imports: ${entry.imports.join(', ')}`);
+    if (item) {
+      children.push(item);
+    }
+  }
+
+  return children;
+}
+
 function buildGenerateEntryItem(entry) {
   const children = [
     buildOpenFileItem(`${entry.id}-source`, 'Source', entry.sourceFile, 'Open the source file that produced this generated test.')
@@ -680,6 +863,9 @@ function buildHintFileItems(hintFiles) {
 }
 
 function buildOpenFileItem(id, labelPrefix, filePath, tooltip) {
+  if (!filePath) {
+    return null;
+  }
   return {
     id,
     kind: 'artifact',

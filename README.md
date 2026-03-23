@@ -32,6 +32,7 @@ It is built to be the best test loop for agent workflows: deterministic reruns, 
 - [Publish Readiness](#publish-readiness)
 - [Why Themis](docs/why-themis.md)
 - [API Reference](docs/api.md)
+- [Showcase Comparisons](docs/showcases.md)
 - [Release Policy](docs/release-policy.md)
 - [Publish Guide](docs/publish.md)
 - [Contributing](CONTRIBUTING.md)
@@ -178,6 +179,7 @@ Short version:
 - Themis aims to deliver the benefits people reach for in snapshots, without snapshot rot.
 - Prefer explicit, normalized contracts over broad output dumps.
 - Keep changes reviewable through source assertions, machine-readable artifacts, and diff-oriented rerun workflows.
+- See [`docs/showcases.md`](docs/showcases.md) for direct Jest/Vitest comparison examples.
 
 ## Reference Docs
 
@@ -258,6 +260,8 @@ Each run writes artifacts to `.themis/`:
 - `migration-report.json`: compatibility inventory and next actions for migrated Jest/Vitest suites.
 - `contract-diff.json`: contract capture drift, updates, and update commands for `captureContract(...)` workflows.
 - `themis.compat.js`: optional local compat bridge for rewritten migration imports.
+- `benchmark-last.json`: latest benchmark comparison payload, including migration proof output.
+- `migration-proof.json`: synthetic migration-conversion proof artifact emitted by `npm run benchmark`.
 - `report.html`: interactive HTML verdict report.
 
 `--agent` output includes deterministic failure fingerprints, grouped `analysis.failureClusters`, stability classifications, previous-run comparison data, and a direct pointer to `.themis/fix-handoff.json` so AI agents can jump from generated failures to exact regeneration commands. Fix handoff entries also carry repair strategies, candidate files, and autofix commands for tighter failure-to-fix loops.

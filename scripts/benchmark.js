@@ -4,10 +4,14 @@ const fs = require('fs');
 const path = require('path');
 const { spawnSync } = require('child_process');
 const { performance } = require('perf_hooks');
+const { runMigrate } = require('../src/migrate');
 
 const rootDir = path.resolve(__dirname, '..');
 const benchDir = path.join(rootDir, '.themis-bench');
 const benchTestsDir = path.join(benchDir, 'tests');
+const artifactDir = path.join(rootDir, '.themis');
+const BENCHMARK_ARTIFACT_PATH = path.join(artifactDir, 'benchmark-last.json');
+const MIGRATION_PROOF_ARTIFACT_PATH = path.join(artifactDir, 'migration-proof.json');
 
 const DEFAULTS = {
   files: 40,
@@ -57,10 +61,20 @@ function runBenchmark(overrides = {}) {
 
   results.sort((a, b) => a.average - b.average);
 
-  return {
+  const proof = buildMigrationProof(options);
+  const payload = {
+    schema: 'themis.benchmark.result.v1',
+    createdAt: new Date().toISOString(),
     options,
-    results
+    results,
+    fastest: results[0] ? results[0].name : null,
+    comparisons: buildComparisons(results),
+    proof
   };
+  writeJsonArtifact(BENCHMARK_ARTIFACT_PATH, payload);
+  writeJsonArtifact(MIGRATION_PROOF_ARTIFACT_PATH, proof);
+
+  return payload;
 }
 
 function resolveOptions(overrides) {
@@ -190,7 +204,7 @@ function compactOutput(output) {
 }
 
 function printBenchmarkReport(payload) {
-  const { options, results } = payload;
+  const { options, results, proof } = payload;
 
   if (results.length === 0) {
     console.log('No runners available. Install Jest/Vitest/Bun locally if you want cross-runner comparison.');
@@ -201,6 +215,90 @@ function printBenchmarkReport(payload) {
   for (const entry of results) {
     console.log(`${entry.name.padEnd(8)} avg=${String(entry.average).padStart(8)}ms samples=${entry.samples.join(', ')}`);
   }
+  if (proof) {
+    console.log(`Migration proof: ${proof.source} converted=${proof.summary.convertedFiles} assertions=${proof.summary.convertedAssertions} in ${proof.elapsedMs}ms`);
+  }
+}
+
+function buildComparisons(results) {
+  if (!Array.isArray(results) || results.length === 0) {
+    return [];
+  }
+
+  const baseline = results[0];
+  return results.slice(1).map((entry) => ({
+    runner: entry.name,
+    versus: baseline.name,
+    slowerByMs: round(entry.average - baseline.average),
+    slowerByPercent: baseline.average > 0
+      ? round(((entry.average - baseline.average) / baseline.average) * 100)
+      : null
+  }));
+}
+
+function buildMigrationProof(options) {
+  const proofDir = path.join(benchDir, 'migration-proof');
+  fs.rmSync(proofDir, { recursive: true, force: true });
+  fs.mkdirSync(path.join(proofDir, 'tests'), { recursive: true });
+  fs.writeFileSync(
+    path.join(proofDir, 'package.json'),
+    `${JSON.stringify({
+      name: 'themis-benchmark-migration-proof',
+      private: true,
+      version: '0.0.0'
+    }, null, 2)}\n`,
+    'utf8'
+  );
+  fs.writeFileSync(
+    path.join(proofDir, 'tests', 'sample.test.js'),
+    `import { describe, it, expect, jest } from '@jest/globals';\n\n` +
+      `describe('migration proof', () => {\n` +
+      `  it('converts common matcher patterns', () => {\n` +
+      `    const worker = jest.fn();\n` +
+      `    worker('ok');\n` +
+      `    expect({ status: 'ok', stable: true }).toStrictEqual({ status: 'ok', stable: true });\n` +
+      `    expect(['a', 'b']).toContainEqual('b');\n` +
+      `    expect(worker).toBeCalledTimes(1);\n` +
+      `    expect(worker).lastCalledWith('ok');\n` +
+      `  });\n` +
+      `});\n`,
+    'utf8'
+  );
+
+  const startedAt = performance.now();
+  const migration = runMigrate(proofDir, 'jest', { convert: true });
+  const elapsedMs = round(performance.now() - startedAt);
+  const convertedSource = fs.readFileSync(path.join(proofDir, 'tests', 'sample.test.js'), 'utf8');
+
+  return {
+    schema: 'themis.migration.proof.v1',
+    createdAt: new Date().toISOString(),
+    source: migration.source,
+    elapsedMs,
+    options: {
+      benchmarkFiles: options.files,
+      benchmarkTestsPerFile: options.testsPerFile
+    },
+    summary: {
+      matchedFiles: migration.report.summary.matchedFiles,
+      convertedFiles: migration.report.summary.convertedFiles,
+      convertedAssertions: migration.report.summary.convertedAssertions,
+      removedImports: migration.report.summary.removedImports
+    },
+    output: {
+      reportPath: path.relative(rootDir, migration.reportPath).split(path.sep).join('/'),
+      convertedSample: convertedSource
+    }
+  };
+}
+
+function writeJsonArtifact(targetPath, payload) {
+  fs.mkdirSync(path.dirname(targetPath), { recursive: true });
+  fs.writeFileSync(targetPath, `${JSON.stringify(payload, null, 2)}\n`, 'utf8');
+}
+
+function round(value) {
+  return Math.round(Number(value || 0) * 100) / 100;
 }
 
 function main() {

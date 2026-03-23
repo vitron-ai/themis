@@ -250,11 +250,18 @@ function convertMigrationSourceText(sourceText) {
 
   const replacements = [
     { pattern: /\bit\s*\(/g, replacement: 'test(' },
+    { pattern: /\btest\.only\s*\(/g, replacement: 'test(' },
+    { pattern: /\bit\.only\s*\(/g, replacement: 'test(' },
+    { pattern: /\btest\.skip\s*\(/g, replacement: 'test.skip(' },
+    { pattern: /\bit\.skip\s*\(/g, replacement: 'test.skip(' },
     { pattern: /\.toStrictEqual\s*\(/g, replacement: '.toEqual(' },
     { pattern: /\.toContainEqual\s*\(/g, replacement: '.toContain(' },
     { pattern: /\.toBeCalledTimes\s*\(/g, replacement: '.toHaveBeenCalledTimes(' },
     { pattern: /\.toBeCalledWith\s*\(/g, replacement: '.toHaveBeenCalledWith(' },
-    { pattern: /\.toBeCalled\s*\(/g, replacement: '.toHaveBeenCalled(' }
+    { pattern: /\.toBeCalled\s*\(/g, replacement: '.toHaveBeenCalled(' },
+    { pattern: /\.lastCalledWith\s*\(/g, replacement: '.toHaveBeenCalledWith(' },
+    { pattern: /\.toBeTruthy\s*\(\s*\)/g, replacement: '.toBeTruthy()' },
+    { pattern: /\.toBeFalsy\s*\(\s*\)/g, replacement: '.toBeFalsy()' }
   ];
 
   for (const entry of replacements) {

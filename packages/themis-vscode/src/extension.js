@@ -25,6 +25,8 @@ class ThemisExtensionController {
       vscode.window.registerTreeDataProvider('themis.results', this.provider),
       vscode.commands.registerCommand('themis.runTests', () => this.runConfiguredCommand('command', 'npx themis test')),
       vscode.commands.registerCommand('themis.rerunFailed', () => this.runConfiguredCommand('rerunFailedCommand', 'npx themis test --rerun-failed')),
+      vscode.commands.registerCommand('themis.updateContracts', () => this.runConfiguredCommand('updateContractsCommand', 'npx themis test --update-contracts')),
+      vscode.commands.registerCommand('themis.runMigrationCodemods', () => this.runMigrationCodemods()),
       vscode.commands.registerCommand('themis.openHtmlReport', () => this.openHtmlReport()),
       vscode.commands.registerCommand('themis.refreshResults', () => this.refresh()),
       vscode.commands.registerCommand('themis.openFailure', (location) => this.openFailure(location)),
@@ -136,6 +138,21 @@ class ThemisExtensionController {
     const terminal = this.getTerminal(folder, 'Themis');
     terminal.show(true);
     terminal.sendText(command, true);
+  }
+
+  runMigrationCodemods() {
+    const folder = this.getActiveWorkspaceFolder();
+    if (!folder) {
+      vscode.window.showWarningMessage('Open a workspace before running Themis migration codemods.');
+      return;
+    }
+
+    const state = loadThemisWorkspaceState(folder.uri.fsPath);
+    const source = state.migration && state.migration.source
+      ? state.migration.source
+      : 'jest';
+    const fallback = `npx themis migrate ${source} --convert`;
+    this.runConfiguredCommand('migrationCommand', fallback);
   }
 
   getTerminal(folder, name) {

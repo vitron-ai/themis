@@ -23,7 +23,7 @@ function createContractHarness(options = {}) {
       throw new Error('captureContract(...) requires a non-empty contract name');
     }
 
-    const normalizedValue = normalizeContractValue(value);
+    const normalizedValue = applyContractOptions(value, contractOptions);
     const contractKey = buildContractKey(currentTest, contractName);
     const relativeFile = contractOptions.file
       ? normalizeRelativeContractPath(contractOptions.file)
@@ -125,6 +125,24 @@ function normalizeContractValue(value) {
     return normalized;
   }
   return String(value);
+}
+
+function applyContractOptions(value, contractOptions = {}) {
+  let nextValue = typeof contractOptions.normalize === 'function'
+    ? contractOptions.normalize(value)
+    : value;
+
+  nextValue = normalizeContractValue(nextValue);
+
+  if (Array.isArray(contractOptions.maskPaths) && contractOptions.maskPaths.length > 0) {
+    nextValue = maskContractPaths(nextValue, contractOptions.maskPaths);
+  }
+
+  if (contractOptions.sortArrays) {
+    nextValue = sortNormalizedArrays(nextValue);
+  }
+
+  return nextValue;
 }
 
 function compareContractEntries(left, right) {
@@ -263,6 +281,40 @@ function formatContractDiff(diff) {
     lines.push(`removed ${entry.path}: ${formatValue(entry.before)}`);
   }
   return lines.join('\n');
+}
+
+function maskContractPaths(value, maskPaths) {
+  const targets = new Set(maskPaths.map((entry) => String(entry)));
+  return visitContractValue(value, '$', (currentValue, currentPath) => {
+    if (targets.has(currentPath)) {
+      return '[masked]';
+    }
+    return currentValue;
+  });
+}
+
+function sortNormalizedArrays(value) {
+  return visitContractValue(value, '$', (currentValue) => {
+    if (!Array.isArray(currentValue)) {
+      return currentValue;
+    }
+    return [...currentValue].sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)));
+  });
+}
+
+function visitContractValue(value, currentPath, visitor) {
+  if (Array.isArray(value)) {
+    const mapped = value.map((entry, index) => visitContractValue(entry, `${currentPath}[${index}]`, visitor));
+    return visitor(mapped, currentPath);
+  }
+  if (value && typeof value === 'object') {
+    const mapped = {};
+    for (const key of Object.keys(value)) {
+      mapped[key] = visitContractValue(value[key], `${currentPath}.${key}`, visitor);
+    }
+    return visitor(mapped, currentPath);
+  }
+  return visitor(value, currentPath);
 }
 
 function formatValue(value) {

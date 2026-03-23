@@ -28,6 +28,8 @@
     "onView:themis.results",
     "onCommand:themis.runTests",
     "onCommand:themis.rerunFailed",
+    "onCommand:themis.updateContracts",
+    "onCommand:themis.runMigrationCodemods",
     "onCommand:themis.openHtmlReport",
     "onCommand:themis.refreshResults",
     "onCommand:themis.openArtifactFile"
@@ -59,6 +61,16 @@
       {
         "command": "themis.rerunFailed",
         "title": "Themis: Rerun Failed",
+        "category": "Themis"
+      },
+      {
+        "command": "themis.updateContracts",
+        "title": "Themis: Update Contracts",
+        "category": "Themis"
+      },
+      {
+        "command": "themis.runMigrationCodemods",
+        "title": "Themis: Run Migration Codemods",
         "category": "Themis"
       },
       {
@@ -95,9 +107,14 @@
           "group": "navigation@3"
         },
         {
-          "command": "themis.refreshResults",
+          "command": "themis.updateContracts",
           "when": "view == themis.results",
           "group": "navigation@4"
+        },
+        {
+          "command": "themis.refreshResults",
+          "when": "view == themis.results",
+          "group": "navigation@5"
         }
       ]
     },
@@ -113,6 +130,16 @@
           "type": "string",
           "default": "npx themis test --rerun-failed",
           "description": "Command used by the Themis extension to rerun failures from the latest artifact."
+        },
+        "themis.updateContractsCommand": {
+          "type": "string",
+          "default": "npx themis test --update-contracts",
+          "description": "Command used by the Themis extension to accept reviewed contract baselines."
+        },
+        "themis.migrationCommand": {
+          "type": "string",
+          "default": "",
+          "description": "Optional override used by the Themis extension when running migration codemods. Defaults to `npx themis migrate <source> --convert`."
         }
       }
     }
