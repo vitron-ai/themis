@@ -96,10 +96,45 @@ describe('code scan generation', () => {
 
   function runCliJson(tempDir, args) {
     const run = runCli(tempDir, args);
-    return {
-      run,
-      payload: JSON.parse(run.stdout || run.output)
-    };
+    let payload;
+    let parsed = true;
+    try {
+      payload = JSON.parse(run.stdout || run.output);
+    } catch (error) {
+      parsed = false;
+      payload = {
+        summary: {
+          failed: 1
+        },
+        error: error.message,
+        rawOutput: run.output
+      };
+    }
+    const debugPath = process.env.THEMIS_CI_DEBUG_OUTPUT;
+    if (debugPath && payload.summary && payload.summary.failed > 0) {
+      const absoluteDebugPath = path.isAbsolute(debugPath)
+        ? debugPath
+        : path.join(tempDir, '.themis', debugPath);
+      fs.mkdirSync(path.dirname(absoluteDebugPath), { recursive: true });
+      fs.writeFileSync(
+        absoluteDebugPath,
+        JSON.stringify(
+          {
+            args,
+            parsed,
+            payload,
+            exitCode: run.status,
+            stderr: run.stderr,
+            stdout: run.stdout
+          },
+          null,
+          2
+        ),
+        'utf8'
+      );
+      console.log(`CI debug payload written to ${absoluteDebugPath}`);
+    }
+    return { run, payload };
   }
 
   function parseJsonOutput(result) {
