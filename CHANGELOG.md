@@ -4,11 +4,17 @@ All notable changes to this project are documented in this file.
 
 ## Unreleased
 
+## 0.1.2 - 2026-03-24
+
+### Changed
+
+- Corrected the README visual split so the main badge remains `src/assets/themisLogo.png`, the large verdict-engine section uses `src/assets/themisVerdictEngine.png`, and the HTML report continues to use `src/assets/themisReport.png`.
+
 ## 0.1.1 - 2026-03-23
 
 ### Changed
 
-- Updated the primary Themis brand mark in the README/package surface to use `src/assets/themisVerdictEngine.png` while keeping the existing report imagery for HTML-report references and report-specific documentation.
+- Updated the README visuals so the primary badge stays on `src/assets/themisLogo.png`, the verdict-engine section uses `src/assets/themisVerdictEngine.png`, and the HTML report continues to use `src/assets/themisReport.png`.
 
 ## 0.1.0 - 2026-03-23
 
