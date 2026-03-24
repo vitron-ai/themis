@@ -45,6 +45,14 @@ const FIXTURES = [
   {
     name: 'vitest-module-mock',
     source: 'vitest'
+  },
+  {
+    name: 'jest-rtl-provider',
+    source: 'jest'
+  },
+  {
+    name: 'vitest-rtl-provider',
+    source: 'vitest'
   }
 ];
 

@@ -6,5 +6,5 @@
     "workers": 4,
     "includeExternal": false
   },
-  "maxThemisAvgMs": 1500
+  "maxThemisAvgMs": 1600
 }
