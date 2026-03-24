@@ -1,7 +1,7 @@
 # Themis
 
 <p align="center">
-  <img src="src/assets/themisLogo.png" alt="Themis logo mark" width="42" valign="middle">
+  <img src="src/assets/themisVerdictEngine.png" alt="Themis verdict engine mark" width="42" valign="middle">
   <a href="https://github.com/vitron-ai/themis/actions/workflows/ci.yml">
     <img src="https://img.shields.io/github/actions/workflow/status/vitron-ai/themis/ci.yml?branch=main&style=for-the-badge&label=THEMIS%20VERDICT%20PIPELINE&labelColor=111827&color=16a34a" alt="Themis verdict pipeline status" valign="middle">
   </a>
@@ -63,7 +63,7 @@ Themis is built for modern Node.js and TypeScript projects:
 
 ## Visuals
 
-- Real Themis brand mark: [`src/assets/themisLogo.png`](src/assets/themisLogo.png)
+- Real Themis brand mark: [`src/assets/themisVerdictEngine.png`](src/assets/themisVerdictEngine.png)
 - HTML verdict report art: [`src/assets/themisReport.png`](src/assets/themisReport.png)
 - Background art used by the report: [`src/assets/themisBg.png`](src/assets/themisBg.png)
 
