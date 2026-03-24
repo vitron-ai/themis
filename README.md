@@ -249,7 +249,7 @@ Short version:
 ## CI & Release Proof
 
 - Compatibility job runs `npm test` on Node 18 and 20.
-- Release surface job runs `npm run typecheck`, `npm run pack:check`, the HTML + agent reports, verifies `.themis/contract-diff.json` and `.themis/migration-report.json`, produces `.themis/benchmark-last.json`/`.themis/migration-proof.json`, and uploads all of the artifacts for later inspection.
+- Release surface job runs `npm run typecheck`, `npm run pack:check`, the HTML + agent reports, verifies `.themis/contract-diff.json`, produces `.themis/benchmark-last.json`/`.themis/migration-proof.json`, and uploads all of the artifacts for later inspection.
 - Perf gate job runs `npm run benchmark:gate` with `BENCH_MAX_AVG_MS=2500` to guard against regressions before publishing.
 
 ## Agent Guide
