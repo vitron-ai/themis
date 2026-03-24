@@ -24,6 +24,7 @@ function createSuite(name, parent = null) {
   return {
     name,
     parent,
+    skipped: false,
     suites: [],
     tests: [],
     hooks: {
@@ -140,27 +141,17 @@ function collectAndRun(filePath, options = {}) {
 }
 
 function buildRuntimeApi({ root, options, testUtils, runtimeExpect, getCurrentSuite, setCurrentSuite }) {
+  const describeApi = createDescribeApi({
+    getCurrentSuite,
+    setCurrentSuite
+  });
+  const testApi = createTestApi({
+    getCurrentSuite
+  });
+
   return {
-    describe(name, fn) {
-      if (typeof fn !== 'function') {
-        throw new Error(`describe(${name}) requires a callback`);
-      }
-      const suite = createSuite(name, getCurrentSuite());
-      getCurrentSuite().suites.push(suite);
-      const parent = getCurrentSuite();
-      setCurrentSuite(suite);
-      try {
-        fn();
-      } finally {
-        setCurrentSuite(parent);
-      }
-    },
-    test(name, fn) {
-      if (typeof fn !== 'function') {
-        throw new Error(`test(${name}) requires a callback`);
-      }
-      getCurrentSuite().tests.push({ name, fn });
-    },
+    describe: describeApi,
+    test: testApi,
     intent(name, define) {
       if (typeof define !== 'function') {
         throw new Error(`intent(${name}) requires a callback`);
@@ -183,8 +174,119 @@ function buildRuntimeApi({ root, options, testUtils, runtimeExpect, getCurrentSu
       getCurrentSuite().hooks.afterAll.push(fn);
     },
     expect: runtimeExpect,
+    resetModules() {
+      if (testUtils && typeof testUtils.resetAllMocks === 'function') {
+        testUtils.resetAllMocks();
+      }
+    },
     ...testUtils
   };
+}
+
+function createDescribeApi({ getCurrentSuite, setCurrentSuite }) {
+  const describeApi = (name, fn) => {
+    if (typeof fn !== 'function') {
+      throw new Error(`describe(${name}) requires a callback`);
+    }
+    const suite = createSuite(name, getCurrentSuite());
+    getCurrentSuite().suites.push(suite);
+    const parent = getCurrentSuite();
+    setCurrentSuite(suite);
+    try {
+      fn();
+    } finally {
+      setCurrentSuite(parent);
+    }
+  };
+
+  describeApi.only = describeApi;
+  describeApi.skip = (name, fn) => {
+    if (typeof fn !== 'function') {
+      throw new Error(`describe.skip(${name}) requires a callback`);
+    }
+    const suite = createSuite(name, getCurrentSuite());
+    suite.skipped = true;
+    getCurrentSuite().suites.push(suite);
+  };
+
+  return wrapEachRunner(describeApi, 'describe.each', (row, index, name, fn) => {
+    const args = normalizeEachArgs(row);
+    describeApi(formatParameterizedName(name, args, index), () => fn(...args));
+  });
+}
+
+function createTestApi({ getCurrentSuite }) {
+  const addTest = (name, fn, options = {}) => {
+    if (typeof fn !== 'function') {
+      throw new Error(`test(${name}) requires a callback`);
+    }
+    getCurrentSuite().tests.push({
+      name,
+      fn,
+      skipped: Boolean(options.skipped)
+    });
+  };
+
+  const testApi = (name, fn) => {
+    addTest(name, fn);
+  };
+
+  testApi.only = testApi;
+  testApi.skip = (name, fn = async () => {}) => {
+    addTest(name, typeof fn === 'function' ? fn : async () => {}, { skipped: true });
+  };
+
+  return wrapEachRunner(testApi, 'test.each', (row, index, name, fn) => {
+    const args = normalizeEachArgs(row);
+    addTest(formatParameterizedName(name, args, index), () => fn(...args));
+  });
+}
+
+function wrapEachRunner(target, apiName, registerRow) {
+  target.each = (rows) => {
+    if (!Array.isArray(rows)) {
+      throw new Error(`${apiName}(...) requires an array of rows`);
+    }
+
+    return (name, fn) => {
+      if (typeof fn !== 'function') {
+        throw new Error(`${apiName}(...)(...) requires a callback`);
+      }
+      rows.forEach((row, index) => {
+        registerRow(row, index, name, fn);
+      });
+    };
+  };
+
+  return target;
+}
+
+function normalizeEachArgs(row) {
+  return Array.isArray(row) ? row : [row];
+}
+
+function formatParameterizedName(name, args, index) {
+  let cursor = 0;
+  const formatted = String(name || '').replace(/%[#sdifjop]/g, (token) => {
+    if (token === '%#') {
+      return String(index);
+    }
+    const value = args[cursor];
+    cursor += 1;
+    if (token === '%j' || token === '%o' || token === '%p') {
+      return stringifyParameterizedValue(value);
+    }
+    return String(value);
+  });
+  return formatted;
+}
+
+function stringifyParameterizedValue(value) {
+  try {
+    return JSON.stringify(value);
+  } catch (error) {
+    return String(value);
+  }
 }
 
 function buildCompatibilityVirtualModules(bindings) {
@@ -273,6 +375,11 @@ function resolveSetupFiles(setupFiles, cwd) {
 async function runSuite(suite, lineage, results, options) {
   const nextLineage = suite.name === '__root__' ? lineage : [...lineage, suite];
 
+  if (suite.skipped) {
+    pushSkippedSuiteResults(suite, nextLineage, results);
+    return;
+  }
+
   let beforeAllFailed = false;
   for (const hook of suite.hooks.beforeAll) {
     try {
@@ -293,7 +400,7 @@ async function runSuite(suite, lineage, results, options) {
       let beforeEachSucceeded = false;
       const shouldRun = shouldRunTest(testName, options);
 
-      if (!shouldRun) {
+      if (test.skipped || !shouldRun) {
         results.push({
           name: test.name,
           fullName: testName,
@@ -372,6 +479,22 @@ function collectHooks(lineage, kind, reverse) {
   return hooks;
 }
 
+function pushSkippedSuiteResults(suite, lineage, results) {
+  const nextLineage = suite.name === '__root__' ? lineage : [...lineage, suite];
+  for (const test of suite.tests) {
+    results.push({
+      name: test.name,
+      fullName: [...formatLineage(nextLineage), test.name].join(' > '),
+      status: 'skipped',
+      durationMs: 0,
+      error: null
+    });
+  }
+  for (const child of suite.suites) {
+    pushSkippedSuiteResults(child, nextLineage, results);
+  }
+}
+
 function installGlobals(api) {
   const names = [
     'describe',
@@ -390,6 +513,7 @@ function installGlobals(api) {
     'clearAllMocks',
     'resetAllMocks',
     'restoreAllMocks',
+    'resetModules',
     'render',
     'screen',
     'fireEvent',
@@ -426,6 +550,7 @@ function installGlobals(api) {
   global.clearAllMocks = api.clearAllMocks;
   global.resetAllMocks = api.resetAllMocks;
   global.restoreAllMocks = api.restoreAllMocks;
+  global.resetModules = api.resetModules;
   global.render = api.render;
   global.screen = api.screen;
   global.fireEvent = api.fireEvent;

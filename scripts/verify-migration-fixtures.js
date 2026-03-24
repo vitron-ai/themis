@@ -17,6 +17,34 @@ const FIXTURES = [
   {
     name: 'vitest-basic',
     source: 'vitest'
+  },
+  {
+    name: 'jest-table',
+    source: 'jest'
+  },
+  {
+    name: 'vitest-table',
+    source: 'vitest'
+  },
+  {
+    name: 'jest-rtl',
+    source: 'jest'
+  },
+  {
+    name: 'jest-timers',
+    source: 'jest'
+  },
+  {
+    name: 'vitest-timers',
+    source: 'vitest'
+  },
+  {
+    name: 'jest-module-mock',
+    source: 'jest'
+  },
+  {
+    name: 'vitest-module-mock',
+    source: 'vitest'
   }
 ];
 
@@ -59,7 +87,10 @@ function verifyFixture(fixture) {
 
     const fixtureProofDir = path.join(proofDir, fixture.name);
     fs.mkdirSync(fixtureProofDir, { recursive: true });
-    fs.copyFileSync(path.join(tempDir, 'tests', 'sample.test.js'), path.join(fixtureProofDir, 'sample.test.js'));
+    copyDirectory(path.join(tempDir, 'tests'), path.join(fixtureProofDir, 'tests'));
+    if (fs.existsSync(path.join(tempDir, 'themis.config.json'))) {
+      fs.copyFileSync(path.join(tempDir, 'themis.config.json'), path.join(fixtureProofDir, 'themis.config.json'));
+    }
     fs.copyFileSync(path.join(tempDir, '.themis', 'migration-report.json'), path.join(fixtureProofDir, 'migration-report.json'));
     fs.copyFileSync(path.join(tempDir, '.themis', 'last-run.json'), path.join(fixtureProofDir, 'last-run.json'));
 

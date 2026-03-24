@@ -1,0 +1,8 @@
+{
+  "name": "themis-vitest-module-mock-fixture",
+  "private": true,
+  "version": "0.0.0",
+  "scripts": {
+    "test": "vitest"
+  }
+}

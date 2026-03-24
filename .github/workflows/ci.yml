@@ -166,8 +166,4 @@ jobs:
           name: themis-migration-proof
           retention-days: 14
           path: |
-            .themis/migration-fixtures/summary.json
-            .themis/migration-fixtures/jest-basic/migration-report.json
-            .themis/migration-fixtures/jest-basic/last-run.json
-            .themis/migration-fixtures/vitest-basic/migration-report.json
-            .themis/migration-fixtures/vitest-basic/last-run.json
+            .themis/migration-fixtures/**

@@ -261,13 +261,25 @@ function convertMigrationSourceText(sourceText) {
     { pattern: /\.toBeCalled\s*\(/g, replacement: '.toHaveBeenCalled(' },
     { pattern: /\.lastCalledWith\s*\(/g, replacement: '.toHaveBeenCalledWith(' },
     { pattern: /\.toBeTruthy\s*\(\s*\)/g, replacement: '.toBeTruthy()' },
-    { pattern: /\.toBeFalsy\s*\(\s*\)/g, replacement: '.toBeFalsy()' }
+    { pattern: /\.toBeFalsy\s*\(\s*\)/g, replacement: '.toBeFalsy()' },
+    { pattern: /\b(?:jest|vi)\.fn\s*\(/g, replacement: 'fn(' },
+    { pattern: /\b(?:jest|vi)\.spyOn\s*\(/g, replacement: 'spyOn(' },
+    { pattern: /\b(?:jest|vi)\.mock\s*\(/g, replacement: 'mock(' },
+    { pattern: /\b(?:jest|vi)\.unmock\s*\(/g, replacement: 'unmock(' },
+    { pattern: /\b(?:jest|vi)\.clearAllMocks\s*\(/g, replacement: 'clearAllMocks(' },
+    { pattern: /\b(?:jest|vi)\.resetAllMocks\s*\(/g, replacement: 'resetAllMocks(' },
+    { pattern: /\b(?:jest|vi)\.restoreAllMocks\s*\(/g, replacement: 'restoreAllMocks(' },
+    { pattern: /\b(?:jest|vi)\.useFakeTimers\s*\(/g, replacement: 'useFakeTimers(' },
+    { pattern: /\b(?:jest|vi)\.useRealTimers\s*\(/g, replacement: 'useRealTimers(' },
+    { pattern: /\b(?:jest|vi)\.advanceTimersByTime\s*\(/g, replacement: 'advanceTimersByTime(' },
+    { pattern: /\b(?:jest|vi)\.runAllTimers\s*\(/g, replacement: 'runAllTimers(' },
+    { pattern: /\b(?:jest|vi)\.resetModules\s*\(/g, replacement: 'resetModules(' }
   ];
 
   for (const entry of replacements) {
     source = source.replace(entry.pattern, () => {
       convertedAssertions += 1;
-      return entry.replacement;
+      return typeof entry.replacement === 'function' ? entry.replacement() : entry.replacement;
     });
   }
 

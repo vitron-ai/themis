@@ -1,5 +1,6 @@
 {
   "testIgnore": [
-    "^tests/generated(?:/|$)"
+    "^tests/generated(?:/|$)",
+    "^tests/fixtures/migration(?:/|$)"
   ]
 }
