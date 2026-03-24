@@ -3,3 +3,5 @@ node_modules/
 .themis/
 .DS_Store
 tests/generated/
+!tests/fixtures/migration/**/node_modules/
+!tests/fixtures/migration/**/node_modules/**
