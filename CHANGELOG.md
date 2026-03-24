@@ -4,6 +4,11 @@ All notable changes to this project are documented in this file.
 
 ## Unreleased
 
+## 0.1.3 - 2026-03-24
+
+- Added provider-heavy RTL migration fixtures (Jest + Vitest) that exercise table/@testing-library flows, timers, and context updates so the proof lane generates meaningful diff artifacts (`tests/fixtures/migration/*-provider/**`, `scripts/verify-migration-fixtures.js`).
+- Documented and uploaded the expanded proof cases plus updated the migration/job story in the README so the release highlights the dominance claim (`README.md:256`).
+
 ## 0.1.2 - 2026-03-24
 
 ### Changed
