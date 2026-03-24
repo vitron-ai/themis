@@ -246,12 +246,14 @@ Short version:
 - `npm run typecheck`: validates TypeScript types for Themis globals and DSL contracts.
 - `npm run benchmark:gate`: fails when benchmark performance exceeds the configured threshold.
 - `npm run pack:check`: previews the npm publish payload.
+- `npm run proof:migration`: migrates checked-in Jest/Vitest fixture suites and proves they run cleanly under Themis.
 
 ## CI & Release Proof
 
 - Compatibility job runs `npm test` on Node 18 and 20.
 - Release surface job runs `npm run typecheck`, `npm run pack:check`, the HTML + agent reports, verifies `.themis/contract-diff.json`, produces `.themis/benchmark-last.json`/`.themis/migration-proof.json`, and uploads all of the artifacts for later inspection.
 - Perf gate job runs `npm run benchmark:gate` with `BENCH_MAX_AVG_MS=2500` to guard against regressions before publishing.
+- Migration proof job runs `npm run proof:migration` against checked-in Jest/Vitest fixtures and uploads the resulting migration reports plus Themis run artifacts as evidence.
 
 ## Agent Guide
 

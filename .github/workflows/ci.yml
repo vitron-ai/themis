@@ -136,3 +136,38 @@ jobs:
         env:
           BENCH_MAX_AVG_MS: '2500'
         run: npm run benchmark:gate
+
+  migration-proof:
+    name: Migration Proof (Node 20)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs:
+      - compatibility
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify checked-in Jest/Vitest migration fixtures
+        run: npm run proof:migration
+
+      - name: Upload migration proof artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: themis-migration-proof
+          retention-days: 14
+          path: |
+            .themis/migration-fixtures/summary.json
+            .themis/migration-fixtures/jest-basic/migration-report.json
+            .themis/migration-fixtures/jest-basic/last-run.json
+            .themis/migration-fixtures/vitest-basic/migration-report.json
+            .themis/migration-fixtures/vitest-basic/last-run.json
