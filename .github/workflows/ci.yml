@@ -167,3 +167,93 @@ jobs:
           retention-days: 14
           path: |
             .themis/migration-fixtures/**
+
+  themis-react-showcase:
+    name: Themis React Showcase (Node 20)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs:
+      - compatibility
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify native Themis React fixture
+        run: node scripts/verify-showcase-fixture.js themis
+
+      - name: Upload Themis showcase summary
+        uses: actions/upload-artifact@v4
+        with:
+          name: themis-react-showcase
+          retention-days: 14
+          path: .themis/showcase-comparison/themis*
+
+  jest-react-showcase:
+    name: Jest React Showcase (Node 20)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs:
+      - compatibility
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify Jest React comparison fixture
+        run: node scripts/verify-showcase-fixture.js jest
+
+      - name: Upload Jest showcase summary
+        uses: actions/upload-artifact@v4
+        with:
+          name: jest-react-showcase
+          retention-days: 14
+          path: .themis/showcase-comparison/jest*
+
+  vitest-react-showcase:
+    name: Vitest React Showcase (Node 20)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs:
+      - compatibility
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify Vitest React comparison fixture
+        run: node scripts/verify-showcase-fixture.js vitest
+
+      - name: Upload Vitest showcase summary
+        uses: actions/upload-artifact@v4
+        with:
+          name: vitest-react-showcase
+          retention-days: 14
+          path: .themis/showcase-comparison/vitest*

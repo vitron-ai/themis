@@ -115,3 +115,19 @@ Why it wins:
 - one action accepts reviewed contracts
 - one action reruns migration codemods for the detected framework
 - humans and agents operate from the same source of truth
+
+## 6. Show native Themis React tests beside Jest and Vitest in CI
+
+CI now carries three explicit React showcase jobs:
+
+- `Themis React Showcase`
+- `Jest React Showcase`
+- `Vitest React Showcase`
+
+The Themis fixture is a straight-up native Themis jsdom suite. The Jest and Vitest fixtures cover the same interaction and async status scenarios with their own runner-native APIs.
+
+Why it wins:
+
+- the CI page makes the runner comparison obvious instead of implied
+- the repo now has a first-party native Themis React example, not only migration proof
+- humans and agents can inspect checked-in fixture sources under `tests/fixtures/showcase/`

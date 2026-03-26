@@ -1,0 +1,7 @@
+{
+  "testRegex": "\\.(test|spec)\\.js$",
+  "reporter": "json",
+  "environment": "jsdom",
+  "maxWorkers": 1,
+  "setupFiles": []
+}

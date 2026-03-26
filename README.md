@@ -294,6 +294,7 @@ Short version:
 - Release surface job runs `npm run typecheck`, `npm run pack:check`, the HTML + agent reports, verifies `.themis/contract-diff.json`, produces `.themis/benchmark-last.json`/`.themis/migration-proof.json`, and uploads all of the artifacts for later inspection.
 - Perf gate job runs `npm run benchmark:gate` with `BENCH_MAX_AVG_MS=2500` to guard against regressions before publishing.
 - Migration proof job runs `npm run proof:migration` against checked-in Jest/Vitest fixtures for basic suites, table tests, RTL/jsdom flows, timers, module mocking, and a context/provider-heavy RTL example, then uploads the resulting migration reports plus Themis run artifacts as evidence.
+- Native runner showcase jobs verify a straight-up Themis React fixture plus parallel Jest and Vitest React fixtures so the CI page shows the three runner examples side by side.
 - Release `0.1.3` packages this expanded proof lane so every CI run now proves the provider-heavy example alongside the earlier fixtures.
 
 ## Agent Guide
