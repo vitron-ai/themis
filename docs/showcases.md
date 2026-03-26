@@ -131,3 +131,24 @@ Why it wins:
 - the CI page makes the runner comparison obvious instead of implied
 - the repo now has a first-party native Themis React example, not only migration proof
 - humans and agents can inspect checked-in fixture sources under `tests/fixtures/showcase/`
+
+CI also carries a same-host performance artifact job:
+
+- `React Showcase Perf`
+
+That job runs the same two React scenarios under Themis, Jest, and Vitest on one runner, writes `.themis/showcase-comparison/perf-summary.json` and `.themis/showcase-comparison/perf-summary.md`, and uploads them as build artifacts.
+
+Current documented sample result from the same-host run:
+
+- Themis median: `1110.14ms`
+- Vitest median: `1871.59ms`
+- Jest median: `2556.22ms`
+- Themis was `68.59%` faster than Vitest
+- Themis was `130.26%` faster than Jest
+
+Why it wins:
+
+- the timing claim comes from one comparable host instead of three separate jobs
+- the uploaded artifact shows median, average, min, and max wall-clock samples for the exact same showcase specs
+- the markdown summary makes it obvious whether Themis was faster or slower in that specific CI run
+- the docs now state the current measured gap directly instead of making readers hunt through the artifact first

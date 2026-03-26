@@ -5,6 +5,7 @@ All notable changes to this project are documented in this file.
 ## Unreleased
 
 - Added native React showcase fixtures for Themis, Jest, and Vitest plus explicit CI jobs so the workflow page shows the first-party Themis example beside direct comparison runners.
+- Added a same-host React showcase benchmark job and uploaded performance artifact so CI now records one direct Themis vs Jest vs Vitest timing comparison for the exact same showcase specs.
 
 ## 0.1.4 - 2026-03-26
 

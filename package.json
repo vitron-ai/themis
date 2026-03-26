@@ -79,6 +79,7 @@
     "validate": "npm test && npm run typecheck && npm run benchmark:gate",
     "typecheck": "tsc -p tsconfig.json --pretty false",
     "benchmark": "node scripts/benchmark.js",
+    "benchmark:showcase": "node scripts/benchmark-showcase-runners.js",
     "benchmark:gate": "node scripts/benchmark-gate.js",
     "proof:migration": "node scripts/verify-migration-fixtures.js",
     "pack:check": "npm pack --dry-run",

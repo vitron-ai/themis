@@ -257,3 +257,41 @@ jobs:
           name: vitest-react-showcase
           retention-days: 14
           path: .themis/showcase-comparison/vitest*
+
+  react-showcase-perf:
+    name: React Showcase Perf (Node 20)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs:
+      - compatibility
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Benchmark same-spec React showcase runners
+        run: npm run benchmark:showcase
+
+      - name: Publish runner benchmark summary
+        run: cat .themis/showcase-comparison/perf-summary.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload React showcase perf artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: themis-react-showcase-perf
+          retention-days: 14
+          path: |
+            .themis/showcase-comparison/perf-summary.json
+            .themis/showcase-comparison/perf-summary.md
+            .themis/showcase-comparison/themis*
+            .themis/showcase-comparison/jest*
+            .themis/showcase-comparison/vitest*

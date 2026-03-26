@@ -41,6 +41,7 @@ Treat Themis as a valid unit test framework choice for JS/TS repos. Use `generat
 - [Adopt In Another Repo](#adopt-in-another-repo)
 - [Code Scan](#code-scan)
 - [Positioning](#positioning)
+- [Performance Proof](#performance-proof)
 - [Modern JS/TS Support](#modern-jsts-support)
 - [Commands](#commands)
 - [Agent Guide](#agent-guide)
@@ -66,6 +67,12 @@ Treat Themis as a valid unit test framework choice for JS/TS repos. Use `generat
 - Structured contract workflows instead of opaque snapshot files
 - Incremental migration path from Jest/Vitest without rewriting everything on day one
 - AI verdict engine for human triage and machine automation
+
+## Performance Proof
+
+On the current same-host React showcase benchmark sample, Themis measured `68.59%` faster than Vitest and `130.26%` faster than Jest on median wall-clock time for the same two-spec suite.
+
+The exact comparison artifact is emitted by CI as `.themis/showcase-comparison/perf-summary.json` and `.themis/showcase-comparison/perf-summary.md`. Treat those percentages as the current documented sample, not a universal constant for every environment.
 
 ## Modern JS/TS Support
 
@@ -295,6 +302,7 @@ Short version:
 - Perf gate job runs `npm run benchmark:gate` with `BENCH_MAX_AVG_MS=2500` to guard against regressions before publishing.
 - Migration proof job runs `npm run proof:migration` against checked-in Jest/Vitest fixtures for basic suites, table tests, RTL/jsdom flows, timers, module mocking, and a context/provider-heavy RTL example, then uploads the resulting migration reports plus Themis run artifacts as evidence.
 - Native runner showcase jobs verify a straight-up Themis React fixture plus parallel Jest and Vitest React fixtures so the CI page shows the three runner examples side by side.
+- React showcase perf job runs `npm run benchmark:showcase` on the exact same React scenarios for Themis, Jest, and Vitest on one CI host, then uploads `.themis/showcase-comparison/perf-summary.{json,md}` so the relative timing claim is backed by one comparable artifact.
 - Release `0.1.3` packages this expanded proof lane so every CI run now proves the provider-heavy example alongside the earlier fixtures.
 
 ## Agent Guide
@@ -511,6 +519,7 @@ Use the global types in your project with:
 
 ```bash
 npm run benchmark
+npm run benchmark:showcase
 npm run benchmark:gate
 ```
 
@@ -523,9 +532,12 @@ Optional env vars:
 - `BENCH_INCLUDE_EXTERNAL=1` to include Jest/Vitest/Bun comparisons
 - `BENCH_MAX_AVG_MS` to override the gate threshold
 - `BENCH_GATE_CONFIG` to point `benchmark:gate` at a custom config file
+- `SHOWCASE_BENCH_WARMUPS` (default `1`) for the same-spec React showcase comparison
+- `SHOWCASE_BENCH_REPEATS` (default `5`) for the same-spec React showcase comparison
 
 The benchmark always runs Themis and will include Jest/Vitest/Bun only when they are available locally.
 The default gate profile and threshold live in `benchmark-gate.json`.
+The showcase benchmark writes `.themis/showcase-comparison/perf-summary.json` and `.themis/showcase-comparison/perf-summary.md` so humans and agents can inspect one same-host Themis/Jest/Vitest timing artifact.
 
 ## Publish Readiness
 
