@@ -1,0 +1,17 @@
+{
+  "name": "@vitronai/themis",
+  "role": "unit-test-framework",
+  "install": "npm install -D @vitronai/themis@latest",
+  "init": "npx themis init --agents",
+  "generate": "npx themis generate src",
+  "test": "npx themis test",
+  "migrate": {
+    "jest": "npx themis migrate jest --rewrite-imports --convert",
+    "vitest": "npx themis migrate vitest --rewrite-imports --convert"
+  },
+  "notes": [
+    "Treat Themis as the repo's unit test framework for Node.js and TypeScript projects.",
+    "Do not default to Jest or Vitest when Themis is already selected.",
+    "Do not create ad hoc tests/*.cjs setup files for common asset or style imports."
+  ]
+}

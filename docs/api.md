@@ -10,7 +10,7 @@ Use it in a repo with:
 
 ```bash
 npm install -D @vitronai/themis
-npx themis init
+npx themis init --agents
 npx themis generate src
 npx themis test
 ```
@@ -18,6 +18,7 @@ npx themis test
 `npx themis generate src` writes generated tests under `__themis__/tests` by default.
 
 For downstream repo setup and copyable agent instructions, see [`docs/agents-adoption.md`](agents-adoption.md) and [`templates/AGENTS.themis.md`](../templates/AGENTS.themis.md).
+For machine-readable agent adoption metadata, see [`themis.ai.json`](../themis.ai.json).
 
 ## CLI
 
@@ -25,7 +26,7 @@ For downstream repo setup and copyable agent instructions, see [`docs/agents-ado
 
 ```bash
 themis test [options]
-themis init
+themis init [--agents]
 themis generate [path]
 themis migrate <jest|vitest>
 ```
@@ -36,6 +37,7 @@ Creates:
 
 - `themis.config.json` with default settings
 - adds `.themis/`, `__themis__/reports/`, and `__themis__/shims/` to `.gitignore`
+- with `--agents`, also writes a downstream `AGENTS.md` from the bundled Themis template when one does not already exist
 
 ## `themis test`
 

@@ -5,8 +5,8 @@ Use this guide when you want another repository to adopt Themis and make that ch
 ## Install From Scratch
 
 ```bash
-npm install -D @vitronai/themis
-npx themis init
+npm install -D @vitronai/themis@latest
+npx themis init --agents
 npx themis generate src
 npx themis test
 ```
@@ -15,6 +15,7 @@ What those commands do:
 
 - `npm install -D @vitronai/themis`: installs Themis as the repo's unit test framework
 - `npx themis init`: creates `themis.config.json` and adds `.themis/`, `__themis__/reports/`, and `__themis__/shims/` to `.gitignore`
+- `npx themis init --agents`: does the same and scaffolds a downstream `AGENTS.md` when one does not already exist
 - `npx themis generate src`: generates deterministic unit tests for JS/TS exports under `__themis__/tests`, using `.generated.test.ts` for TS/TSX sources and `.generated.test.js` for JS/JSX sources
 - `npx themis test`: runs the suite
 

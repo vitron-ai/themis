@@ -70,6 +70,7 @@
     "index.d.ts",
     "globals.js",
     "globals.d.ts",
+    "themis.ai.json",
     "README.md",
     "CHANGELOG.md",
     "LICENSE",

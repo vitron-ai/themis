@@ -21,8 +21,16 @@ async function main(argv) {
   const cwd = process.cwd();
 
   if (command === 'init') {
-    runInit(cwd);
+    const initFlags = parseInitFlags(argv.slice(1));
+    const initResult = runInit(cwd, initFlags);
     console.log('Themis initialized. Next: npx themis generate src && npx themis test');
+    if (initFlags.agents) {
+      if (initResult && initResult.path && initResult.created) {
+        console.log(`Agents: created ${formatCliPath(cwd, initResult.path)} from the Themis downstream template.`);
+      } else {
+        console.log('Agents: skipped AGENTS.md scaffold because one already exists.');
+      }
+    }
     return;
   }
 
@@ -509,6 +517,25 @@ function parseMigrateFlags(args) {
   return flags;
 }
 
+function parseInitFlags(args) {
+  const flags = {
+    agents: false
+  };
+
+  for (let i = 0; i < args.length; i += 1) {
+    const token = args[i];
+    if (token === '--agents') {
+      flags.agents = true;
+      continue;
+    }
+    if (token.startsWith('-')) {
+      throw new Error(`Unsupported init option: ${token}`);
+    }
+  }
+
+  return flags;
+}
+
 function parseGenerateFlags(args) {
   const flags = {};
 
@@ -710,7 +737,7 @@ function resolveStabilityRuns(value) {
 function printUsage() {
   console.log('Usage: themis <command> [options]');
   console.log('Commands:');
-  console.log('  init                    Create themis.config.json and gitignore .themis/ plus __themis__/reports/ and __themis__/shims/');
+  console.log('  init [--agents]         Create themis.config.json, gitignore framework paths, and optionally scaffold AGENTS.md');
   console.log('  generate [path]         Scan source files and generate Themis contract tests');
   console.log('                         Options: [--json] [--plan] [--output path] [--files a,b] [--match-source regex] [--match-export regex] [--scenario name] [--min-confidence level] [--require-confidence level] [--include regex] [--exclude regex] [--review] [--update] [--clean] [--changed] [--force] [--strict] [--write-hints] [--fail-on-skips] [--fail-on-conflicts]');
   console.log('  scan [path]             Alias for generate');

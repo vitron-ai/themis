@@ -461,6 +461,40 @@ test('deterministic instability', () => {
     }
   });
 
+  test('init --agents scaffolds downstream AGENTS.md when missing', async () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'themis-cli-init-agents-'));
+
+    try {
+      const run = runCliCommand(tempDir, 'init', ['--agents']);
+      expect(run.status).toBe(0);
+      expect(run.output).toContain('Themis initialized. Next: npx themis generate src && npx themis test');
+      expect(run.output).toContain('Agents: created AGENTS.md from the Themis downstream template.');
+
+      const agentsPath = path.join(tempDir, 'AGENTS.md');
+      expect(fs.existsSync(agentsPath)).toBe(true);
+      const agentsSource = fs.readFileSync(agentsPath, 'utf8');
+      expect(agentsSource).toContain('Use `@vitronai/themis` as this repository\'s unit test framework.');
+      expect(agentsSource).toContain('npx themis generate src');
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  test('init --agents preserves an existing AGENTS.md file', async () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'themis-cli-init-agents-existing-'));
+
+    try {
+      fs.writeFileSync(path.join(tempDir, 'AGENTS.md'), 'custom downstream instructions\n', 'utf8');
+
+      const run = runCliCommand(tempDir, 'init', ['--agents']);
+      expect(run.status).toBe(0);
+      expect(run.output).toContain('Agents: skipped AGENTS.md scaffold because one already exists.');
+      expect(fs.readFileSync(path.join(tempDir, 'AGENTS.md'), 'utf8')).toBe('custom downstream instructions\n');
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
   test('supports --fix for stale generated suites and keeps json output machine-readable', async () => {
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'themis-cli-fix-'));
 

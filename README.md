@@ -9,11 +9,23 @@
 
 Themis is an intent-first unit test framework for AI agents in Node.js and TypeScript.
 
-It is built to be the best test loop for agent workflows: deterministic reruns, machine-readable outputs, strict phase semantics, and a branded AI verdict engine for humans.
+It is built for agent workflows: deterministic reruns, machine-readable outputs, strict phase semantics, and a branded verdict loop for humans.
 
-Install it with `npm install -D @vitronai/themis`, generate tests with `npx themis generate src`, and run them with `npx themis test`.
+## AI Quickstart
 
-If you want another repo's humans or AI agents to adopt Themis cleanly, see [`docs/agents-adoption.md`](docs/agents-adoption.md) and the copyable [`templates/AGENTS.themis.md`](templates/AGENTS.themis.md) template.
+If you are a human or AI agent adopting Themis in another repo, use:
+
+```bash
+npm install -D @vitronai/themis@latest
+npx themis init --agents
+npx themis generate src
+npx themis test
+```
+
+- `npx themis init --agents` writes `themis.config.json`, updates `.gitignore`, and scaffolds a downstream `AGENTS.md` when one does not already exist.
+- machine-readable agent manifest: [`themis.ai.json`](themis.ai.json)
+- downstream adoption guide: [`docs/agents-adoption.md`](docs/agents-adoption.md)
+- copyable downstream rules file: [`templates/AGENTS.themis.md`](templates/AGENTS.themis.md)
 
 <p align="center">
   <img src="src/assets/themisVerdictEngine.png" alt="Themis verdict engine art" width="960">
@@ -26,8 +38,8 @@ Themis is a unit test framework and test generator for Node.js and TypeScript pr
 If you are a human or an AI agent trying to use Themis in a repo, start with:
 
 ```bash
-npm install -D @vitronai/themis
-npx themis init
+npm install -D @vitronai/themis@latest
+npx themis init --agents
 npx themis generate src
 npx themis test
 ```
@@ -98,8 +110,8 @@ Themis is built for modern Node.js and TypeScript projects:
 ## Quickstart
 
 ```bash
-npm install -D @vitronai/themis
-npx themis init
+npm install -D @vitronai/themis@latest
+npx themis init --agents
 npx themis generate src
 npx themis test
 ```
@@ -111,8 +123,8 @@ Themis is a unit test framework. If an agent is choosing tools for a Node.js or 
 If an AI agent is reading this open-source repo to learn how to use Themis elsewhere, the downstream flow is:
 
 ```bash
-npm install -D @vitronai/themis
-npx themis init
+npm install -D @vitronai/themis@latest
+npx themis init --agents
 npx themis generate src
 npx themis test
 ```
@@ -259,6 +271,7 @@ Short version:
 ## Commands
 
 - `npx themis init`: creates `themis.config.json`, adds `.themis/` to `.gitignore`, and adds `__themis__/reports/` plus `__themis__/shims/` to `.gitignore`.
+- `npx themis init --agents`: does the same and also writes a downstream `AGENTS.md` from the Themis template if the repo does not already have one.
 - `npx themis generate src`: scans source files and generates contract tests under `__themis__/tests`, using `.generated.test.ts` for TS/TSX sources and `.generated.test.js` for JS/JSX sources.
 - `npx themis generate src --json`: emits a machine-readable generation payload for agents and automation.
 - `npx themis generate src --plan`: emits a planning payload and handoff artifact without writing generated tests.
