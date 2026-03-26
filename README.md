@@ -510,6 +510,7 @@ Easter egg aliases are also available: `cook`, `yeet`, `vibecheck`, `wipe`.
 
 Modern JS/TS projects can opt into `environment: "jsdom"` for DOM-driven tests and `setupFiles` for hooks, polyfills, or harness bootstrapping.
 Themis discovers both `testDir` and `generatedTestsDir` by default. Use `testIgnore` only for fixture folders, scratch suites, or other paths you intentionally want to skip.
+Themis also stubs common frontend style and asset imports under Node or jsdom runs, including `.css`, `.scss`, `.png`, `.jpg`, `.svg`, and common font/media files, so repos should not need ad hoc `tests/*.cjs` setup files just to make those imports load.
 
 ## TypeScript
 

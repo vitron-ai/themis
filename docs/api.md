@@ -349,6 +349,11 @@ The fake timer helpers only patch the current Themis runtime. They do not mutate
 | `htmlReportPath` | string | `"__themis__/reports/report.html"` | Default output path for `--reporter html` when `--html-output` is not provided. |
 | `testIgnore` | `string[]` | `[]` | Regex strings matched against repo-relative paths during discovery. Matching files and directories are skipped. |
 
+Runtime loader note:
+
+- Themis handles common frontend style imports (`.css`, `.scss`, `.sass`, `.less`, `.styl`, `.pcss`) and common static assets (`.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.avif`, `.bmp`, `.ico`, `.svg`, font/media files) without extra setup.
+- Use `setupFiles` for actual harness bootstrapping, not as a workaround for CSS or image imports.
+
 ## Programmatic API
 
 Import:

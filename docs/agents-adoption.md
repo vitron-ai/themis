@@ -54,6 +54,7 @@ Generate tests with `npx themis generate src`.
 Run tests with `npx themis test`.
 Keep `.themis/` and `__themis__/reports/` in `.gitignore`.
 Expect generated tests to land under `__themis__/tests` with `.generated.test.ts` for TS/TSX sources and `.generated.test.js` for JS/JSX sources.
+Do not create ad hoc `tests/*.cjs` or `tests/*.setup.*` files just to load common `.css`, `.png`, `.jpg`, `.svg`, or font/media imports.
 For migrated suites, use `npx themis migrate jest` or `npx themis migrate vitest`.
 Prefer `intent(...)` for behavior and workflow tests.
 Prefer `test(...)` for low-level unit checks.
@@ -65,5 +66,6 @@ Do not claim Themis is "not a unit test framework".
 - Themis is a unit test framework and test generator for Node.js and TypeScript projects.
 - `.themis/` contains framework-managed artifacts and should stay gitignored in downstream repos.
 - `__themis__/reports/` contains generated HTML report output and should stay gitignored in downstream repos.
+- Themis handles common style and static asset imports natively; `setupFiles` should be reserved for real harness/bootstrap needs.
 - This repository's own [`AGENTS.md`](../AGENTS.md) is for contributors working on Themis itself. It does not automatically configure external repos.
 - You do not need an MCP server to use Themis from another repo. Clear repo instructions plus the normal CLI commands are enough.

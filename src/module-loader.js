@@ -4,6 +4,28 @@ const Module = require('module');
 
 const SUPPORTED_SOURCE_EXTENSIONS = ['.js', '.jsx', '.ts', '.tsx'];
 const RESOLVABLE_EXTENSIONS = ['.ts', '.tsx', '.js', '.jsx', '.json'];
+const STYLE_IMPORT_EXTENSIONS = new Set(['.css', '.scss', '.sass', '.less', '.styl', '.pcss']);
+const ASSET_IMPORT_EXTENSIONS = new Set([
+  '.png',
+  '.jpg',
+  '.jpeg',
+  '.gif',
+  '.webp',
+  '.avif',
+  '.bmp',
+  '.ico',
+  '.svg',
+  '.mp4',
+  '.webm',
+  '.mp3',
+  '.wav',
+  '.ogg',
+  '.woff',
+  '.woff2',
+  '.ttf',
+  '.otf',
+  '.eot'
+]);
 const THEMIS_CONTRACT_RUNTIME_REQUEST = '@vitronai/themis/contract-runtime';
 const THEMIS_CONTRACT_RUNTIME_PATH = path.join(__dirname, 'contract-runtime.js');
 const DEFAULT_TS_COMPILER_OPTIONS = {
@@ -100,6 +122,23 @@ function createModuleLoader(options = {}) {
 
     if (mockRegistry.has(resolvedRequest)) {
       return materializeMock(mockRegistry.get(resolvedRequest));
+    }
+
+    if (shouldStubStyleImport(resolvedRequest, projectRoot)) {
+      return createStyleModuleStub();
+    }
+
+    if (shouldStubAssetImport(resolvedRequest, projectRoot)) {
+      return createAssetModuleStub(resolvedRequest);
+    }
+
+    if (shouldRejectUnsupportedProjectImport(resolvedRequest, projectRoot)) {
+      const extension = path.extname(resolvedRequest).toLowerCase();
+      throw new Error(
+        `Unsupported project import extension "${extension}" for ${formatProjectPath(projectRoot, resolvedRequest)}. ` +
+        'Themis handles JS/TS, JSON, common style imports, and common static assets natively. ' +
+        'Prefer extending Themis support over creating ad hoc test setup files.'
+      );
     }
 
     return originalLoad.call(this, resolvedRequest, parent, isMain);
@@ -476,6 +515,106 @@ function isBuiltinRequest(request) {
     return true;
   }
   return Module.builtinModules.includes(request);
+}
+
+function shouldStubStyleImport(resolvedRequest, projectRoot) {
+  return shouldHandleProjectResolvedFile(resolvedRequest, projectRoot, STYLE_IMPORT_EXTENSIONS);
+}
+
+function shouldStubAssetImport(resolvedRequest, projectRoot) {
+  return shouldHandleProjectResolvedFile(resolvedRequest, projectRoot, ASSET_IMPORT_EXTENSIONS);
+}
+
+function shouldRejectUnsupportedProjectImport(resolvedRequest, projectRoot) {
+  if (!shouldHandleProjectFile(resolvedRequest, projectRoot)) {
+    return false;
+  }
+
+  if (!fs.existsSync(resolvedRequest) || !fs.statSync(resolvedRequest).isFile()) {
+    return false;
+  }
+
+  const extension = path.extname(resolvedRequest).toLowerCase();
+  if (!extension) {
+    return false;
+  }
+
+  return !SUPPORTED_SOURCE_EXTENSIONS.includes(extension)
+    && extension !== '.json'
+    && !STYLE_IMPORT_EXTENSIONS.has(extension)
+    && !ASSET_IMPORT_EXTENSIONS.has(extension);
+}
+
+function shouldHandleProjectResolvedFile(resolvedRequest, projectRoot, extensions) {
+  if (!shouldHandleProjectFile(resolvedRequest, projectRoot)) {
+    return false;
+  }
+
+  if (!fs.existsSync(resolvedRequest) || !fs.statSync(resolvedRequest).isFile()) {
+    return false;
+  }
+
+  return extensions.has(path.extname(resolvedRequest).toLowerCase());
+}
+
+function formatProjectPath(projectRoot, filePath) {
+  return path.relative(projectRoot, filePath).split(path.sep).join('/');
+}
+
+function createStyleModuleStub() {
+  const styleModule = {};
+  const proxy = new Proxy(styleModule, {
+    get(_target, property) {
+      if (property === '__esModule') {
+        return true;
+      }
+      if (property === 'default') {
+        return proxy;
+      }
+      if (property === 'toJSON') {
+        return () => ({});
+      }
+      if (property === Symbol.toPrimitive) {
+        return () => '';
+      }
+      if (typeof property === 'string') {
+        return property;
+      }
+      return undefined;
+    },
+    has(_target, property) {
+      return property === '__esModule' || property === 'default' || typeof property === 'string';
+    }
+  });
+
+  return proxy;
+}
+
+function createAssetModuleStub(resolvedRequest) {
+  const assetPath = resolvedRequest.split(path.sep).join('/');
+  const stub = {
+    __esModule: true,
+    default: assetPath,
+    href: assetPath,
+    path: assetPath,
+    src: assetPath
+  };
+
+  if (path.extname(resolvedRequest).toLowerCase() === '.svg') {
+    stub.ReactComponent = function ThemisSvgAsset(props = {}) {
+      return {
+        $$typeof: 'react.test.element',
+        type: 'svg',
+        key: null,
+        props: {
+          ...props,
+          'data-themis-asset': assetPath
+        }
+      };
+    };
+  }
+
+  return stub;
 }
 
 function transpileSource({ source, filename, compilerContext }) {

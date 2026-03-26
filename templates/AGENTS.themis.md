@@ -10,6 +10,7 @@ Use `@vitronai/themis` as this repository's unit test framework.
 - Generate tests with `npx themis generate src`.
 - Expect generated tests under `__themis__/tests`, using `.generated.test.ts` for TS/TSX sources and `.generated.test.js` for JS/JSX sources.
 - Run tests with `npx themis test`.
+- Do not create ad hoc `tests/*.cjs` or `tests/*.setup.*` files just to load common `.css`, `.png`, `.jpg`, `.svg`, or font/media imports.
 
 ## Migration
 
@@ -32,3 +33,4 @@ Use `@vitronai/themis` as this repository's unit test framework.
 - Do not claim Themis is "not a unit test framework".
 - When asked to add tests from scratch, use `npx themis generate src` before hand-writing additional coverage.
 - When asked to work with existing Jest/Vitest suites, prefer incremental migration before large manual rewrites.
+- Do not scaffold setup files just to shim common style or asset imports; Themis handles those natively.

@@ -201,6 +201,47 @@ test('works', () => {
     );
   });
 
+  test('loads common style and asset imports without ad hoc setup files', async () => {
+    await withProjectFixture(
+      {
+        'src/app.css': '.shell { color: red; }\n',
+        'src/button.module.css': '.hero { color: green; }\n',
+        'src/logo.png': 'png',
+        'src/icon.svg': '<svg viewBox="0 0 10 10"></svg>\n',
+        'src/view.ts': `import './app.css';\nimport styles from './button.module.css';\nimport logo from './logo.png';\nimport iconUrl, { ReactComponent as Icon } from './icon.svg';\n\nexport function readAssets() {\n  return {\n    hero: styles.hero,\n    logo,\n    iconUrl,\n    iconType: typeof Icon,\n    iconElement: Icon({ role: 'img' })\n  };\n}\n`,
+        'tests/fixture.test.ts': `import { readAssets } from '../src/view';\n\ntest('stubs style and asset imports', () => {\n  const result = readAssets();\n  expect(result.hero).toBe('hero');\n  expect(result.logo.includes('logo.png')).toBe(true);\n  expect(result.iconUrl.includes('icon.svg')).toBe(true);\n  expect(result.iconType).toBe('function');\n  expect(result.iconElement.type).toBe('svg');\n  expect(result.iconElement.props.role).toBe('img');\n});\n`
+      },
+      async ({ tempDir, resolvePath }) => {
+        const result = await collectAndRun(resolvePath('tests', 'fixture.test.ts'), {
+          cwd: tempDir
+        });
+
+        expect(result.tests.length).toBe(1);
+        expect(result.tests[0].status).toBe('passed');
+      }
+    );
+  });
+
+  test('fails clearly for unsupported local import extensions', async () => {
+    await withProjectFixture(
+      {
+        'src/content.foo': 'opaque',
+        'tests/fixture.test.js': `const content = require('../src/content.foo');\n\ntest('never runs', () => {\n  expect(content).toBeTruthy();\n});\n`
+      },
+      async ({ tempDir, resolvePath }) => {
+        const result = await collectAndRun(resolvePath('tests', 'fixture.test.js'), {
+          cwd: tempDir
+        });
+
+        expect(result.tests.length).toBe(1);
+        expect(result.tests[0].status).toBe('failed');
+        expect(result.tests[0].name).toBe('load');
+        expect(result.tests[0].error.message).toContain('Unsupported project import extension ".foo"');
+        expect(result.tests[0].error.message).toContain('Prefer extending Themis support over creating ad hoc test setup files.');
+      }
+    );
+  });
+
   test('supports in-process execution caching for local loops', async () => {
     await withProjectFixture(
       {
