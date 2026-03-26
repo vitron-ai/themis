@@ -2,6 +2,10 @@
 
 This file is the test-authoring contract for AI agents working in this repository.
 
+It is repo-local guidance for contributors working on Themis itself. Downstream projects that want agents to use Themis should declare that in their own `AGENTS.md`, repo rules, or agent prompt; this file does not automatically configure external repos.
+
+Downstream usage instructions live in `README.md`. External repos should install `@vitronai/themis`, run `npx themis init`, generate tests with `npx themis generate src`, and run them with `npx themis test`.
+
 ## Mission
 
 Generate deterministic, high-signal tests for Themis with strong behavior coverage, stable output, measurable performance discipline, and clear JS/TS-first product contracts.

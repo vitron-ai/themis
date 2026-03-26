@@ -8,6 +8,17 @@ The core positioning is simple:
 - An AI verdict engine for human and agent review loops
 - A contract-first alternative to snapshot-heavy test maintenance
 
+The adoption path should stay obvious:
+
+```bash
+npm install -D @vitronai/themis
+npx themis init
+npx themis generate src
+npx themis test
+```
+
+For downstream repo instructions and a copyable `AGENTS.md` template, see [`docs/agents-adoption.md`](agents-adoption.md).
+
 ## What "Next-Gen" Means Here
 
 Next-gen is not styling. It means test infrastructure designed for:

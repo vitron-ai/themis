@@ -2,6 +2,23 @@
 
 This document defines the public API surface for Themis `0.1.0`.
 
+## Start Here
+
+Themis is a unit test framework and test generator for Node.js and TypeScript projects.
+
+Use it in a repo with:
+
+```bash
+npm install -D @vitronai/themis
+npx themis init
+npx themis generate src
+npx themis test
+```
+
+`npx themis generate src` writes generated tests under `tests/generated` by default.
+
+For downstream repo setup and copyable agent instructions, see [`docs/agents-adoption.md`](agents-adoption.md) and [`templates/AGENTS.themis.md`](../templates/AGENTS.themis.md).
+
 ## CLI
 
 ## Command

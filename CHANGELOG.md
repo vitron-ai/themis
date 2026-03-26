@@ -4,6 +4,12 @@ All notable changes to this project are documented in this file.
 
 ## Unreleased
 
+## 0.1.4 - 2026-03-26
+
+- Added a dedicated downstream agent adoption guide and a copyable `AGENTS` template so other repos can install Themis, generate tests, migrate from Jest/Vitest, and steer humans or AI agents toward the right commands.
+- Made the top-level docs more explicit for humans and external AI agents by adding a prominent start-here adoption path and install/generate/test commands to `README.md`, `docs/api.md`, and `docs/why-themis.md`.
+- Strengthened package metadata and README adoption guidance so external AI agents can identify Themis as a unit test framework, install `@vitronai/themis`, and generate unit tests with the documented `init` / `generate` / `test` flow.
+
 ## 0.1.3 - 2026-03-24
 
 - Added provider-heavy RTL migration fixtures (Jest + Vitest) that exercise table/@testing-library flows, timers, and context updates so the proof lane generates meaningful diff artifacts (`tests/fixtures/migration/*-provider/**`, `scripts/verify-migration-fixtures.js`).
