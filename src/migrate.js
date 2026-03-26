@@ -45,7 +45,7 @@ function runMigrate(cwd, framework, options = {}) {
   }
 
   fs.writeFileSync(configPath, `${JSON.stringify(nextConfig, null, 2)}\n`, 'utf8');
-  const gitignore = ensureGitignoreEntries(projectRoot, ['.themis/']);
+  const gitignore = ensureGitignoreEntries(projectRoot, ['.themis/', '__themis__/reports/']);
 
   let packageUpdated = false;
   if (fs.existsSync(packageJsonPath)) {

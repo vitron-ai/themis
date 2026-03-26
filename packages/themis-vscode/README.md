@@ -10,7 +10,7 @@ Current MVP features:
 - rerun failed tests
 - accept reviewed contract drift with `Themis: Update Contracts`
 - rerun migration codemods with `Themis: Run Migration Codemods`
-- open `.themis/reports/report.html` inside a VS Code webview
+- open `__themis__/reports/report.html` inside a VS Code webview
 - auto-refresh when `.themis/**` artifacts change
 
 ## Local Development
@@ -39,6 +39,6 @@ The extension reads:
 - `.themis/diffs/run-diff.json`
 - `.themis/diffs/contract-diff.json`
 - `.themis/migration/migration-report.json`
-- `.themis/reports/report.html`
+- `__themis__/reports/report.html`
 
 It does not reimplement Themis runtime logic. The CLI and artifacts remain the source of truth.

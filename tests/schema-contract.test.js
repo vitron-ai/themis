@@ -269,7 +269,7 @@ describe('schema contracts', () => {
       const payload = JSON.parse(proc.stdout);
       assertMatchesSchema(payload, schema, schema);
       expect(payload.summary.generated).toBe(1);
-      expect(payload.generatedFiles[0]).toBe('tests/generated/math.generated.test.js');
+      expect(payload.generatedFiles[0]).toBe('__themis__/tests/math.generated.test.js');
       expect(payload.artifacts.helperFile).toBe('@vitronai/themis/contract-runtime');
       expect(payload.artifacts.generateBacklog).toBe('.themis/generate/generate-backlog.json');
       expect(payload.mode.writeHints).toBe(false);
@@ -304,7 +304,7 @@ describe('schema contracts', () => {
       const mapPayload = JSON.parse(fs.readFileSync(path.join(tempDir, '.themis', 'generate', 'generate-map.json'), 'utf8'));
       assertMatchesSchema(mapPayload, schema, schema);
       expect(mapPayload.entries[0].sourceFile).toBe('src/math.js');
-      expect(mapPayload.entries[0].testFile).toBe('tests/generated/math.generated.test.js');
+      expect(mapPayload.entries[0].testFile).toBe('__themis__/tests/math.generated.test.js');
     } finally {
       fs.rmSync(tempDir, { recursive: true, force: true });
     }

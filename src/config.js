@@ -4,12 +4,14 @@ const os = require('os');
 
 const DEFAULT_CONFIG = {
   testDir: 'tests',
+  generatedTestsDir: path.join('__themis__', 'tests'),
   testRegex: '\\.(test|spec)\\.(js|jsx|ts|tsx)$',
   maxWorkers: Math.max(1, os.cpus().length - 1),
   reporter: 'next',
   environment: 'node',
   setupFiles: [],
   tsconfigPath: 'tsconfig.json',
+  htmlReportPath: path.join('__themis__', 'reports', 'report.html'),
   testIgnore: []
 };
 
@@ -42,6 +44,14 @@ function normalizeConfig(config) {
 
   if (config.tsconfigPath !== null && typeof config.tsconfigPath !== 'string') {
     throw new Error('Invalid config tsconfigPath value: expected a string path or null.');
+  }
+
+  if (typeof config.generatedTestsDir !== 'string' || config.generatedTestsDir.trim().length === 0) {
+    throw new Error('Invalid config generatedTestsDir value: expected a non-empty string path.');
+  }
+
+  if (typeof config.htmlReportPath !== 'string' || config.htmlReportPath.trim().length === 0) {
+    throw new Error('Invalid config htmlReportPath value: expected a non-empty string path.');
   }
 
   if (!Array.isArray(config.testIgnore) || !config.testIgnore.every((entry) => typeof entry === 'string')) {

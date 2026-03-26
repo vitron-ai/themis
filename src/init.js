@@ -3,7 +3,7 @@ const { ensureGitignoreEntries } = require('./gitignore');
 
 function runInit(cwd) {
   initConfig(cwd);
-  ensureGitignoreEntries(cwd, ['.themis/']);
+  ensureGitignoreEntries(cwd, ['.themis/', '__themis__/reports/']);
 }
 
 module.exports = {

@@ -24,7 +24,7 @@ The scaffold currently supports:
 - reading `.themis/generate/generate-last.json`
 - reading `.themis/generate/generate-map.json`
 - reading `.themis/generate/generate-backlog.json`
-- opening `.themis/reports/report.html` in a webview
+- opening `__themis__/reports/report.html` in a webview
 - surfacing generated source/test/hint mappings in the sidebar
 - surfacing unresolved generate backlog and gate state in the sidebar
 - refreshing when `.themis/**` files change

@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const { buildStabilityReport } = require('./stability');
+const { loadConfig } = require('./config');
 const { ARTIFACT_RELATIVE_PATHS, resolveArtifactPath } = require('./artifact-paths');
 
 const REPORT_LEXICONS = {
@@ -485,6 +486,10 @@ function fnv1a32(input) {
 
 function resolveHtmlOutputPath(cwd, outputPath) {
   if (!outputPath) {
+    const config = loadConfig(cwd);
+    if (config.htmlReportPath) {
+      return path.resolve(cwd, config.htmlReportPath);
+    }
     return resolveArtifactPath(cwd, 'htmlReport');
   }
   if (path.isAbsolute(outputPath)) {

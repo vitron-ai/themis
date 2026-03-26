@@ -1,6 +1,7 @@
 {
   "testIgnore": [
     "^tests/generated(?:/|$)",
+    "^__themis__/tests(?:/|$)",
     "^tests/fixtures/migration(?:/|$)",
     "^tests/fixtures/showcase(?:/|$)"
   ]

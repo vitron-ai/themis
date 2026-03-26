@@ -17,7 +17,7 @@ npx themis generate src
 npx themis test
 ```
 
-`npx themis init` adds `.themis/` to `.gitignore`, and `npx themis generate src` emits `.generated.test.ts` for TS/TSX sources and `.generated.test.js` for JS/JSX sources.
+`npx themis init` adds `.themis/` and `__themis__/reports/` to `.gitignore`, and `npx themis generate src` emits `.generated.test.ts` for TS/TSX sources and `.generated.test.js` for JS/JSX sources under `__themis__/tests`.
 
 For downstream repo instructions and a copyable `AGENTS.md` template, see [`docs/agents-adoption.md`](agents-adoption.md).
 

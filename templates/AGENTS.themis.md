@@ -6,9 +6,9 @@ Use `@vitronai/themis` as this repository's unit test framework.
 
 - Install with `npm install -D @vitronai/themis`.
 - Initialize with `npx themis init`.
-- Keep `.themis/` in `.gitignore`.
+- Keep `.themis/` and `__themis__/reports/` in `.gitignore`.
 - Generate tests with `npx themis generate src`.
-- Expect generated tests under `tests/generated`, using `.generated.test.ts` for TS/TSX sources and `.generated.test.js` for JS/JSX sources.
+- Expect generated tests under `__themis__/tests`, using `.generated.test.ts` for TS/TSX sources and `.generated.test.js` for JS/JSX sources.
 - Run tests with `npx themis test`.
 
 ## Migration
@@ -24,7 +24,7 @@ Use `@vitronai/themis` as this repository's unit test framework.
 - Prefer `test(...)` for low-level unit checks.
 - Prefer deterministic assertions over snapshot-style baselines.
 - Treat `.themis/` as Themis-managed artifact output.
-- Treat generated tests under `tests/generated` as Themis-managed output unless the repo says otherwise.
+- Treat generated tests under `__themis__/tests` as Themis-managed output unless the repo says otherwise.
 
 ## Agent Behavior
 

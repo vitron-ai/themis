@@ -15,7 +15,7 @@ npx themis generate src
 npx themis test
 ```
 
-`npx themis generate src` writes generated tests under `tests/generated` by default.
+`npx themis generate src` writes generated tests under `__themis__/tests` by default.
 
 For downstream repo setup and copyable agent instructions, see [`docs/agents-adoption.md`](agents-adoption.md) and [`templates/AGENTS.themis.md`](../templates/AGENTS.themis.md).
 
@@ -35,7 +35,7 @@ themis migrate <jest|vitest>
 Creates:
 
 - `themis.config.json` with default settings
-- adds `.themis/` to `.gitignore`
+- adds `.themis/` and `__themis__/reports/` to `.gitignore`
 
 ## `themis test`
 
@@ -58,7 +58,7 @@ Themis uses generation and explicit assertions as a contract-first alternative t
 Default behavior:
 
 - input directory: `src`
-- output directory: `tests/generated`
+- output directory: `__themis__/tests`
 - generated files mirror the scanned source tree with `*.generated.test.ts` for TS/TSX sources and `*.generated.test.js` for JS/JSX sources
 - generated tests import their shared contract runtime from `@vitronai/themis/contract-runtime` instead of writing framework helper files into the repo
 - generated tests assert normalized runtime export contracts directly in generated source
@@ -96,7 +96,7 @@ Default behavior:
 | `--match-export <regex>` | string | Filter candidate source files by exported symbol regex. |
 | `--include <regex>` | string | Include only source files whose relative path matches regex. |
 | `--exclude <regex>` | string | Exclude source files whose relative path matches regex. |
-| `--output <path>` | string | Output directory for generated tests (default: `tests/generated`). |
+| `--output <path>` | string | Output directory for generated tests (default: `__themis__/tests`). |
 | `--force` | flag | Replace conflicting files that were not created by a prior Themis scan. |
 
 Per-file hint sidecars are supported via `<source>.themis.json`. These can provide:
@@ -202,7 +202,7 @@ Migration options:
 | `--update-contracts` | flag | Accept updated `captureContract(...)` baselines for the selected tests. |
 | `-w`, `--watch` | flag | Rerun the selected suite when watched project files change. |
 | `--stability <N>` | positive integer | Run selected tests `N` times and classify stability (`stable_pass`, `stable_fail`, `unstable`). |
-| `--html-output <path>` | string | Output path for `--reporter html` (default: `.themis/reports/report.html`). |
+| `--html-output <path>` | string | Output path for `--reporter html` (default: `__themis__/reports/report.html`). |
 | `--match "<regex>"` | string | Run only tests whose full name matches regex. |
 | `--rerun-failed` | flag | Rerun failures from `.themis/runs/failed-tests.json`. |
 | `--fix` | flag | Apply generated-test autofixes from `.themis/runs/fix-handoff.json` and rerun the suite. |
@@ -278,7 +278,7 @@ Formal schemas:
 
 Human-facing artifact:
 
-- `.themis/reports/report.html`: interactive HTML verdict report
+- `__themis__/reports/report.html`: interactive HTML verdict report
 
 Agent payload details:
 
@@ -339,12 +339,14 @@ The fake timer helpers only patch the current Themis runtime. They do not mutate
 | Field | Type | Default | Notes |
 | --- | --- | --- | --- |
 | `testDir` | string | `"tests"` | Root directory for discovery. |
+| `generatedTestsDir` | string | `"__themis__/tests"` | Additional discovery root for generated Themis suites. |
 | `testRegex` | string | `"\\.(test\|spec)\\.(js\|jsx\|ts\|tsx)$"` | Regex for filenames. |
 | `maxWorkers` | integer | `max(1, cpuCount - 1)` | Parallel worker limit. |
 | `reporter` | `spec\|next\|json\|agent\|html` | `"next"` | Default reporter when no CLI override is set. |
 | `environment` | `node\|jsdom` | `"node"` | Test runtime environment. |
 | `setupFiles` | `string[]` | `[]` | Files loaded before each test file. |
 | `tsconfigPath` | `string \| null` | `"tsconfig.json"` | Project tsconfig used for TSX and alias-aware transpilation. |
+| `htmlReportPath` | string | `"__themis__/reports/report.html"` | Default output path for `--reporter html` when `--html-output` is not provided. |
 | `testIgnore` | `string[]` | `[]` | Regex strings matched against repo-relative paths during discovery. Matching files and directories are skipped. |
 
 ## Programmatic API
@@ -450,7 +452,8 @@ Loads `themis.config.json` and merges with defaults.
 
 Discovery note:
 
-- `testIgnore` is applied to repo-relative file and directory paths before descent, so patterns like `^tests/generated(?:/|$)` keep generated output out of default test runs without changing `testDir`.
+- Themis discovers both `testDir` and `generatedTestsDir` by default.
+- `testIgnore` is applied to repo-relative file and directory paths before descent, so use it only for paths you intentionally want to skip, such as fixtures or scratch suites.
 
 ## `initConfig(cwd): void`
 

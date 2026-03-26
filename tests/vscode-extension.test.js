@@ -171,7 +171,7 @@ describe('vscode extension scaffold', () => {
         })}\n`
       );
 
-      writeFile(workspaceRoot, '.themis/reports/report.html', '<html><body>Themis report</body></html>\n');
+      writeFile(workspaceRoot, '__themis__/reports/report.html', '<html><body>Themis report</body></html>\n');
       writeFile(
         workspaceRoot,
         '.themis/generate/generate-last.json',
@@ -187,7 +187,7 @@ describe('vscode extension scaffold', () => {
           },
           source: {
             targetDir: 'src',
-            outputDir: 'tests/generated'
+            outputDir: '__themis__/tests'
           },
           filters: {
             plan: false,
@@ -221,7 +221,7 @@ describe('vscode extension scaffold', () => {
             conflicts: 0
           },
           scannedFiles: ['src/components/CounterButton.tsx', 'src/hooks/useToggle.ts'],
-          generatedFiles: ['tests/generated/components/CounterButton.generated.test.ts', 'tests/generated/hooks/useToggle.generated.test.ts'],
+          generatedFiles: ['__themis__/tests/components/CounterButton.generated.test.ts', '__themis__/tests/hooks/useToggle.generated.test.ts'],
           removedFiles: [],
           skippedFiles: [],
           conflictFiles: [],
@@ -234,7 +234,7 @@ describe('vscode extension scaffold', () => {
             {
               action: 'create',
               sourceFile: 'src/components/CounterButton.tsx',
-              testFile: 'tests/generated/components/CounterButton.generated.test.ts',
+              testFile: '__themis__/tests/components/CounterButton.generated.test.ts',
               moduleKind: 'react-component',
               confidence: 'medium',
               exactExports: true,
@@ -259,7 +259,7 @@ describe('vscode extension scaffold', () => {
                 type: 'confidence',
                 severity: 'error',
                 sourceFile: 'src/components/CounterButton.tsx',
-                testFile: 'tests/generated/components/CounterButton.generated.test.ts',
+                testFile: '__themis__/tests/components/CounterButton.generated.test.ts',
                 moduleKind: 'react-component',
                 confidence: 'medium',
                 stage: null,
@@ -304,7 +304,7 @@ describe('vscode extension scaffold', () => {
           schema: 'themis.generate.backlog.v1',
           source: {
             targetDir: 'src',
-            outputDir: 'tests/generated'
+            outputDir: '__themis__/tests'
           },
           filters: {
             plan: false,
@@ -338,7 +338,7 @@ describe('vscode extension scaffold', () => {
               type: 'confidence',
               severity: 'error',
               sourceFile: 'src/components/CounterButton.tsx',
-              testFile: 'tests/generated/components/CounterButton.generated.test.ts',
+              testFile: '__themis__/tests/components/CounterButton.generated.test.ts',
               moduleKind: 'react-component',
               confidence: 'medium',
               stage: null,

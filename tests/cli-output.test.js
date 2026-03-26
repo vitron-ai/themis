@@ -195,7 +195,7 @@ describe('cli output', () => {
       expect(run.status).toBe(0);
       expect(run.output.includes('HTML report written to')).toBe(true);
 
-      const reportPath = path.join(tempDir, '.themis', 'reports', 'report.html');
+      const reportPath = path.join(tempDir, '__themis__', 'reports', 'report.html');
       expect(fs.existsSync(reportPath)).toBe(true);
       const html = fs.readFileSync(reportPath, 'utf8');
       expect(html.includes('<title>Themis Test Report')).toBe(true);
@@ -209,9 +209,9 @@ describe('cli output', () => {
       expect(html.includes('No failing tests in this file.')).toBe(true);
       expect(html.includes('Official Mark')).toBe(false);
 
-      const bgPath = path.join(tempDir, '.themis', 'reports', 'themis-bg.png');
+      const bgPath = path.join(tempDir, '__themis__', 'reports', 'themis-bg.png');
       expect(fs.existsSync(bgPath)).toBe(true);
-      const reportAssetPath = path.join(tempDir, '.themis', 'reports', 'themis-report.png');
+      const reportAssetPath = path.join(tempDir, '__themis__', 'reports', 'themis-report.png');
       expect(fs.existsSync(reportAssetPath)).toBe(true);
     });
   });
@@ -235,7 +235,7 @@ describe('cli output', () => {
 
         run = runCliCommand(tempDir, 'test', ['--reporter', 'html']);
         expect(run.status).toBe(1);
-        const html = fs.readFileSync(path.join(tempDir, '.themis', 'reports', 'report.html'), 'utf8');
+        const html = fs.readFileSync(path.join(tempDir, '__themis__', 'reports', 'report.html'), 'utf8');
         expect(html).toContain('Contract Diffs');
         expect(html).toContain('Update Contracts');
       },
@@ -452,7 +452,9 @@ test('deterministic instability', () => {
 
       expect(fs.existsSync(path.join(tempDir, 'themis.config.json'))).toBe(true);
       expect(fs.existsSync(path.join(tempDir, 'tests', 'example.test.js'))).toBe(false);
-      expect(fs.readFileSync(path.join(tempDir, '.gitignore'), 'utf8')).toContain('.themis/');
+      const gitignore = fs.readFileSync(path.join(tempDir, '.gitignore'), 'utf8');
+      expect(gitignore).toContain('.themis/');
+      expect(gitignore).toContain('__themis__/reports/');
     } finally {
       fs.rmSync(tempDir, { recursive: true, force: true });
     }
@@ -555,7 +557,7 @@ test('deterministic instability', () => {
       },
       {
         'tests/sample.test.js': `test('main suite test', () => {\n  expect('themis').toBe('themis');\n});\n`,
-        'tests/generated/noise.test.js': `test('generated noise should be ignored', () => {\n  throw new Error('discovery leak');\n});\n`
+        '__themis__/tests/noise.test.js': `test('generated noise should be ignored', () => {\n  throw new Error('discovery leak');\n});\n`
       },
       {
         testRegex: '\\.(test|spec)\\.js$',
@@ -563,7 +565,7 @@ test('deterministic instability', () => {
         environment: 'node',
         setupFiles: [],
         tsconfigPath: null,
-        testIgnore: ['^tests/generated(?:/|$)']
+        testIgnore: ['^__themis__/tests(?:/|$)']
       }
     );
   });
@@ -646,7 +648,9 @@ test('deterministic instability', () => {
 
         const packageJson = JSON.parse(fs.readFileSync(path.join(tempDir, 'package.json'), 'utf8'));
         expect(packageJson.scripts['test:themis']).toBe('themis test');
-        expect(fs.readFileSync(path.join(tempDir, '.gitignore'), 'utf8')).toContain('.themis/');
+        const gitignore = fs.readFileSync(path.join(tempDir, '.gitignore'), 'utf8');
+        expect(gitignore).toContain('.themis/');
+        expect(gitignore).toContain('__themis__/reports/');
 
         const report = JSON.parse(fs.readFileSync(path.join(tempDir, '.themis', 'migration', 'migration-report.json'), 'utf8'));
         expect(report.schema).toBe('themis.migration.report.v1');

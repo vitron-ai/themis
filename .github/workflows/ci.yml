@@ -100,7 +100,7 @@ jobs:
           NO_COLOR=1 node bin/themis.js test --reporter html
           mkdir -p .themis/runs
           NO_COLOR=1 node bin/themis.js test --agent > .themis/runs/agent-result.json
-          test -f .themis/reports/report.html
+          test -f __themis__/reports/report.html
           test -f .themis/runs/agent-result.json
           test -f .themis/runs/last-run.json
           test -f .themis/diffs/run-diff.json
@@ -112,9 +112,9 @@ jobs:
           name: themis-showcase-node20
           retention-days: 14
           path: |
-            .themis/reports/report.html
-            .themis/reports/themis-bg.png
-            .themis/reports/themis-report.png
+            __themis__/reports/report.html
+            __themis__/reports/themis-bg.png
+            __themis__/reports/themis-report.png
             .themis/runs/agent-result.json
             .themis/runs/last-run.json
             .themis/runs/failed-tests.json

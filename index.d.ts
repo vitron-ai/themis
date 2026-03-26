@@ -84,12 +84,14 @@ export interface RunOptions {
 
 export interface ThemisConfig {
   testDir: string;
+  generatedTestsDir: string;
   testRegex: string;
   maxWorkers: number;
   reporter: string;
   environment: TestEnvironment;
   setupFiles: string[];
   tsconfigPath: string | null;
+  htmlReportPath: string;
   testIgnore: string[];
 }
 

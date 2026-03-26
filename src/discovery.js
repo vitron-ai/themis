@@ -2,17 +2,18 @@ const fs = require('fs');
 const path = require('path');
 
 function discoverTests(cwd, config) {
-  const start = path.resolve(cwd, config.testDir);
   const regex = new RegExp(config.testRegex);
   const ignored = compileIgnorePatterns(config.testIgnore);
-  const files = [];
+  const files = new Set();
+  const searchRoots = resolveSearchRoots(cwd, config);
 
-  if (!fs.existsSync(start)) {
-    return files;
+  for (const start of searchRoots) {
+    if (!fs.existsSync(start)) {
+      continue;
+    }
+    walk(start, regex, ignored, files, cwd);
   }
-
-  walk(start, regex, ignored, files, cwd);
-  return files.sort();
+  return [...files].sort();
 }
 
 function walk(dir, regex, ignored, files, cwd) {
@@ -31,9 +32,18 @@ function walk(dir, regex, ignored, files, cwd) {
       continue;
     }
     if (entry.isFile() && regex.test(entry.name)) {
-      files.push(fullPath);
+      files.add(fullPath);
     }
   }
+}
+
+function resolveSearchRoots(cwd, config) {
+  const candidates = [config.testDir, config.generatedTestsDir]
+    .map((entry) => String(entry || '').trim())
+    .filter(Boolean)
+    .map((entry) => path.resolve(cwd, entry));
+
+  return [...new Set(candidates)];
 }
 
 function compileIgnorePatterns(patterns) {

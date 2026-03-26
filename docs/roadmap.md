@@ -2,7 +2,7 @@
 
 1. **Provider/flow depth**
    - Expand `generate` detection to infer React Query usage, router contexts, and persisted store slices so generated tests wrap components/hooks with accurate provider shells.
-   - Surface async DOM flows in `tests/generated/*` with multi-stage user journeys, empty/loading/error states, and configurable timing fixtures so the runner can validate realistic UI transitions instead of static renders.
+   - Surface async DOM flows in `__themis__/tests/*` with multi-stage user journeys, empty/loading/error states, and configurable timing fixtures so the runner can validate realistic UI transitions instead of static renders.
    - Add documentation (and optionally VS Code actions) that show how to hook a project-level `themis.generate.js` or `.themis.json` provider configuration for shared auth/session/React Query clients.
 
 2. **Migration helpers**

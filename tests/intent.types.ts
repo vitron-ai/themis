@@ -1,13 +1,15 @@
 describe('intent DSL typings', () => {
   const modernConfig: import('..').ThemisConfig = {
     testDir: 'tests',
+    generatedTestsDir: '__themis__/tests',
     testRegex: '\\.(test|spec)\\.(js|jsx|ts|tsx)$',
     maxWorkers: 2,
     reporter: 'next',
     environment: 'jsdom',
     setupFiles: ['tests/setup.ts'],
     tsconfigPath: 'tsconfig.json',
-    testIgnore: ['^tests/generated(?:/|$)']
+    htmlReportPath: '__themis__/reports/report.html',
+    testIgnore: ['^tests/fixtures(?:/|$)']
   };
 
   const modernRunOptions: import('..').RunOptions = {
