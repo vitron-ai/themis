@@ -115,7 +115,7 @@ describe('cli output', () => {
     const variants = new Set([targetPath]);
     try {
       variants.add(fs.realpathSync(targetPath));
-    } catch (error) {
+    } catch {
       // Ignore non-resolvable paths, the original target is still used.
     }
 

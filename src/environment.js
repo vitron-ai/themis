@@ -17,7 +17,7 @@ function installJsdomEnvironment() {
   let JSDOM;
   try {
     ({ JSDOM } = require('jsdom'));
-  } catch (error) {
+  } catch {
     throw new Error(
       "The 'jsdom' package is required for the jsdom environment. Install with: npm i jsdom"
     );

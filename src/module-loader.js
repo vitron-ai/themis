@@ -161,7 +161,7 @@ function createModuleLoader(options = {}) {
 function safeRealpath(targetPath) {
   try {
     return fs.realpathSync.native(targetPath);
-  } catch (error) {
+  } catch {
     return targetPath;
   }
 }
@@ -270,7 +270,7 @@ function findNearestPackageType(filename, projectRoot, packageTypeCache) {
         if (parsed.type === 'module') {
           packageType = 'module';
         }
-      } catch (error) {
+      } catch {
         packageType = 'commonjs';
       }
 
@@ -301,7 +301,7 @@ function getCompilerContext(compilerState, projectRoot, tsconfigPath, options = 
   let ts;
   try {
     ts = require('typescript');
-  } catch (error) {
+  } catch {
     if (options.optional) {
       return null;
     }

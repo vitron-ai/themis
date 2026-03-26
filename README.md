@@ -289,7 +289,8 @@ Short version:
 - `npx themis test --update-contracts --match "suite > case"`: accepts reviewed `captureContract(...)` changes for a narrow slice of the suite.
 - `npx themis test --no-memes`: disables meme phase aliases (`cook`, `yeet`, `vibecheck`, `wipe`).
 - `npx themis test --lexicon classic|themis`: rebrands human-readable status labels in `next/spec` reporters.
-- `npm run validate`: runs test, typecheck, and benchmark gate in one command.
+- `npm run lint`: runs ESLint across the CLI, runtime, scripts, tests, and the VS Code extension scaffold.
+- `npm run validate`: runs lint, test, typecheck, and benchmark gate in one command.
 - `npm run typecheck`: validates TypeScript types for Themis globals and DSL contracts.
 - `npm run benchmark:gate`: fails when benchmark performance exceeds the configured threshold.
 - `npm run pack:check`: previews the npm publish payload.
@@ -297,11 +298,12 @@ Short version:
 
 ## CI & Release Proof
 
+- Lint job runs `npm run lint` on Node 20.
 - Compatibility job runs `npm test` on Node 18 and 20.
 - Release surface job runs `npm run typecheck`, `npm run pack:check`, the HTML + agent reports, verifies `.themis/contract-diff.json`, produces `.themis/benchmark-last.json`/`.themis/migration-proof.json`, and uploads all of the artifacts for later inspection.
 - Perf gate job runs `npm run benchmark:gate` with `BENCH_MAX_AVG_MS=2500` to guard against regressions before publishing.
 - Migration proof job runs `npm run proof:migration` against checked-in Jest/Vitest fixtures for basic suites, table tests, RTL/jsdom flows, timers, module mocking, and a context/provider-heavy RTL example, then uploads the resulting migration reports plus Themis run artifacts as evidence.
-- Native runner showcase jobs verify a straight-up Themis React fixture plus parallel Jest and Vitest React fixtures so the CI page shows the three runner examples side by side.
+- Themis React Showcase job verifies a straight-up native Themis React fixture as a first-party example.
 - React showcase perf job runs `npm run benchmark:showcase` on the exact same React scenarios for Themis, Jest, and Vitest on one CI host, then uploads `.themis/showcase-comparison/perf-summary.{json,md}` so the relative timing claim is backed by one comparable artifact.
 - Release `0.1.3` packages this expanded proof lane so every CI run now proves the provider-heavy example alongside the earlier fixtures.
 
@@ -548,4 +550,4 @@ npm run validate
 npm run pack:check
 ```
 
-The npm package should ship a clean CLI, first-party typings, schemas, docs, and report assets.
+The npm package should ship a clean CLI, first-party typings, schemas, docs, report assets, and a passing lint/test/typecheck baseline.

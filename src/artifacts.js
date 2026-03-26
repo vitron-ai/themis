@@ -266,7 +266,7 @@ function readJsonIfExists(filePath) {
 
   try {
     return JSON.parse(fs.readFileSync(filePath, 'utf8'));
-  } catch (error) {
+  } catch {
     return null;
   }
 }

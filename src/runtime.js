@@ -140,7 +140,7 @@ function collectAndRun(filePath, options = {}) {
     });
 }
 
-function buildRuntimeApi({ root, options, testUtils, runtimeExpect, getCurrentSuite, setCurrentSuite }) {
+function buildRuntimeApi({ root: _root, options, testUtils, runtimeExpect, getCurrentSuite, setCurrentSuite }) {
   const describeApi = createDescribeApi({
     getCurrentSuite,
     setCurrentSuite
@@ -284,7 +284,7 @@ function formatParameterizedName(name, args, index) {
 function stringifyParameterizedValue(value) {
   try {
     return JSON.stringify(value);
-  } catch (error) {
+  } catch {
     return String(value);
   }
 }

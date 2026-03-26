@@ -1,7 +1,6 @@
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
-const Module = require('module');
 const { execFileSync } = require('child_process');
 const ts = require('typescript');
 
@@ -1712,7 +1711,7 @@ function compileOptionalRegex(value, label) {
 
   try {
     return new RegExp(value);
-  } catch (error) {
+  } catch {
     throw new Error(`Invalid ${label} regex: ${value}`);
   }
 }
@@ -1860,7 +1859,7 @@ function collectChangedPaths(projectRoot) {
       ['status', '--short', '--untracked-files=all'],
       { cwd: projectRoot, encoding: 'utf8' }
     );
-  } catch (error) {
+  } catch {
     throw new Error('--changed requires a git worktree.');
   }
 
@@ -3366,7 +3365,7 @@ function isScaffoldHintPayload(hints) {
   );
 }
 
-function planHintScaffold(analysis, projectRoot) {
+function planHintScaffold(analysis, _projectRoot) {
   const hintFile = resolveHintFilePath(analysis.file);
   const scaffold = buildHintScaffold(analysis);
   const existingHints = analysis.sidecarHints;
@@ -4009,7 +4008,7 @@ function removeGenerateMap(mapFile) {
   }
 }
 
-function buildSummaryEntries({ plans, removedPlans, projectRoot, review }) {
+function buildSummaryEntries({ plans, removedPlans, projectRoot: _projectRoot, review }) {
   const entries = [];
 
   for (const plan of plans) {
@@ -5288,7 +5287,7 @@ function isSameOrSubPath(targetPath, parentPath) {
 function safeRealpath(targetPath) {
   try {
     return fs.realpathSync.native(targetPath);
-  } catch (error) {
+  } catch {
     return path.resolve(targetPath);
   }
 }

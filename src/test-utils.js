@@ -366,7 +366,7 @@ function createTestUtils(options = {}) {
         try {
           node[key] = value;
           continue;
-        } catch (error) {
+        } catch {
           // Fall through to attribute set.
         }
       }

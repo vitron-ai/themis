@@ -485,7 +485,7 @@ function parseGenerateFlags(args) {
 function validateRegex(pattern) {
   try {
     new RegExp(pattern);
-  } catch (error) {
+  } catch {
     throw new Error(`Invalid --match regex: ${pattern}`);
   }
 }

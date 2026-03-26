@@ -75,15 +75,16 @@
     "themis": "bin/themis.js"
   },
   "scripts": {
+    "lint": "eslint .",
     "test": "node bin/themis.js test",
-    "validate": "npm test && npm run typecheck && npm run benchmark:gate",
+    "validate": "npm run lint && npm test && npm run typecheck && npm run benchmark:gate",
     "typecheck": "tsc -p tsconfig.json --pretty false",
     "benchmark": "node scripts/benchmark.js",
     "benchmark:showcase": "node scripts/benchmark-showcase-runners.js",
     "benchmark:gate": "node scripts/benchmark-gate.js",
     "proof:migration": "node scripts/verify-migration-fixtures.js",
     "pack:check": "npm pack --dry-run",
-    "prepublishOnly": "npm test && npm run typecheck"
+    "prepublishOnly": "npm run lint && npm test && npm run typecheck"
   },
   "publishConfig": {
     "access": "public"
@@ -97,6 +98,8 @@
   },
   "devDependencies": {
     "@testing-library/react": "^16.3.2",
+    "eslint": "^9.22.0",
+    "globals": "^17.4.0",
     "jest": "^29.7.0",
     "jest-environment-jsdom": "^29.7.0",
     "react": "^19.0.0",

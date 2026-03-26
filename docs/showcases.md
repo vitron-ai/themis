@@ -116,20 +116,18 @@ Why it wins:
 - one action reruns migration codemods for the detected framework
 - humans and agents operate from the same source of truth
 
-## 6. Show native Themis React tests beside Jest and Vitest in CI
+## 6. Show native Themis React tests and a same-host runner comparison in CI
 
-CI now carries three explicit React showcase jobs:
+CI now carries a dedicated first-party Themis React showcase job:
 
 - `Themis React Showcase`
-- `Jest React Showcase`
-- `Vitest React Showcase`
 
-The Themis fixture is a straight-up native Themis jsdom suite. The Jest and Vitest fixtures cover the same interaction and async status scenarios with their own runner-native APIs.
+The Themis fixture is a straight-up native Themis jsdom suite. The checked-in Jest and Vitest fixtures are still used by the comparison benchmark job, but they no longer need their own standalone workflow jobs.
 
 Why it wins:
 
-- the CI page makes the runner comparison obvious instead of implied
-- the repo now has a first-party native Themis React example, not only migration proof
+- the CI page still shows a first-party native Themis React example, not only migration proof
+- the runner-to-runner timing comparison moves into one fair same-host artifact job instead of spreading timing across separate hosts
 - humans and agents can inspect checked-in fixture sources under `tests/fixtures/showcase/`
 
 CI also carries a same-host performance artifact job:

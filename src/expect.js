@@ -1,7 +1,7 @@
 const util = require('util');
 const { isMockFunction, formatMockCalls } = require('./test-utils');
 
-function createExpect(context = {}) {
+function createExpect(_context = {}) {
   return function expect(received) {
     return {
       toBe(expected) {

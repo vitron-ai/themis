@@ -611,7 +611,6 @@ function resolveWorkspacePath(workspaceRoot, targetPath) {
 
 function buildGenerationLabel(generation) {
   const summary = generation.summary;
-  const backlog = generation.backlog.summary;
   const total = summary ? summary.generated : generation.entries.length;
   return `Generated Review (${total})`;
 }
