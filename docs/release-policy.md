@@ -44,8 +44,6 @@ Before publishing:
 - `npm run benchmark`
 - `npm run benchmark:gate`
 
-Release prep steps for major milestones are tracked in [`docs/release-checklist.md`](docs/release-checklist.md).
-
 ## Publishing Policy
 
 - Publish target: npm public package `@vitronai/themis`.
