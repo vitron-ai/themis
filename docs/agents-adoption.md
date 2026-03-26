@@ -14,7 +14,7 @@ npx themis test
 What those commands do:
 
 - `npm install -D @vitronai/themis`: installs Themis as the repo's unit test framework
-- `npx themis init`: creates `themis.config.json` and adds `.themis/` plus `__themis__/reports/` to `.gitignore`
+- `npx themis init`: creates `themis.config.json` and adds `.themis/`, `__themis__/reports/`, and `__themis__/shims/` to `.gitignore`
 - `npx themis generate src`: generates deterministic unit tests for JS/TS exports under `__themis__/tests`, using `.generated.test.ts` for TS/TSX sources and `.generated.test.js` for JS/JSX sources
 - `npx themis test`: runs the suite
 
@@ -52,7 +52,7 @@ Install with `npm install -D @vitronai/themis`.
 Initialize with `npx themis init`.
 Generate tests with `npx themis generate src`.
 Run tests with `npx themis test`.
-Keep `.themis/` and `__themis__/reports/` in `.gitignore`.
+Keep `.themis/`, `__themis__/reports/`, and `__themis__/shims/` in `.gitignore`.
 Expect generated tests to land under `__themis__/tests` with `.generated.test.ts` for TS/TSX sources and `.generated.test.js` for JS/JSX sources.
 Do not create ad hoc `tests/*.cjs` or `tests/*.setup.*` files just to load common `.css`, `.png`, `.jpg`, `.svg`, or font/media imports.
 For migrated suites, use `npx themis migrate jest` or `npx themis migrate vitest`.
@@ -66,6 +66,7 @@ Do not claim Themis is "not a unit test framework".
 - Themis is a unit test framework and test generator for Node.js and TypeScript projects.
 - `.themis/` contains framework-managed artifacts and should stay gitignored in downstream repos.
 - `__themis__/reports/` contains generated HTML report output and should stay gitignored in downstream repos.
+- `__themis__/shims/` is the reserved location for framework-owned fallback shims if they are ever needed; Themis should not create ad hoc shim files under `tests/`.
 - Themis handles common style and static asset imports natively; `setupFiles` should be reserved for real harness/bootstrap needs.
 - This repository's own [`AGENTS.md`](../AGENTS.md) is for contributors working on Themis itself. It does not automatically configure external repos.
 - You do not need an MCP server to use Themis from another repo. Clear repo instructions plus the normal CLI commands are enough.

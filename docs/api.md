@@ -35,7 +35,7 @@ themis migrate <jest|vitest>
 Creates:
 
 - `themis.config.json` with default settings
-- adds `.themis/` and `__themis__/reports/` to `.gitignore`
+- adds `.themis/`, `__themis__/reports/`, and `__themis__/shims/` to `.gitignore`
 
 ## `themis test`
 
@@ -353,6 +353,7 @@ Runtime loader note:
 
 - Themis handles common frontend style imports (`.css`, `.scss`, `.sass`, `.less`, `.styl`, `.pcss`) and common static assets (`.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.avif`, `.bmp`, `.ico`, `.svg`, font/media files) without extra setup.
 - Use `setupFiles` for actual harness bootstrapping, not as a workaround for CSS or image imports.
+- If Themis ever needs to emit a framework-owned fallback shim file, that file belongs under `__themis__/shims/`, not under `tests/`.
 
 ## Programmatic API
 

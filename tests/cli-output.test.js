@@ -455,6 +455,7 @@ test('deterministic instability', () => {
       const gitignore = fs.readFileSync(path.join(tempDir, '.gitignore'), 'utf8');
       expect(gitignore).toContain('.themis/');
       expect(gitignore).toContain('__themis__/reports/');
+      expect(gitignore).toContain('__themis__/shims/');
     } finally {
       fs.rmSync(tempDir, { recursive: true, force: true });
     }
@@ -651,6 +652,7 @@ test('deterministic instability', () => {
         const gitignore = fs.readFileSync(path.join(tempDir, '.gitignore'), 'utf8');
         expect(gitignore).toContain('.themis/');
         expect(gitignore).toContain('__themis__/reports/');
+        expect(gitignore).toContain('__themis__/shims/');
 
         const report = JSON.parse(fs.readFileSync(path.join(tempDir, '.themis', 'migration', 'migration-report.json'), 'utf8'));
         expect(report.schema).toBe('themis.migration.report.v1');

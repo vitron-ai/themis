@@ -79,7 +79,7 @@ async function main(argv) {
       console.log(`Scripts: updated ${formatCliPath(cwd, result.packageJsonPath)} with test:themis`);
     }
     if (result.gitignoreUpdated) {
-    console.log(`Gitignore: updated ${formatCliPath(cwd, result.gitignorePath)} with .themis/ and __themis__/reports/`);
+    console.log(`Gitignore: updated ${formatCliPath(cwd, result.gitignorePath)} with .themis/, __themis__/reports/, and __themis__/shims/`);
     }
     if (result.rewriteImports) {
       console.log(`Imports: rewrote ${result.rewrittenFiles.length} file(s) to local Themis compatibility imports.`);
@@ -710,7 +710,7 @@ function resolveStabilityRuns(value) {
 function printUsage() {
   console.log('Usage: themis <command> [options]');
   console.log('Commands:');
-  console.log('  init                    Create themis.config.json and gitignore .themis/ plus __themis__/reports/');
+  console.log('  init                    Create themis.config.json and gitignore .themis/ plus __themis__/reports/ and __themis__/shims/');
   console.log('  generate [path]         Scan source files and generate Themis contract tests');
   console.log('                         Options: [--json] [--plan] [--output path] [--files a,b] [--match-source regex] [--match-export regex] [--scenario name] [--min-confidence level] [--require-confidence level] [--include regex] [--exclude regex] [--review] [--update] [--clean] [--changed] [--force] [--strict] [--write-hints] [--fail-on-skips] [--fail-on-conflicts]');
   console.log('  scan [path]             Alias for generate');

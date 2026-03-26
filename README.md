@@ -258,7 +258,7 @@ Short version:
 
 ## Commands
 
-- `npx themis init`: creates `themis.config.json`, adds `.themis/` to `.gitignore`, and adds `__themis__/reports/` to `.gitignore`.
+- `npx themis init`: creates `themis.config.json`, adds `.themis/` to `.gitignore`, and adds `__themis__/reports/` plus `__themis__/shims/` to `.gitignore`.
 - `npx themis generate src`: scans source files and generates contract tests under `__themis__/tests`, using `.generated.test.ts` for TS/TSX sources and `.generated.test.js` for JS/JSX sources.
 - `npx themis generate src --json`: emits a machine-readable generation payload for agents and automation.
 - `npx themis generate src --plan`: emits a planning payload and handoff artifact without writing generated tests.
@@ -270,10 +270,10 @@ Short version:
 - `npx themis generate src --changed`: regenerates against changed files in the current git worktree.
 - `npx themis generate src --scenario react-hook --min-confidence high`: targets one adapter family at a confidence threshold.
 - `npx themis generate app --scenario next-route-handler`: focuses generation on Next app router request handlers.
-- `npx themis migrate jest`: scaffolds a Themis config/setup bridge for existing Jest suites and gitignores `.themis/` plus `__themis__/reports/`.
+- `npx themis migrate jest`: scaffolds a Themis config/setup bridge for existing Jest suites and gitignores `.themis/` plus `__themis__/reports/` and `__themis__/shims/`.
 - `npx themis migrate jest --rewrite-imports`: rewrites matched Jest/Vitest/Testing Library imports to a local `themis.compat.js` bridge file.
 - `npx themis migrate jest --convert`: applies codemods for common Jest/Vitest matcher/import patterns so suites move closer to native Themis style.
-- `npx themis migrate vitest`: scaffolds the same bridge for Vitest suites and gitignores `.themis/` plus `__themis__/reports/`.
+- `npx themis migrate vitest`: scaffolds the same bridge for Vitest suites and gitignores `.themis/` plus `__themis__/reports/` and `__themis__/shims/`.
 - `npx themis generate src --require-confidence high`: enforces a quality bar for all selected generated tests.
 - `npx themis generate src --files src/routes/ping.ts`: targets one or more explicit source files.
 - `npx themis generate src --match-source "routes/" --match-export "GET|POST"`: narrows generation by source path and exported symbol.
@@ -345,6 +345,7 @@ Themis writes artifacts under `.themis/`:
 - `.themis/benchmarks/benchmark-last.json`: latest benchmark comparison payload, including migration proof output.
 - `.themis/benchmarks/migration-proof.json`: synthetic migration-conversion proof artifact emitted by `npm run benchmark`.
 - `__themis__/reports/report.html`: interactive HTML verdict report.
+- `__themis__/shims/`: reserved namespace for framework-owned compatibility shims when a fallback file is truly needed. Themis should prefer built-in support first and should not drop ad hoc shim files into `tests/`.
 
 `--agent` output includes deterministic failure fingerprints, grouped `analysis.failureClusters`, stability classifications, previous-run comparison data, and a direct generated-test repair hint via `npx themis test --fix`. Fix handoff entries also carry repair strategies, candidate files, and autofix commands for tighter failure-to-fix loops.
 
