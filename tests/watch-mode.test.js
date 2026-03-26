@@ -38,7 +38,7 @@ describe('watch mode', () => {
       const watchedJs = writeProjectFile(tempDir, 'tests/sample.test.js', `test('works', () => {\n  expect(true).toBe(true);\n});\n`);
       const watchedTs = writeProjectFile(tempDir, 'src/banner.ts', `export const banner = 'themis';\n`);
       writeProjectFile(tempDir, 'assets/logo.png', 'png');
-      writeProjectFile(tempDir, '.themis/report.html', '<html></html>');
+      writeProjectFile(tempDir, '.themis/reports/report.html', '<html></html>');
       writeProjectFile(tempDir, 'node_modules/pkg/index.js', 'module.exports = 1;\n');
       writeProjectFile(tempDir, 'tests/__snapshots__/sample.test.js.snapshots.json', '{}\n');
 

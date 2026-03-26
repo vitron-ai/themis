@@ -98,12 +98,13 @@ jobs:
       - name: Generate human HTML report and agent payload
         run: |
           NO_COLOR=1 node bin/themis.js test --reporter html
-          NO_COLOR=1 node bin/themis.js test --agent > .themis/agent-result.json
-          test -f .themis/report.html
-          test -f .themis/agent-result.json
-          test -f .themis/last-run.json
-          test -f .themis/run-diff.json
-          test -f .themis/contract-diff.json
+          mkdir -p .themis/runs
+          NO_COLOR=1 node bin/themis.js test --agent > .themis/runs/agent-result.json
+          test -f .themis/reports/report.html
+          test -f .themis/runs/agent-result.json
+          test -f .themis/runs/last-run.json
+          test -f .themis/diffs/run-diff.json
+          test -f .themis/diffs/contract-diff.json
 
       - name: Upload showcase artifacts
         uses: actions/upload-artifact@v4
@@ -111,14 +112,14 @@ jobs:
           name: themis-showcase-node20
           retention-days: 14
           path: |
-            .themis/report.html
-            .themis/themis-bg.png
-            .themis/themis-report.png
-            .themis/agent-result.json
-            .themis/last-run.json
-            .themis/failed-tests.json
-            .themis/run-diff.json
-            .themis/run-history.json
+            .themis/reports/report.html
+            .themis/reports/themis-bg.png
+            .themis/reports/themis-report.png
+            .themis/runs/agent-result.json
+            .themis/runs/last-run.json
+            .themis/runs/failed-tests.json
+            .themis/diffs/run-diff.json
+            .themis/runs/run-history.json
             packages/themis-vscode/package.json
             packages/themis-vscode/README.md
 
@@ -131,8 +132,8 @@ jobs:
           name: themis-benchmark-proof
           retention-days: 14
           path: |
-            .themis/benchmark-last.json
-            .themis/migration-proof.json
+            .themis/benchmarks/benchmark-last.json
+            .themis/benchmarks/migration-proof.json
 
   perf-gate:
     name: Perf Gate (Node 20)
@@ -190,7 +191,7 @@ jobs:
           name: themis-migration-proof
           retention-days: 14
           path: |
-            .themis/migration-fixtures/**
+            .themis/migration/fixtures/**
 
   themis-react-showcase:
     name: Themis React Showcase (Node 20)
@@ -221,7 +222,7 @@ jobs:
         with:
           name: themis-react-showcase
           retention-days: 14
-          path: .themis/showcase-comparison/themis*
+          path: .themis/benchmarks/showcase-comparison/themis*
 
   react-showcase-perf:
     name: React Showcase Perf (Node 20)
@@ -248,7 +249,7 @@ jobs:
         run: npm run benchmark:showcase
 
       - name: Publish runner benchmark summary
-        run: cat .themis/showcase-comparison/perf-summary.md >> "$GITHUB_STEP_SUMMARY"
+        run: cat .themis/benchmarks/showcase-comparison/perf-summary.md >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload React showcase perf artifact
         uses: actions/upload-artifact@v4
@@ -256,8 +257,8 @@ jobs:
           name: themis-react-showcase-perf
           retention-days: 14
           path: |
-            .themis/showcase-comparison/perf-summary.json
-            .themis/showcase-comparison/perf-summary.md
-            .themis/showcase-comparison/themis*
-            .themis/showcase-comparison/jest*
-            .themis/showcase-comparison/vitest*
+            .themis/benchmarks/showcase-comparison/perf-summary.json
+            .themis/benchmarks/showcase-comparison/perf-summary.md
+            .themis/benchmarks/showcase-comparison/themis*
+            .themis/benchmarks/showcase-comparison/jest*
+            .themis/benchmarks/showcase-comparison/vitest*

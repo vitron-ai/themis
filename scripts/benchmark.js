@@ -4,14 +4,14 @@ const fs = require('fs');
 const path = require('path');
 const { spawnSync } = require('child_process');
 const { performance } = require('perf_hooks');
+const { resolveArtifactPath } = require('../src/artifact-paths');
 const { runMigrate } = require('../src/migrate');
 
 const rootDir = path.resolve(__dirname, '..');
 const benchDir = path.join(rootDir, '.themis-bench');
 const benchTestsDir = path.join(benchDir, 'tests');
-const artifactDir = path.join(rootDir, '.themis');
-const BENCHMARK_ARTIFACT_PATH = path.join(artifactDir, 'benchmark-last.json');
-const MIGRATION_PROOF_ARTIFACT_PATH = path.join(artifactDir, 'migration-proof.json');
+const BENCHMARK_ARTIFACT_PATH = resolveArtifactPath(rootDir, 'benchmarkLast');
+const MIGRATION_PROOF_ARTIFACT_PATH = resolveArtifactPath(rootDir, 'migrationProof');
 
 const DEFAULTS = {
   files: 40,

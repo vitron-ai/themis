@@ -4,10 +4,11 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { spawnSync } = require('child_process');
+const { resolveArtifactDir, resolveArtifactPath } = require('../src/artifact-paths');
 
 const rootDir = path.resolve(__dirname, '..');
 const fixturesDir = path.join(rootDir, 'tests', 'fixtures', 'migration');
-const proofDir = path.join(rootDir, '.themis', 'migration-fixtures');
+const proofDir = resolveArtifactDir(rootDir, 'migration', 'fixtures');
 
 const FIXTURES = [
   {
@@ -79,7 +80,7 @@ function verifyFixture(fixture) {
     copyDirectory(fixtureRoot, tempDir);
 
     runCommand(tempDir, ['node', path.join(rootDir, 'bin', 'themis.js'), 'migrate', fixture.source, '--convert']);
-    const report = readJson(path.join(tempDir, '.themis', 'migration-report.json'));
+    const report = readJson(resolveArtifactPath(tempDir, 'migrationReport'));
     if (report.source !== fixture.source) {
       throw new Error(`Expected migration source "${fixture.source}", received "${report.source}".`);
     }
@@ -99,8 +100,8 @@ function verifyFixture(fixture) {
     if (fs.existsSync(path.join(tempDir, 'themis.config.json'))) {
       fs.copyFileSync(path.join(tempDir, 'themis.config.json'), path.join(fixtureProofDir, 'themis.config.json'));
     }
-    fs.copyFileSync(path.join(tempDir, '.themis', 'migration-report.json'), path.join(fixtureProofDir, 'migration-report.json'));
-    fs.copyFileSync(path.join(tempDir, '.themis', 'last-run.json'), path.join(fixtureProofDir, 'last-run.json'));
+    fs.copyFileSync(resolveArtifactPath(tempDir, 'migrationReport'), path.join(fixtureProofDir, 'migration-report.json'));
+    fs.copyFileSync(resolveArtifactPath(tempDir, 'lastRun'), path.join(fixtureProofDir, 'last-run.json'));
 
     return {
       name: fixture.name,

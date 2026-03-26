@@ -3,10 +3,11 @@ const { loadConfig } = require('./config');
 const { discoverTests } = require('./discovery');
 const { runTests } = require('./runner');
 const { printSpec, printJson, printAgent, printNext, writeHtmlReport } = require('./reporter');
+const { ARTIFACT_RELATIVE_PATHS } = require('./artifact-paths');
 const { runInit } = require('./init');
 const { runMigrate } = require('./migrate');
 const { generateTestsFromSource, writeGenerateArtifacts } = require('./generate');
-const { writeRunArtifacts, readFailedTestsArtifact } = require('./artifacts');
+const { writeRunArtifacts, readFailedTestsArtifact, readFixHandoffArtifact } = require('./artifacts');
 const { buildStabilityReport, hasStabilityBreaches } = require('./stability');
 const { verdictReveal } = require('./verdict');
 const { runWatchMode } = require('./watch');
@@ -21,7 +22,7 @@ async function main(argv) {
 
   if (command === 'init') {
     runInit(cwd);
-    console.log('Themis initialized. Run: npx themis test');
+    console.log('Themis initialized. Next: npx themis generate src && npx themis test');
     return;
   }
 
@@ -77,6 +78,9 @@ async function main(argv) {
     if (result.packageUpdated && result.packageJsonPath) {
       console.log(`Scripts: updated ${formatCliPath(cwd, result.packageJsonPath)} with test:themis`);
     }
+    if (result.gitignoreUpdated) {
+      console.log(`Gitignore: updated ${formatCliPath(cwd, result.gitignorePath)} with .themis/`);
+    }
     if (result.rewriteImports) {
       console.log(`Imports: rewrote ${result.rewrittenFiles.length} file(s) to local Themis compatibility imports.`);
     }
@@ -124,6 +128,62 @@ async function main(argv) {
 }
 
 async function executeTestRun(cwd, flags) {
+  const execution = flags.fix
+    ? await executeTestFixRun(cwd, flags)
+    : await runTestCommand(cwd, flags);
+
+  await finalizeTestExecution(execution);
+}
+
+async function executeTestFixRun(cwd, flags) {
+  let fixArtifact = readFixHandoffArtifact(cwd);
+
+  if (fixArtifact && fixArtifact.parseError) {
+    return {
+      notices: [
+        `Failed to parse fix handoff artifact at ${fixArtifact.fixHandoffPath}: ${fixArtifact.parseError}. Run npx themis test to regenerate it.`
+      ],
+      ...(await runTestCommand(cwd, { ...flags, fix: false }))
+    };
+  }
+
+  let seededExecution = null;
+  if (!fixArtifact || fixArtifact.items.length === 0) {
+    seededExecution = await runTestCommand(cwd, { ...flags, fix: false });
+    fixArtifact = readFixHandoffArtifact(cwd);
+
+    if (fixArtifact && fixArtifact.parseError) {
+      return {
+        ...seededExecution,
+        notices: [
+          `Failed to parse fix handoff artifact at ${fixArtifact.fixHandoffPath}: ${fixArtifact.parseError}.`
+        ]
+      };
+    }
+
+    if (!fixArtifact || fixArtifact.items.length === 0) {
+      const notices = seededExecution.result.summary.failed > 0
+        ? [`No generated-test autofixes were available for this run. Review ${ARTIFACT_RELATIVE_PATHS.fixHandoff} when generated tests fail.`]
+        : ['No generated-test repairs were needed.'];
+      return {
+        ...seededExecution,
+        notices
+      };
+    }
+  }
+
+  const fixSummary = applyGeneratedAutofix(cwd, fixArtifact.payload || { items: fixArtifact.items });
+  const rerunExecution = await runTestCommand(cwd, { ...flags, fix: false });
+  return {
+    ...rerunExecution,
+    notices: [
+      `Applied generated-test fixes for ${fixSummary.sources.length} source file(s).`,
+      ...fixSummary.messages
+    ]
+  };
+}
+
+async function runTestCommand(cwd, flags) {
   const config = loadConfig(cwd);
 
   if (flags.match) {
@@ -141,29 +201,29 @@ async function executeTestRun(cwd, flags) {
   if (flags.isolation) {
     validateIsolation(flags.isolation);
   }
-  printBanner(reporter);
   const maxWorkers = resolveWorkerCount(flags.workers, config.maxWorkers);
   const stabilityRuns = resolveStabilityRuns(flags.stability);
 
   let files = discoverTests(cwd, config);
   if (files.length === 0) {
-    console.log(`No test files found in ${config.testDir}`);
-    return;
+    return buildNoResultExecution(reporter, lexicon, cwd, flags, [`No test files found in ${config.testDir}`]);
   }
 
   let allowedFullNames = null;
   if (flags.rerunFailed) {
     const artifact = readFailedTestsArtifact(cwd);
     if (artifact && artifact.parseError) {
-      console.log(
-        `Failed to parse failed test artifact at ${artifact.failuresPath}: ${artifact.parseError}. Run a full test pass to regenerate it.`
+      return buildNoResultExecution(
+        reporter,
+        lexicon,
+        cwd,
+        flags,
+        [`Failed to parse failed test artifact at ${artifact.failuresPath}: ${artifact.parseError}. Run a full test pass to regenerate it.`]
       );
-      return;
     }
 
     if (!artifact || artifact.failedTests.length === 0) {
-      console.log('No failed test artifact found. Run a failing test first.');
-      return;
+      return buildNoResultExecution(reporter, lexicon, cwd, flags, ['No failed test artifact found. Run a failing test first.']);
     }
 
     const fileSet = new Set(artifact.failedTests.map((entry) => entry.file));
@@ -171,8 +231,7 @@ async function executeTestRun(cwd, flags) {
     files = files.filter((file) => fileSet.has(file));
 
     if (files.length === 0) {
-      console.log('No matching files found for failed test artifact.');
-      return;
+      return buildNoResultExecution(reporter, lexicon, cwd, flags, ['No matching files found for failed test artifact.']);
     }
   }
 
@@ -201,18 +260,93 @@ async function executeTestRun(cwd, flags) {
   }
 
   writeRunArtifacts(cwd, result);
-  printResult(reporter, result, {
+  return {
+    reporter,
     lexicon,
+    result,
     cwd,
     htmlOutput: flags.htmlOutput || null
+  };
+}
+
+async function finalizeTestExecution(execution) {
+  printBanner(execution.reporter);
+
+  if (execution.reporter !== 'json' && execution.reporter !== 'agent') {
+    for (const notice of execution.notices || []) {
+      console.log(notice);
+    }
+  }
+
+  if (!execution.result) {
+    return;
+  }
+
+  printResult(execution.reporter, execution.result, {
+    lexicon: execution.lexicon,
+    cwd: execution.cwd,
+    htmlOutput: execution.htmlOutput || null
   });
 
-  const revealFailed = result.summary.failed > 0 || hasStabilityBreaches(stabilityReport);
-  await maybeRevealVerdict(reporter, result, stabilityReport, revealFailed);
+  const revealFailed = execution.result.summary.failed > 0 || hasStabilityBreaches(execution.result.stability);
+  await maybeRevealVerdict(execution.reporter, execution.result, execution.result.stability, revealFailed);
 
   if (revealFailed) {
     process.exitCode = 1;
   }
+}
+
+function buildNoResultExecution(reporter, lexicon, cwd, flags, notices) {
+  return {
+    reporter,
+    lexicon,
+    cwd,
+    htmlOutput: flags.htmlOutput || null,
+    notices,
+    result: null
+  };
+}
+
+function applyGeneratedAutofix(cwd, fixPayload) {
+  const bySourceFile = new Map();
+  for (const item of fixPayload.items || []) {
+    if (!item || !item.sourceFile) {
+      continue;
+    }
+    const current = bySourceFile.get(item.sourceFile);
+    if (!current) {
+      bySourceFile.set(item.sourceFile, item);
+      continue;
+    }
+    if (current.repairStrategy !== 'tighten-hints' && item.repairStrategy === 'tighten-hints') {
+      bySourceFile.set(item.sourceFile, item);
+    }
+  }
+
+  const sources = [...bySourceFile.keys()];
+  const messages = [];
+
+  for (const sourceFile of sources) {
+    const item = bySourceFile.get(sourceFile);
+    const writeHints = item.repairStrategy === 'tighten-hints' || item.category === 'generated-contract-failure';
+    const summary = generateTestsFromSource(cwd, {
+      targetDir: sourceFile,
+      update: true,
+      writeHints
+    });
+    writeGenerateArtifacts(summary, cwd);
+
+    const createdHintCount = Number(summary.hintFiles?.created?.length || 0);
+    const updatedHintCount = Number(summary.hintFiles?.updated?.length || 0);
+    if (writeHints && (createdHintCount > 0 || updatedHintCount > 0)) {
+      messages.push(`Updated hints for ${sourceFile} (${createdHintCount} created, ${updatedHintCount} updated).`);
+    }
+  }
+
+  return {
+    sources,
+    messages
+  };
 }
 
 function resolveReporter(flags, config) {
@@ -290,6 +424,10 @@ function parseFlags(args) {
     }
     if (token === '--update-contracts') {
       flags.updateContracts = true;
+      continue;
+    }
+    if (token === '--fix') {
+      flags.fix = true;
       continue;
     }
     if (token === '-w' || token === '--watch') {
@@ -572,12 +710,12 @@ function resolveStabilityRuns(value) {
 function printUsage() {
   console.log('Usage: themis <command> [options]');
   console.log('Commands:');
-  console.log('  init                    Create themis.config.json and sample tests');
+  console.log('  init                    Create themis.config.json and gitignore .themis/ artifacts');
   console.log('  generate [path]         Scan source files and generate Themis contract tests');
   console.log('                         Options: [--json] [--plan] [--output path] [--files a,b] [--match-source regex] [--match-export regex] [--scenario name] [--min-confidence level] [--require-confidence level] [--include regex] [--exclude regex] [--review] [--update] [--clean] [--changed] [--force] [--strict] [--write-hints] [--fail-on-skips] [--fail-on-conflicts]');
   console.log('  scan [path]             Alias for generate');
   console.log('  migrate <jest|vitest> [--rewrite-imports] [--convert]   Scaffold an incremental migration bridge for existing suites');
-  console.log('  test [--json] [--agent] [--next] [--reporter spec|next|json|agent|html] [--workers N] [--stability N] [--environment node|jsdom] [--isolation worker|in-process] [--cache] [--update-contracts] [-w|--watch] [--html-output path] [--match regex] [--rerun-failed] [--no-memes] [--lexicon classic|themis]');
+  console.log('  test [--json] [--agent] [--next] [--reporter spec|next|json|agent|html] [--workers N] [--stability N] [--environment node|jsdom] [--isolation worker|in-process] [--cache] [--update-contracts] [--fix] [-w|--watch] [--html-output path] [--match regex] [--rerun-failed] [--no-memes] [--lexicon classic|themis]');
 }
 
 function printGenerateSummary(summary, cwd) {

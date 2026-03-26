@@ -30,7 +30,7 @@ Why it wins:
 
 - captures only the fields that matter
 - masks volatile IDs and timestamps instead of accepting noisy churn
-- writes machine-readable drift to `.themis/contract-diff.json`
+- writes machine-readable drift to `.themis/diffs/contract-diff.json`
 - updates stay explicit with `npx themis test --update-contracts`
 
 ## 2. Migrate Jest/Vitest suites without a rewrite freeze
@@ -67,7 +67,7 @@ Why it wins:
 
 - removes common compatibility imports
 - rewrites common matcher aliases into native Themis forms
-- emits `.themis/migration-report.json` so agents and humans can track what changed
+- emits `.themis/migration/migration-report.json` so agents and humans can track what changed
 
 ## 3. Give agents a repair loop humans can still read
 
@@ -75,10 +75,10 @@ Jest/Vitest mostly produce console text plus optional snapshots.
 
 Themis produces:
 
-- `.themis/failed-tests.json`
-- `.themis/run-diff.json`
-- `.themis/fix-handoff.json`
-- `.themis/contract-diff.json`
+- `.themis/runs/failed-tests.json`
+- `.themis/diffs/run-diff.json`
+- `.themis/runs/fix-handoff.json`
+- `.themis/diffs/contract-diff.json`
 
 Why it wins:
 
@@ -134,7 +134,7 @@ CI also carries a same-host performance artifact job:
 
 - `React Showcase Perf`
 
-That job runs the same two React scenarios under Themis, Jest, and Vitest on one runner, writes `.themis/showcase-comparison/perf-summary.json` and `.themis/showcase-comparison/perf-summary.md`, and uploads them as build artifacts.
+That job runs the same two React scenarios under Themis, Jest, and Vitest on one runner, writes `.themis/benchmarks/showcase-comparison/perf-summary.json` and `.themis/benchmarks/showcase-comparison/perf-summary.md`, and uploads them as build artifacts.
 
 Current documented sample result from the same-host run:
 

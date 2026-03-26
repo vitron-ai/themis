@@ -1,11 +1,13 @@
 const fs = require('fs');
 const path = require('path');
 const { DEFAULT_CONFIG, loadConfig } = require('./config');
+const { ARTIFACT_RELATIVE_PATHS } = require('./artifact-paths');
+const { ensureGitignoreEntries } = require('./gitignore');
 
 const SUPPORTED_MIGRATION_SOURCES = new Set(['jest', 'vitest']);
 const THEMIS_SETUP_FILE = path.join('tests', 'setup.themis.js');
 const THEMIS_COMPAT_FILE = 'themis.compat.js';
-const MIGRATION_REPORT_FILE = path.join('.themis', 'migration-report.json');
+const MIGRATION_REPORT_FILE = ARTIFACT_RELATIVE_PATHS.migrationReport;
 const SCANNABLE_EXTENSIONS = new Set(['.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs']);
 const IGNORED_DIRECTORIES = new Set(['node_modules', '.git', '.themis']);
 
@@ -43,6 +45,7 @@ function runMigrate(cwd, framework, options = {}) {
   }
 
   fs.writeFileSync(configPath, `${JSON.stringify(nextConfig, null, 2)}\n`, 'utf8');
+  const gitignore = ensureGitignoreEntries(projectRoot, ['.themis/']);
 
   let packageUpdated = false;
   if (fs.existsSync(packageJsonPath)) {
@@ -74,6 +77,8 @@ function runMigrate(cwd, framework, options = {}) {
     compatPath,
     packageJsonPath: fs.existsSync(packageJsonPath) ? packageJsonPath : null,
     packageUpdated,
+    gitignorePath: gitignore.path,
+    gitignoreUpdated: gitignore.updated,
     reportPath,
     report,
     rewriteImports: Boolean(options.rewriteImports),

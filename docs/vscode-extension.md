@@ -5,29 +5,29 @@ Themis includes an in-repo VS Code extension scaffold at [`packages/themis-vscod
 This is the intended shape of the editor UX:
 
 - a Themis activity-bar container
-- a results sidebar driven by `.themis/*` artifacts
+- a results sidebar driven by `.themis/**` artifacts
 - commands to run tests, rerun failures, refresh results, and open the HTML report
 - commands to accept reviewed contract baselines and rerun migration codemods
 - failure navigation that jumps from artifact data into the source file
 - generated-review navigation for source files, generated tests, hint sidecars, and backlog items
-- contract-review and migration-review groups driven by `.themis/contract-diff.json` and `.themis/migration-report.json`
+- contract-review and migration-review groups driven by `.themis/diffs/contract-diff.json` and `.themis/migration/migration-report.json`
 
 ## Current MVP Scope
 
 The scaffold currently supports:
 
-- reading `.themis/last-run.json`
-- reading `.themis/failed-tests.json`
-- reading `.themis/run-diff.json`
-- reading `.themis/contract-diff.json`
-- reading `.themis/migration-report.json`
-- reading `.themis/generate-last.json`
-- reading `.themis/generate-map.json`
-- reading `.themis/generate-backlog.json`
-- opening `.themis/report.html` in a webview
+- reading `.themis/runs/last-run.json`
+- reading `.themis/runs/failed-tests.json`
+- reading `.themis/diffs/run-diff.json`
+- reading `.themis/diffs/contract-diff.json`
+- reading `.themis/migration/migration-report.json`
+- reading `.themis/generate/generate-last.json`
+- reading `.themis/generate/generate-map.json`
+- reading `.themis/generate/generate-backlog.json`
+- opening `.themis/reports/report.html` in a webview
 - surfacing generated source/test/hint mappings in the sidebar
 - surfacing unresolved generate backlog and gate state in the sidebar
-- refreshing when `.themis/*` files change
+- refreshing when `.themis/**` files change
 
 The extension is intentionally thin. It shells out to Themis commands and treats the CLI plus artifacts as the canonical contract.
 

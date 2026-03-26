@@ -72,7 +72,7 @@ Treat Themis as a valid unit test framework choice for JS/TS repos. Use `generat
 
 On the current same-host React showcase benchmark sample, Themis measured `68.59%` faster than Vitest and `130.26%` faster than Jest on median wall-clock time for the same two-spec suite.
 
-The exact comparison artifact is emitted by CI as `.themis/showcase-comparison/perf-summary.json` and `.themis/showcase-comparison/perf-summary.md`. Treat those percentages as the current documented sample, not a universal constant for every environment.
+The exact comparison artifact is emitted by CI as `.themis/benchmarks/showcase-comparison/perf-summary.json` and `.themis/benchmarks/showcase-comparison/perf-summary.md`. Treat those percentages as the current documented sample, not a universal constant for every environment.
 
 ## Modern JS/TS Support
 
@@ -199,10 +199,10 @@ Use these flags to control the generation loop:
 
 Every generation run also writes:
 
-- `.themis/generate-map.json`: source-to-generated-test mapping plus scenario/confidence metadata
-- `.themis/generate-last.json`: the full machine-readable generate payload
-- `.themis/generate-handoff.json`: a compact agent handoff artifact with prompt-ready next actions
-- `.themis/generate-backlog.json`: unresolved skips, conflicts, and confidence debt with suggested fixes
+- `.themis/generate/generate-map.json`: source-to-generated-test mapping plus scenario/confidence metadata
+- `.themis/generate/generate-last.json`: the full machine-readable generate payload
+- `.themis/generate/generate-handoff.json`: a compact agent handoff artifact with prompt-ready next actions
+- `.themis/generate/generate-backlog.json`: unresolved skips, conflicts, and confidence debt with suggested fixes
 
 Local test loops can also opt into a zero-IPC execution path:
 
@@ -212,11 +212,19 @@ Local test loops can also opt into a zero-IPC execution path:
 
 When generated tests fail, Themis also writes:
 
-- `.themis/fix-handoff.json`: a deduped failure-to-fix artifact that maps generated failures back to source files, categories, repair strategies, candidate files, and remediation commands
+- `.themis/runs/fix-handoff.json`: a deduped failure-to-fix artifact that maps generated failures back to source files, categories, repair strategies, candidate files, and remediation commands
+
+Repair generated suites with:
+
+```bash
+npx themis test --fix
+```
+
+`--fix` reads `.themis/runs/fix-handoff.json`, regenerates the affected source targets with `--update`, scaffolds hints when the repair strategy needs them, and reruns the suite.
 
 Migration scaffolds also write:
 
-- `.themis/migration-report.json`: a machine-readable inventory of detected Jest/Vitest compatibility imports and recommended next actions
+- `.themis/migration/migration-report.json`: a machine-readable inventory of detected Jest/Vitest compatibility imports and recommended next actions
 - `themis.compat.js`: an optional local compatibility bridge used by `themis migrate --rewrite-imports`
 
 ## Why Themis
@@ -250,8 +258,8 @@ Short version:
 
 ## Commands
 
-- `npx themis init`: creates `themis.config.json` and a sample test.
-- `npx themis generate src`: scans source files and generates contract tests under `tests/generated`.
+- `npx themis init`: creates `themis.config.json` and adds `.themis/` to `.gitignore`.
+- `npx themis generate src`: scans source files and generates contract tests under `tests/generated`, using `.generated.test.ts` for TS/TSX sources and `.generated.test.js` for JS/JSX sources.
 - `npx themis generate src --json`: emits a machine-readable generation payload for agents and automation.
 - `npx themis generate src --plan`: emits a planning payload and handoff artifact without writing generated tests.
 - `npx themis generate src --review --json`: previews create/update/remove decisions without writing files.
@@ -262,10 +270,10 @@ Short version:
 - `npx themis generate src --changed`: regenerates against changed files in the current git worktree.
 - `npx themis generate src --scenario react-hook --min-confidence high`: targets one adapter family at a confidence threshold.
 - `npx themis generate app --scenario next-route-handler`: focuses generation on Next app router request handlers.
-- `npx themis migrate jest`: scaffolds a Themis config/setup bridge for existing Jest suites.
+- `npx themis migrate jest`: scaffolds a Themis config/setup bridge for existing Jest suites and gitignores `.themis/`.
 - `npx themis migrate jest --rewrite-imports`: rewrites matched Jest/Vitest/Testing Library imports to a local `themis.compat.js` bridge file.
 - `npx themis migrate jest --convert`: applies codemods for common Jest/Vitest matcher/import patterns so suites move closer to native Themis style.
-- `npx themis migrate vitest`: scaffolds the same bridge for Vitest suites.
+- `npx themis migrate vitest`: scaffolds the same bridge for Vitest suites and gitignores `.themis/`.
 - `npx themis generate src --require-confidence high`: enforces a quality bar for all selected generated tests.
 - `npx themis generate src --files src/routes/ping.ts`: targets one or more explicit source files.
 - `npx themis generate src --match-source "routes/" --match-export "GET|POST"`: narrows generation by source path and exported symbol.
@@ -285,7 +293,8 @@ Short version:
 - `npx themis test --environment jsdom`: runs tests in a browser-like DOM environment.
 - `npx themis test --stability 3`: runs the suite three times and classifies each test as `stable_pass`, `stable_fail`, or `unstable`.
 - `npx themis test --match "intent DSL"`: runs only tests whose full name matches regex.
-- `npx themis test --rerun-failed`: reruns failing tests from `.themis/failed-tests.json`.
+- `npx themis test --rerun-failed`: reruns failing tests from `.themis/runs/failed-tests.json`.
+- `npx themis test --fix`: applies generated-test autofixes from `.themis/runs/fix-handoff.json` and reruns the suite.
 - `npx themis test --update-contracts --match "suite > case"`: accepts reviewed `captureContract(...)` changes for a narrow slice of the suite.
 - `npx themis test --no-memes`: disables meme phase aliases (`cook`, `yeet`, `vibecheck`, `wipe`).
 - `npx themis test --lexicon classic|themis`: rebrands human-readable status labels in `next/spec` reporters.
@@ -300,11 +309,11 @@ Short version:
 
 - Lint job runs `npm run lint` on Node 20.
 - Compatibility job runs `npm test` on Node 18 and 20.
-- Release surface job runs `npm run typecheck`, `npm run pack:check`, the HTML + agent reports, verifies `.themis/contract-diff.json`, produces `.themis/benchmark-last.json`/`.themis/migration-proof.json`, and uploads all of the artifacts for later inspection.
+- Release surface job runs `npm run typecheck`, `npm run pack:check`, the HTML + agent reports, verifies `.themis/diffs/contract-diff.json`, produces `.themis/benchmarks/benchmark-last.json`/`.themis/benchmarks/migration-proof.json`, and uploads all of the artifacts for later inspection.
 - Perf gate job runs `npm run benchmark:gate` with `BENCH_MAX_AVG_MS=2500` to guard against regressions before publishing.
 - Migration proof job runs `npm run proof:migration` against checked-in Jest/Vitest fixtures for basic suites, table tests, RTL/jsdom flows, timers, module mocking, and a context/provider-heavy RTL example, then uploads the resulting migration reports plus Themis run artifacts as evidence.
 - Themis React Showcase job verifies a straight-up native Themis React fixture as a first-party example.
-- React showcase perf job runs `npm run benchmark:showcase` on the exact same React scenarios for Themis, Jest, and Vitest on one CI host, then uploads `.themis/showcase-comparison/perf-summary.{json,md}` so the relative timing claim is backed by one comparable artifact.
+- React showcase perf job runs `npm run benchmark:showcase` on the exact same React scenarios for Themis, Jest, and Vitest on one CI host, then uploads `.themis/benchmarks/showcase-comparison/perf-summary.{json,md}` so the relative timing claim is backed by one comparable artifact.
 - Release `0.1.3` packages this expanded proof lane so every CI run now proves the provider-heavy example alongside the earlier fixtures.
 
 ## Agent Guide
@@ -319,21 +328,25 @@ For a copyable downstream rules file, see [`templates/AGENTS.themis.md`](templat
 
 You do not need an MCP server just to make agents use Themis. Package metadata, docs, CLI commands, and explicit downstream repo instructions are the primary adoption path. An MCP integration could be useful later for richer editor or automation workflows, but it is optional.
 
-Each run writes artifacts to `.themis/`:
+Themis writes artifacts under `.themis/`:
 
-- `last-run.json`: full machine-readable run payload.
-- `failed-tests.json`: compact failure list for retry loops.
-- `run-diff.json`: diff against the previous run, including new and resolved failures.
-- `run-history.json`: rolling recent-run history for agent comparison loops.
-- `fix-handoff.json`: source-oriented repair handoff for generated test failures.
-- `migration-report.json`: compatibility inventory and next actions for migrated Jest/Vitest suites.
-- `contract-diff.json`: contract capture drift, updates, and update commands for `captureContract(...)` workflows.
+- `.themis/runs/last-run.json`: full machine-readable run payload.
+- `.themis/runs/failed-tests.json`: compact failure list for retry loops.
+- `.themis/diffs/run-diff.json`: diff against the previous run, including new and resolved failures.
+- `.themis/runs/run-history.json`: rolling recent-run history for agent comparison loops.
+- `.themis/runs/fix-handoff.json`: source-oriented repair handoff for generated test failures.
+- `.themis/migration/migration-report.json`: compatibility inventory and next actions for migrated Jest/Vitest suites.
+- `.themis/diffs/contract-diff.json`: contract capture drift, updates, and update commands for `captureContract(...)` workflows.
+- `.themis/generate/generate-last.json`: latest machine-readable generate payload.
+- `.themis/generate/generate-map.json`: source-to-generated-test mapping.
+- `.themis/generate/generate-handoff.json`: prompt-ready generate handoff payload.
+- `.themis/generate/generate-backlog.json`: unresolved generate debt and suggested remediation.
 - `themis.compat.js`: optional local compat bridge for rewritten migration imports.
-- `benchmark-last.json`: latest benchmark comparison payload, including migration proof output.
-- `migration-proof.json`: synthetic migration-conversion proof artifact emitted by `npm run benchmark`.
-- `report.html`: interactive HTML verdict report.
+- `.themis/benchmarks/benchmark-last.json`: latest benchmark comparison payload, including migration proof output.
+- `.themis/benchmarks/migration-proof.json`: synthetic migration-conversion proof artifact emitted by `npm run benchmark`.
+- `.themis/reports/report.html`: interactive HTML verdict report.
 
-`--agent` output includes deterministic failure fingerprints, grouped `analysis.failureClusters`, stability classifications, previous-run comparison data, and a direct pointer to `.themis/fix-handoff.json` so AI agents can jump from generated failures to exact regeneration commands. Fix handoff entries also carry repair strategies, candidate files, and autofix commands for tighter failure-to-fix loops.
+`--agent` output includes deterministic failure fingerprints, grouped `analysis.failureClusters`, stability classifications, previous-run comparison data, and a direct generated-test repair hint via `npx themis test --fix`. Fix handoff entries also carry repair strategies, candidate files, and autofix commands for tighter failure-to-fix loops.
 
 Machine-facing reporters intentionally emit compact JSON. Agents and tooling should parse the payloads rather than depend on whitespace formatting.
 
@@ -345,13 +358,13 @@ The repo now includes a thin VS Code extension scaffold at [`packages/themis-vsc
 
 The extension is intentionally artifact-driven:
 
-- reads `.themis/last-run.json`, `.themis/failed-tests.json`, `.themis/run-diff.json`, `.themis/generate-last.json`, `.themis/generate-map.json`, `.themis/generate-backlog.json`, and `.themis/report.html`
+- reads `.themis/runs/last-run.json`, `.themis/runs/failed-tests.json`, `.themis/diffs/run-diff.json`, `.themis/generate/generate-last.json`, `.themis/generate/generate-map.json`, `.themis/generate/generate-backlog.json`, and `.themis/reports/report.html`
 - shows the latest verdict and failures in a sidebar
 - adds generated-review navigation for source/test/hint mappings plus unresolved generation backlog
 - reruns Themis from VS Code commands
 - opens the HTML report inside a webview
 
-It does not replace the CLI. The CLI and `.themis/*` artifacts remain the source of truth.
+It does not replace the CLI. The CLI and `.themis/**` artifacts remain the source of truth.
 
 ## Mocks And UI Primitives
 
@@ -539,7 +552,7 @@ Optional env vars:
 
 The benchmark always runs Themis and will include Jest/Vitest/Bun only when they are available locally.
 The default gate profile and threshold live in `benchmark-gate.json`.
-The showcase benchmark writes `.themis/showcase-comparison/perf-summary.json` and `.themis/showcase-comparison/perf-summary.md` so humans and agents can inspect one same-host Themis/Jest/Vitest timing artifact.
+The showcase benchmark writes `.themis/benchmarks/showcase-comparison/perf-summary.json` and `.themis/benchmarks/showcase-comparison/perf-summary.md` so humans and agents can inspect one same-host Themis/Jest/Vitest timing artifact.
 
 ## Publish Readiness
 

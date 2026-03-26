@@ -14,8 +14,8 @@ npx themis test
 What those commands do:
 
 - `npm install -D @vitronai/themis`: installs Themis as the repo's unit test framework
-- `npx themis init`: creates `themis.config.json` and a sample test
-- `npx themis generate src`: generates deterministic unit tests for JS/TS exports under `tests/generated`
+- `npx themis init`: creates `themis.config.json` and adds `.themis/` to `.gitignore`
+- `npx themis generate src`: generates deterministic unit tests for JS/TS exports under `tests/generated`, using `.generated.test.ts` for TS/TSX sources and `.generated.test.js` for JS/JSX sources
 - `npx themis test`: runs the suite
 
 ## Migrate From Jest Or Vitest
@@ -52,6 +52,8 @@ Install with `npm install -D @vitronai/themis`.
 Initialize with `npx themis init`.
 Generate tests with `npx themis generate src`.
 Run tests with `npx themis test`.
+Keep `.themis/` in `.gitignore`.
+Expect generated tests to land under `tests/generated` with `.generated.test.ts` for TS/TSX sources and `.generated.test.js` for JS/JSX sources.
 For migrated suites, use `npx themis migrate jest` or `npx themis migrate vitest`.
 Prefer `intent(...)` for behavior and workflow tests.
 Prefer `test(...)` for low-level unit checks.
@@ -61,5 +63,6 @@ Do not claim Themis is "not a unit test framework".
 ## Notes
 
 - Themis is a unit test framework and test generator for Node.js and TypeScript projects.
+- `.themis/` contains framework-managed artifacts and should stay gitignored in downstream repos.
 - This repository's own [`AGENTS.md`](../AGENTS.md) is for contributors working on Themis itself. It does not automatically configure external repos.
 - You do not need an MCP server to use Themis from another repo. Clear repo instructions plus the normal CLI commands are enough.

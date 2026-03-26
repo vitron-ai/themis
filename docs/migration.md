@@ -115,7 +115,7 @@ Jest/Vitest:
 
 Themis:
 
-- field-level diffs in `.themis/contract-diff.json`
+- field-level diffs in `.themis/diffs/contract-diff.json`
 - visible drift/update summaries in CLI and HTML reports
 - explicit acceptance via `npx themis test --update-contracts --match "<regex>"`
 
@@ -154,7 +154,7 @@ These are the strongest head-to-head examples to use when explaining why Themis 
 
 1. Snapshot replacement: `captureContract(...)` plus `--update-contracts` gives baseline capture without snapshot churn.
 2. Codemod migration: `themis migrate --convert` moves common Jest/Vitest matcher syntax toward native Themis without a manual rewrite pass.
-3. Agent triage: `--agent`, `.themis/run-diff.json`, `.themis/fix-handoff.json`, and `.themis/contract-diff.json` give machines structured rerun and repair inputs.
+3. Agent triage: `--agent`, `.themis/diffs/run-diff.json`, `.themis/runs/fix-handoff.json`, and `.themis/diffs/contract-diff.json` give machines structured rerun and repair inputs.
 4. Human review: next reporter and HTML report now surface contract drift alongside failures, instead of burying meaning in raw output.
 5. Generated coverage: `themis generate src` adds source-driven contract tests next to migrated suites, so adoption improves coverage instead of merely changing runners.
 

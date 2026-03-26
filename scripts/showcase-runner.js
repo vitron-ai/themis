@@ -2,9 +2,10 @@ const fs = require('fs');
 const path = require('path');
 const { spawnSync } = require('child_process');
 const { performance } = require('perf_hooks');
+const { resolveArtifactDir } = require('../src/artifact-paths');
 
 const rootDir = path.resolve(__dirname, '..');
-const artifactDir = path.join(rootDir, '.themis', 'showcase-comparison');
+const artifactDir = resolveArtifactDir(rootDir, 'benchmarks', 'showcase-comparison');
 
 const RUNNERS = {
   themis: {

@@ -4,6 +4,8 @@ const Module = require('module');
 
 const SUPPORTED_SOURCE_EXTENSIONS = ['.js', '.jsx', '.ts', '.tsx'];
 const RESOLVABLE_EXTENSIONS = ['.ts', '.tsx', '.js', '.jsx', '.json'];
+const THEMIS_CONTRACT_RUNTIME_REQUEST = '@vitronai/themis/contract-runtime';
+const THEMIS_CONTRACT_RUNTIME_PATH = path.join(__dirname, 'contract-runtime.js');
 const DEFAULT_TS_COMPILER_OPTIONS = {
   target: 'ES2020',
   module: 'CommonJS',
@@ -56,6 +58,10 @@ function createModuleLoader(options = {}) {
   }
 
   Module._resolveFilename = function themisResolveFilename(request, parent, isMain, resolutionOptions) {
+    if (request === THEMIS_CONTRACT_RUNTIME_REQUEST) {
+      return THEMIS_CONTRACT_RUNTIME_PATH;
+    }
+
     if (Object.prototype.hasOwnProperty.call(virtualModules, request)) {
       return request;
     }
@@ -175,6 +181,10 @@ function resolveRequestValue({
   isMain = false,
   virtualModules = null
 }) {
+  if (request === THEMIS_CONTRACT_RUNTIME_REQUEST) {
+    return THEMIS_CONTRACT_RUNTIME_PATH;
+  }
+
   if (virtualModules && Object.prototype.hasOwnProperty.call(virtualModules, request)) {
     return request;
   }

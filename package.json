@@ -54,6 +54,10 @@
       "require": "./globals.js",
       "default": "./globals.js"
     },
+    "./contract-runtime": {
+      "require": "./src/contract-runtime.js",
+      "default": "./src/contract-runtime.js"
+    },
     "./package.json": "./package.json"
   },
   "files": [

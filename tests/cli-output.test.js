@@ -195,7 +195,7 @@ describe('cli output', () => {
       expect(run.status).toBe(0);
       expect(run.output.includes('HTML report written to')).toBe(true);
 
-      const reportPath = path.join(tempDir, '.themis', 'report.html');
+      const reportPath = path.join(tempDir, '.themis', 'reports', 'report.html');
       expect(fs.existsSync(reportPath)).toBe(true);
       const html = fs.readFileSync(reportPath, 'utf8');
       expect(html.includes('<title>Themis Test Report')).toBe(true);
@@ -209,9 +209,9 @@ describe('cli output', () => {
       expect(html.includes('No failing tests in this file.')).toBe(true);
       expect(html.includes('Official Mark')).toBe(false);
 
-      const bgPath = path.join(tempDir, '.themis', 'themis-bg.png');
+      const bgPath = path.join(tempDir, '.themis', 'reports', 'themis-bg.png');
       expect(fs.existsSync(bgPath)).toBe(true);
-      const reportAssetPath = path.join(tempDir, '.themis', 'themis-report.png');
+      const reportAssetPath = path.join(tempDir, '.themis', 'reports', 'themis-report.png');
       expect(fs.existsSync(reportAssetPath)).toBe(true);
     });
   });
@@ -235,7 +235,7 @@ describe('cli output', () => {
 
         run = runCliCommand(tempDir, 'test', ['--reporter', 'html']);
         expect(run.status).toBe(1);
-        const html = fs.readFileSync(path.join(tempDir, '.themis', 'report.html'), 'utf8');
+        const html = fs.readFileSync(path.join(tempDir, '.themis', 'reports', 'report.html'), 'utf8');
         expect(html).toContain('Contract Diffs');
         expect(html).toContain('Update Contracts');
       },
@@ -311,7 +311,7 @@ test('deterministic instability', () => {
         expect(payload.analysis.failureClusters[0].count).toBe(2);
         expect(payload.analysis.failureClusters[0].fingerprint).toBe(payload.failures[0].fingerprint);
         expect(payload.analysis.comparison.status).toBe('baseline');
-        expect(payload.artifacts.runDiff).toBe('.themis/run-diff.json');
+        expect(payload.artifacts.runDiff).toBe('.themis/diffs/run-diff.json');
       },
       `describe('agent contract', () => {
   test('first fail', () => {
@@ -430,7 +430,7 @@ test('deterministic instability', () => {
 
   test('handles corrupted failed-test artifacts without crashing rerun flow', async () => {
     await withFixtureProject(async ({ tempDir }) => {
-      const artifactDir = path.join(tempDir, '.themis');
+      const artifactDir = path.join(tempDir, '.themis', 'runs');
       fs.mkdirSync(artifactDir, { recursive: true });
       fs.writeFileSync(path.join(artifactDir, 'failed-tests.json'), '{not json', 'utf8');
 
@@ -438,6 +438,55 @@ test('deterministic instability', () => {
       expect(run.status).toBe(0);
       expect(run.output.includes('Failed to parse failed test artifact')).toBe(true);
     });
+  });
+
+  test('initializes config without sample tests and gitignores .themis artifacts', async () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'themis-cli-init-'));
+
+    try {
+      fs.writeFileSync(path.join(tempDir, '.gitignore'), 'node_modules/\n', 'utf8');
+
+      const run = runCliCommand(tempDir, 'init', []);
+      expect(run.status).toBe(0);
+      expect(run.output).toContain('Themis initialized. Next: npx themis generate src && npx themis test');
+
+      expect(fs.existsSync(path.join(tempDir, 'themis.config.json'))).toBe(true);
+      expect(fs.existsSync(path.join(tempDir, 'tests', 'example.test.js'))).toBe(false);
+      expect(fs.readFileSync(path.join(tempDir, '.gitignore'), 'utf8')).toContain('.themis/');
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  test('supports --fix for stale generated suites and keeps json output machine-readable', async () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'themis-cli-fix-'));
+
+    try {
+      fs.mkdirSync(path.join(tempDir, 'src'), { recursive: true });
+      fs.writeFileSync(
+        path.join(tempDir, 'src', 'math.js'),
+        `module.exports = {\n  add(a, b) {\n    return a + b;\n  }\n};\n`,
+        'utf8'
+      );
+
+      let run = runCliCommand(tempDir, 'generate', ['src']);
+      expect(run.status).toBe(0);
+
+      fs.writeFileSync(
+        path.join(tempDir, 'src', 'math.js'),
+        `module.exports = {\n  subtract(a, b) {\n    return a - b;\n  }\n};\n`,
+        'utf8'
+      );
+
+      run = runCli(tempDir, ['--fix', '--json']);
+      expect(run.status).toBe(0);
+
+      const payload = JSON.parse(run.output);
+      expect(payload.summary.failed).toBe(0);
+      expect(fs.existsSync(path.join(tempDir, '.themis', 'runs', 'fix-handoff.json'))).toBe(false);
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
   });
 
   test('applies --no-memes flag in CLI worker execution', async () => {
@@ -597,8 +646,9 @@ test('deterministic instability', () => {
 
         const packageJson = JSON.parse(fs.readFileSync(path.join(tempDir, 'package.json'), 'utf8'));
         expect(packageJson.scripts['test:themis']).toBe('themis test');
+        expect(fs.readFileSync(path.join(tempDir, '.gitignore'), 'utf8')).toContain('.themis/');
 
-        const report = JSON.parse(fs.readFileSync(path.join(tempDir, '.themis', 'migration-report.json'), 'utf8'));
+        const report = JSON.parse(fs.readFileSync(path.join(tempDir, '.themis', 'migration', 'migration-report.json'), 'utf8'));
         expect(report.schema).toBe('themis.migration.report.v1');
         expect(report.summary.matchedFiles).toBe(1);
         expect(report.summary.jestGlobals).toBe(1);
@@ -634,7 +684,7 @@ test('deterministic instability', () => {
         expect(testSource.includes(`@jest/globals`)).toBe(false);
         expect(testSource.includes(`@testing-library/react`)).toBe(false);
 
-        const report = JSON.parse(fs.readFileSync(path.join(tempDir, '.themis', 'migration-report.json'), 'utf8'));
+        const report = JSON.parse(fs.readFileSync(path.join(tempDir, '.themis', 'migration', 'migration-report.json'), 'utf8'));
         expect(report.summary.rewrittenFiles).toBe(1);
         expect(report.summary.rewrittenImports).toBe(2);
         expect(report.rewrites).toEqual(['tests/sample.test.jsx']);
@@ -680,7 +730,7 @@ test('deterministic instability', () => {
         payload = JSON.parse(run.output);
         expect(payload.summary.failed).toBe(1);
 
-        const contractDiff = JSON.parse(fs.readFileSync(path.join(tempDir, '.themis', 'contract-diff.json'), 'utf8'));
+        const contractDiff = JSON.parse(fs.readFileSync(path.join(tempDir, '.themis', 'diffs', 'contract-diff.json'), 'utf8'));
         expect(contractDiff.summary.drifted).toBe(1);
 
         run = runCliCommand(tempDir, 'test', ['--json', '--update-contracts']);
@@ -714,7 +764,7 @@ test('deterministic instability', () => {
         expect(testSource).toContain('.toEqual(');
         expect(testSource).toContain('.toHaveBeenCalledTimes(');
 
-        const report = JSON.parse(fs.readFileSync(path.join(tempDir, '.themis', 'migration-report.json'), 'utf8'));
+        const report = JSON.parse(fs.readFileSync(path.join(tempDir, '.themis', 'migration', 'migration-report.json'), 'utf8'));
         expect(report.summary.convertedFiles).toBe(1);
         expect(report.summary.convertedAssertions).toBe(4);
       },

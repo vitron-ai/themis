@@ -36,7 +36,7 @@ describe('vscode extension scaffold', () => {
 
       writeFile(
         workspaceRoot,
-        '.themis/last-run.json',
+        '.themis/runs/last-run.json',
         `${JSON.stringify({
           meta: {
             startedAt: '2026-03-20T12:00:00.000Z',
@@ -72,7 +72,7 @@ describe('vscode extension scaffold', () => {
 
       writeFile(
         workspaceRoot,
-        '.themis/failed-tests.json',
+        '.themis/runs/failed-tests.json',
         `${JSON.stringify({
           schema: 'themis.failures.v1',
           runId: 'run_1',
@@ -99,7 +99,7 @@ describe('vscode extension scaffold', () => {
 
       writeFile(
         workspaceRoot,
-        '.themis/run-diff.json',
+        '.themis/diffs/run-diff.json',
         `${JSON.stringify({
           schema: 'themis.run.diff.v1',
           runId: 'run_1',
@@ -120,7 +120,7 @@ describe('vscode extension scaffold', () => {
       );
       writeFile(
         workspaceRoot,
-        '.themis/contract-diff.json',
+        '.themis/diffs/contract-diff.json',
         `${JSON.stringify({
           schema: 'themis.contract.diff.v1',
           summary: {
@@ -150,7 +150,7 @@ describe('vscode extension scaffold', () => {
       );
       writeFile(
         workspaceRoot,
-        '.themis/migration-report.json',
+        '.themis/migration/migration-report.json',
         `${JSON.stringify({
           schema: 'themis.migration.report.v1',
           source: 'jest',
@@ -171,10 +171,10 @@ describe('vscode extension scaffold', () => {
         })}\n`
       );
 
-      writeFile(workspaceRoot, '.themis/report.html', '<html><body>Themis report</body></html>\n');
+      writeFile(workspaceRoot, '.themis/reports/report.html', '<html><body>Themis report</body></html>\n');
       writeFile(
         workspaceRoot,
-        '.themis/generate-last.json',
+        '.themis/generate/generate-last.json',
         `${JSON.stringify({
           schema: 'themis.generate.result.v1',
           mode: {
@@ -221,7 +221,7 @@ describe('vscode extension scaffold', () => {
             conflicts: 0
           },
           scannedFiles: ['src/components/CounterButton.tsx', 'src/hooks/useToggle.ts'],
-          generatedFiles: ['tests/generated/components/CounterButton.generated.test.js', 'tests/generated/hooks/useToggle.generated.test.js'],
+          generatedFiles: ['tests/generated/components/CounterButton.generated.test.ts', 'tests/generated/hooks/useToggle.generated.test.ts'],
           removedFiles: [],
           skippedFiles: [],
           conflictFiles: [],
@@ -234,7 +234,7 @@ describe('vscode extension scaffold', () => {
             {
               action: 'create',
               sourceFile: 'src/components/CounterButton.tsx',
-              testFile: 'tests/generated/components/CounterButton.generated.test.js',
+              testFile: 'tests/generated/components/CounterButton.generated.test.ts',
               moduleKind: 'react-component',
               confidence: 'medium',
               exactExports: true,
@@ -259,7 +259,7 @@ describe('vscode extension scaffold', () => {
                 type: 'confidence',
                 severity: 'error',
                 sourceFile: 'src/components/CounterButton.tsx',
-                testFile: 'tests/generated/components/CounterButton.generated.test.js',
+                testFile: 'tests/generated/components/CounterButton.generated.test.ts',
                 moduleKind: 'react-component',
                 confidence: 'medium',
                 stage: null,
@@ -271,11 +271,11 @@ describe('vscode extension scaffold', () => {
             ]
           },
           artifacts: {
-            generateMap: '.themis/generate-map.json',
-            helperFile: 'tests/generated/_themis.contract-runtime.js',
-            generateResult: '.themis/generate-last.json',
-            generateHandoff: '.themis/generate-handoff.json',
-            generateBacklog: '.themis/generate-backlog.json'
+            generateMap: '.themis/generate/generate-map.json',
+            helperFile: '@vitronai/themis/contract-runtime',
+            generateResult: '.themis/generate/generate-last.json',
+            generateHandoff: '.themis/generate/generate-handoff.json',
+            generateBacklog: '.themis/generate/generate-backlog.json'
           },
           promptReady: {
             summary: 'Mode: generate.',
@@ -299,7 +299,7 @@ describe('vscode extension scaffold', () => {
       );
       writeFile(
         workspaceRoot,
-        '.themis/generate-backlog.json',
+        '.themis/generate/generate-backlog.json',
         `${JSON.stringify({
           schema: 'themis.generate.backlog.v1',
           source: {
@@ -338,7 +338,7 @@ describe('vscode extension scaffold', () => {
               type: 'confidence',
               severity: 'error',
               sourceFile: 'src/components/CounterButton.tsx',
-              testFile: 'tests/generated/components/CounterButton.generated.test.js',
+              testFile: 'tests/generated/components/CounterButton.generated.test.ts',
               moduleKind: 'react-component',
               confidence: 'medium',
               stage: null,
@@ -401,12 +401,12 @@ describe('vscode extension scaffold', () => {
 
   test('surfaces parse errors without crashing the view model', async () => {
     await withWorkspace(async (workspaceRoot) => {
-      writeFile(workspaceRoot, '.themis/last-run.json', '{not json\n');
+      writeFile(workspaceRoot, '.themis/runs/last-run.json', '{not json\n');
 
       const state = loadThemisWorkspaceState(workspaceRoot);
       expect(state.hasArtifacts).toBe(true);
       expect(state.parseErrors).toHaveLength(1);
-      expect(state.parseErrors[0].filePath.endsWith(path.join('.themis', 'last-run.json'))).toBe(true);
+      expect(state.parseErrors[0].filePath.endsWith(path.join('.themis', 'runs', 'last-run.json'))).toBe(true);
 
       const tree = buildResultsTree(state);
       const parseErrorGroup = tree.find((entry) => entry.id === 'parse-errors');

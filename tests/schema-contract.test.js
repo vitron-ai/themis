@@ -192,11 +192,11 @@ describe('schema contracts', () => {
     expect(payload.analysis.stability.summary.stableFail).toBe(1);
     expect(payload.analysis.stability.summary.unstable).toBe(0);
     expect(payload.analysis.comparison.status).toBe('baseline');
-    expect(payload.artifacts.runDiff).toBe('.themis/run-diff.json');
-    expect(payload.artifacts.fixHandoff).toBe('.themis/fix-handoff.json');
-    expect(payload.artifacts.contractDiff).toBe('.themis/contract-diff.json');
-    expect(payload.hints.repairGenerated).toBe('cat .themis/fix-handoff.json');
-    expect(payload.hints.reviewContracts).toBe('cat .themis/contract-diff.json');
+    expect(payload.artifacts.runDiff).toBe('.themis/diffs/run-diff.json');
+    expect(payload.artifacts.fixHandoff).toBe('.themis/runs/fix-handoff.json');
+    expect(payload.artifacts.contractDiff).toBe('.themis/diffs/contract-diff.json');
+    expect(payload.hints.repairGenerated).toBe('npx themis test --fix');
+    expect(payload.hints.reviewContracts).toBe('cat .themis/diffs/contract-diff.json');
   });
 
   test('failed-tests artifact output matches docs schema contract', () => {
@@ -270,7 +270,8 @@ describe('schema contracts', () => {
       assertMatchesSchema(payload, schema, schema);
       expect(payload.summary.generated).toBe(1);
       expect(payload.generatedFiles[0]).toBe('tests/generated/math.generated.test.js');
-      expect(payload.artifacts.generateBacklog).toBe('.themis/generate-backlog.json');
+      expect(payload.artifacts.helperFile).toBe('@vitronai/themis/contract-runtime');
+      expect(payload.artifacts.generateBacklog).toBe('.themis/generate/generate-backlog.json');
       expect(payload.mode.writeHints).toBe(false);
       expect(payload.hintFiles.created.length).toBe(0);
     } finally {
@@ -300,7 +301,7 @@ describe('schema contracts', () => {
       });
 
       expect(proc.status).toBe(0);
-      const mapPayload = JSON.parse(fs.readFileSync(path.join(tempDir, '.themis', 'generate-map.json'), 'utf8'));
+      const mapPayload = JSON.parse(fs.readFileSync(path.join(tempDir, '.themis', 'generate', 'generate-map.json'), 'utf8'));
       assertMatchesSchema(mapPayload, schema, schema);
       expect(mapPayload.entries[0].sourceFile).toBe('src/math.js');
       expect(mapPayload.entries[0].testFile).toBe('tests/generated/math.generated.test.js');
@@ -331,11 +332,11 @@ describe('schema contracts', () => {
       });
 
       expect(proc.status).toBe(0);
-      const handoffPayload = JSON.parse(fs.readFileSync(path.join(tempDir, '.themis', 'generate-handoff.json'), 'utf8'));
+      const handoffPayload = JSON.parse(fs.readFileSync(path.join(tempDir, '.themis', 'generate', 'generate-handoff.json'), 'utf8'));
       assertMatchesSchema(handoffPayload, schema, schema);
       expect(handoffPayload.schema).toBe('themis.generate.handoff.v1');
       expect(handoffPayload.targets[0].sourceFile).toBe('src/math.js');
-      expect(handoffPayload.artifacts.generateBacklog).toBe('.themis/generate-backlog.json');
+      expect(handoffPayload.artifacts.generateBacklog).toBe('.themis/generate/generate-backlog.json');
       expect(handoffPayload.hintFiles.created.length).toBe(0);
     } finally {
       fs.rmSync(tempDir, { recursive: true, force: true });
@@ -375,7 +376,7 @@ describe('schema contracts', () => {
       });
 
       expect(proc.status).toBe(1);
-      const backlogPayload = JSON.parse(fs.readFileSync(path.join(tempDir, '.themis', 'generate-backlog.json'), 'utf8'));
+      const backlogPayload = JSON.parse(fs.readFileSync(path.join(tempDir, '.themis', 'generate', 'generate-backlog.json'), 'utf8'));
       assertMatchesSchema(backlogPayload, schema, schema);
       expect(backlogPayload.schema).toBe('themis.generate.backlog.v1');
       expect(backlogPayload.summary.total).toBe(2);
@@ -422,7 +423,7 @@ describe('schema contracts', () => {
       });
 
       expect(proc.status).toBe(1);
-      const fixPayload = JSON.parse(fs.readFileSync(path.join(tempDir, '.themis', 'fix-handoff.json'), 'utf8'));
+      const fixPayload = JSON.parse(fs.readFileSync(path.join(tempDir, '.themis', 'runs', 'fix-handoff.json'), 'utf8'));
       assertMatchesSchema(fixPayload, schema, schema);
       expect(fixPayload.schema).toBe('themis.fix.handoff.v1');
       expect(fixPayload.summary.generatedFailures).toBe(1);

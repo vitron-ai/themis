@@ -90,11 +90,11 @@ describe('agent reporter', () => {
     expect(payload.analysis.stability.summary.unstable).toBe(0);
     expect(payload.analysis.comparison.status).toBe('baseline');
     expect(payload.analysis.comparison.newFailures).toHaveLength(3);
-    expect(payload.artifacts.runDiff).toBe('.themis/run-diff.json');
-    expect(payload.artifacts.fixHandoff).toBe('.themis/fix-handoff.json');
-    expect(payload.artifacts.contractDiff).toBe('.themis/contract-diff.json');
-    expect(payload.hints.repairGenerated).toBe('cat .themis/fix-handoff.json');
-    expect(payload.hints.reviewContracts).toBe('cat .themis/contract-diff.json');
+    expect(payload.artifacts.runDiff).toBe('.themis/diffs/run-diff.json');
+    expect(payload.artifacts.fixHandoff).toBe('.themis/runs/fix-handoff.json');
+    expect(payload.artifacts.contractDiff).toBe('.themis/diffs/contract-diff.json');
+    expect(payload.hints.repairGenerated).toBe('npx themis test --fix');
+    expect(payload.hints.reviewContracts).toBe('cat .themis/diffs/contract-diff.json');
 
     const byName = {};
     for (const failure of payload.failures) {

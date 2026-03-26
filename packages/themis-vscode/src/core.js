@@ -1,7 +1,10 @@
 const fs = require('fs');
 const path = require('path');
-
-const ARTIFACT_DIR = '.themis';
+const {
+  ARTIFACT_DIR,
+  ARTIFACT_RELATIVE_PATHS,
+  getArtifactPathCandidates
+} = require('../../../src/artifact-paths');
 
 function getArtifactPaths(workspaceRoot) {
   if (!workspaceRoot) {
@@ -11,16 +14,16 @@ function getArtifactPaths(workspaceRoot) {
   const artifactDir = path.join(workspaceRoot, ARTIFACT_DIR);
   return {
     artifactDir,
-    lastRun: path.join(artifactDir, 'last-run.json'),
-    failedTests: path.join(artifactDir, 'failed-tests.json'),
-    runDiff: path.join(artifactDir, 'run-diff.json'),
-    contractDiff: path.join(artifactDir, 'contract-diff.json'),
-    migrationReport: path.join(artifactDir, 'migration-report.json'),
-    report: path.join(artifactDir, 'report.html'),
-    generateLast: path.join(artifactDir, 'generate-last.json'),
-    generateMap: path.join(artifactDir, 'generate-map.json'),
-    generateBacklog: path.join(artifactDir, 'generate-backlog.json'),
-    generateHandoff: path.join(artifactDir, 'generate-handoff.json')
+    lastRun: getArtifactPathCandidates(workspaceRoot, 'lastRun'),
+    failedTests: getArtifactPathCandidates(workspaceRoot, 'failedTests'),
+    runDiff: getArtifactPathCandidates(workspaceRoot, 'runDiff'),
+    contractDiff: getArtifactPathCandidates(workspaceRoot, 'contractDiff'),
+    migrationReport: getArtifactPathCandidates(workspaceRoot, 'migrationReport'),
+    report: getArtifactPathCandidates(workspaceRoot, 'htmlReport'),
+    generateLast: getArtifactPathCandidates(workspaceRoot, 'generateResult'),
+    generateMap: getArtifactPathCandidates(workspaceRoot, 'generateMap'),
+    generateBacklog: getArtifactPathCandidates(workspaceRoot, 'generateBacklog'),
+    generateHandoff: getArtifactPathCandidates(workspaceRoot, 'generateHandoff')
   };
 }
 
@@ -54,7 +57,8 @@ function loadThemisWorkspaceState(workspaceRoot) {
   const parseErrors = [lastRun, failedTests, runDiff, contractDiff, migrationReport, generateLast, generateMap, generateBacklog, generateHandoff]
     .filter((entry) => entry.error)
     .map((entry) => ({ filePath: entry.filePath, message: entry.error }));
-  const reportExists = fs.existsSync(paths.report);
+  const reportPath = findExistingPath(paths.report);
+  const reportExists = Boolean(reportPath);
   const summary = normalizeSummary(lastRun.value && lastRun.value.summary);
   const failures = normalizeFailures(failedTests.value, lastRun.value);
   const comparison = normalizeComparison(runDiff.value, lastRun.value);
@@ -103,7 +107,8 @@ function loadThemisWorkspaceState(workspaceRoot) {
     generation,
     reportExists,
     statusText: buildStatusText(summary),
-    verdictLabel: buildVerdictLabel(summary, hasArtifacts)
+    verdictLabel: buildVerdictLabel(summary, hasArtifacts),
+    reportPath
   };
 }
 
@@ -115,7 +120,7 @@ function buildResultsTree(state) {
         kind: 'info',
         label: 'Open a workspace to use Themis',
         description: '',
-        tooltip: 'Themis needs a workspace folder to find .themis artifacts.',
+      tooltip: 'Themis needs a workspace folder to find .themis artifacts.',
         icon: 'folder-opened'
       }
     ];
@@ -161,13 +166,13 @@ function buildResultsTree(state) {
     id: 'report',
     kind: 'action',
     label: state.reportExists ? 'Open HTML report' : 'HTML report not generated yet',
-    description: state.reportExists ? path.basename(state.paths.report) : '',
-    tooltip: state.reportExists
-      ? 'Open the interactive Themis HTML verdict report.'
-      : 'Run `npx themis test --reporter html` to generate .themis/report.html.',
-    icon: 'globe',
-    command: state.reportExists ? { id: 'themis.openHtmlReport' } : null
-  });
+      description: state.reportExists ? path.basename(state.reportPath || findExistingPath(state.paths.report) || '') : '',
+      tooltip: state.reportExists
+        ? 'Open the interactive Themis HTML verdict report.'
+        : `Run \`npx themis test --reporter html\` to generate ${ARTIFACT_RELATIVE_PATHS.htmlReport}.`,
+      icon: 'globe',
+      command: state.reportExists ? { id: 'themis.openHtmlReport' } : null
+    });
 
   if (state.generation) {
     items.push({
@@ -309,8 +314,14 @@ function extractFailureLocation(failure) {
   return null;
 }
 
-function readJsonArtifact(filePath) {
-  if (!fs.existsSync(filePath)) {
+function findExistingPath(filePathOrCandidates) {
+  const candidates = Array.isArray(filePathOrCandidates) ? filePathOrCandidates : [filePathOrCandidates];
+  return candidates.find((candidate) => fs.existsSync(candidate)) || candidates[0] || '';
+}
+
+function readJsonArtifact(filePathOrCandidates) {
+  const filePath = findExistingPath(filePathOrCandidates);
+  if (!filePath || !fs.existsSync(filePath)) {
     return {
       filePath,
       exists: false,
@@ -670,7 +681,7 @@ function buildGenerationChildren(generation) {
     kind: 'group',
     label: `Generation backlog (${generation.backlog.summary.total})`,
     description: generation.backlog.summary.total > 0 ? 'Resolve skips, conflicts, and low-confidence entries' : 'No generation backlog',
-    tooltip: 'Unresolved generation backlog from .themis/generate-backlog.json.',
+    tooltip: `Unresolved generation backlog from ${ARTIFACT_RELATIVE_PATHS.generateBacklog}.`,
     icon: generation.backlog.summary.errors > 0 ? 'warning' : 'pass',
     children: generation.backlog.items.length > 0
       ? generation.backlog.items.map((item) => buildGenerateBacklogItem(item))

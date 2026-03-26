@@ -270,7 +270,7 @@ describe('code scan generation', () => {
         expect(initial.skippedFiles[0].reason).toContain('No runtime exports discovered');
 
         const mathTestPath = resolvePath('tests', 'generated', 'math.generated.test.js');
-        const widgetTestPath = resolvePath('tests', 'generated', 'ui', 'widget.generated.test.js');
+        const widgetTestPath = resolvePath('tests', 'generated', 'ui', 'widget.generated.test.ts');
         expect(fs.existsSync(mathTestPath)).toBe(true);
         expect(fs.existsSync(widgetTestPath)).toBe(true);
 
@@ -284,7 +284,7 @@ describe('code scan generation', () => {
         const widgetTestSource = fs.readFileSync(widgetTestPath, 'utf8');
         expect(widgetTestSource.includes('toMatchSnapshot')).toBe(false);
 
-        const mapPath = resolvePath('.themis', 'generate-map.json');
+        const mapPath = resolvePath('.themis', 'generate', 'generate-map.json');
         expect(fs.existsSync(mapPath)).toBe(true);
         const mapPayload = JSON.parse(fs.readFileSync(mapPath, 'utf8'));
         expect(mapPayload.schema).toBe('themis.generate.map.v1');
@@ -305,7 +305,7 @@ describe('code scan generation', () => {
           'generated',
           'ui',
           '__snapshots__',
-          'widget.generated.test.js.snapshots.json'
+          'widget.generated.test.ts.snapshots.json'
         );
         fs.mkdirSync(path.dirname(widgetSnapshotPath), { recursive: true });
         fs.writeFileSync(widgetSnapshotPath, '{}\n', 'utf8');
@@ -316,7 +316,7 @@ describe('code scan generation', () => {
         const rerun = generateTestsFromSource(tempDir);
         expect(rerun.generatedFiles.length).toBe(1);
         expect(rerun.removedFiles.length).toBe(1);
-        expect(rerun.removedFiles[0]).toContain('widget.generated.test.js');
+        expect(rerun.removedFiles[0]).toContain('widget.generated.test.ts');
         expect(fs.existsSync(widgetTestPath)).toBe(false);
         expect(fs.existsSync(widgetSnapshotPath)).toBe(false);
       }
@@ -380,7 +380,7 @@ describe('code scan generation', () => {
         expect(review.status).toBe(0);
         const reviewPayload = parseJsonOutput(review);
         expect(reviewPayload.mode.review).toBe(true);
-        expect(reviewPayload.generatedFiles).toEqual(['tests/generated/hooks/useToggle.generated.test.js']);
+        expect(reviewPayload.generatedFiles).toEqual(['tests/generated/hooks/useToggle.generated.test.ts']);
         expect(reviewPayload.promptReady.summary).toContain('Review mode made no filesystem changes');
 
         fs.writeFileSync(
@@ -393,7 +393,7 @@ describe('code scan generation', () => {
         expect(changed.status).toBe(0);
         const changedPayload = parseJsonOutput(changed);
         expect(changedPayload.mode.changed).toBe(true);
-        expect(changedPayload.generatedFiles).toEqual(['tests/generated/services/math.generated.test.js']);
+        expect(changedPayload.generatedFiles).toEqual(['tests/generated/services/math.generated.test.ts']);
         expect(changedPayload.summary.updated).toBe(1);
 
         fs.writeFileSync(
@@ -406,15 +406,15 @@ describe('code scan generation', () => {
         expect(updateOnly.status).toBe(0);
         const updatePayload = parseJsonOutput(updateOnly);
         expect(updatePayload.mode.update).toBe(true);
-        expect(updatePayload.generatedFiles).toEqual(['tests/generated/services/math.generated.test.js']);
+        expect(updatePayload.generatedFiles).toEqual(['tests/generated/services/math.generated.test.ts']);
         expect(updatePayload.summary.updated).toBe(1);
 
         const clean = runCli(tempDir, ['generate', 'src', '--files', 'src/services/math.ts', '--clean', '--json']);
         expect(clean.status).toBe(0);
         const cleanPayload = parseJsonOutput(clean);
         expect(cleanPayload.mode.clean).toBe(true);
-        expect(cleanPayload.removedFiles).toContain('tests/generated/services/math.generated.test.js');
-        expect(fs.existsSync(resolvePath('tests', 'generated', 'services', 'math.generated.test.js'))).toBe(false);
+        expect(cleanPayload.removedFiles).toContain('tests/generated/services/math.generated.test.ts');
+        expect(fs.existsSync(resolvePath('tests', 'generated', 'services', 'math.generated.test.ts'))).toBe(false);
       }
     );
   });
@@ -439,12 +439,12 @@ describe('code scan generation', () => {
         expect(payload.mode.review).toBe(true);
         expect(payload.filters.scenario).toBe('react-hook');
         expect(payload.filters.minConfidence).toBe('high');
-        expect(payload.generatedFiles).toEqual(['tests/generated/hooks/useToggle.generated.test.js']);
+        expect(payload.generatedFiles).toEqual(['tests/generated/hooks/useToggle.generated.test.ts']);
         expect(payload.promptReady.summary).toContain('Mode: plan');
         expect(payload.hints.plan).toBe('npx themis generate src --plan');
 
-        const generateLastPath = resolvePath('.themis', 'generate-last.json');
-        const handoffPath = resolvePath('.themis', 'generate-handoff.json');
+        const generateLastPath = resolvePath('.themis', 'generate', 'generate-last.json');
+        const handoffPath = resolvePath('.themis', 'generate', 'generate-handoff.json');
         expect(fs.existsSync(generateLastPath)).toBe(true);
         expect(fs.existsSync(handoffPath)).toBe(true);
 
@@ -484,7 +484,7 @@ describe('code scan generation', () => {
         expect(payload.promptReady.unresolved.length).toBe(3);
         expect(payload.promptReady.unresolved.find((item) => item.type === 'conflict').suggestedCommand).toBe('npx themis generate src/math.js --force');
 
-        const backlogPath = resolvePath('.themis', 'generate-backlog.json');
+        const backlogPath = resolvePath('.themis', 'generate', 'generate-backlog.json');
         expect(fs.existsSync(backlogPath)).toBe(true);
 
         const backlogPayload = JSON.parse(fs.readFileSync(backlogPath, 'utf8'));
@@ -526,7 +526,7 @@ describe('code scan generation', () => {
         expect(generated.output).toContain('THEMIS CODE SCAN COMPLETE');
         expect(generated.output).toContain('generated: 4');
 
-        const buttonTestPath = resolvePath('tests', 'generated', 'components', 'Button.generated.test.js');
+        const buttonTestPath = resolvePath('tests', 'generated', 'components', 'Button.generated.test.ts');
         expect(fs.existsSync(buttonTestPath)).toBe(true);
 
         const buttonTestSource = fs.readFileSync(buttonTestPath, 'utf8');
@@ -599,7 +599,7 @@ describe('code scan generation', () => {
         const payload = parseJsonOutput(generated);
 
         expect(payload.summary.generated).toBe(5);
-        const componentTestPath = resolvePath('tests', 'generated', 'components', 'GreetingButton.generated.test.js');
+        const componentTestPath = resolvePath('tests', 'generated', 'components', 'GreetingButton.generated.test.ts');
         const componentSource = fs.readFileSync(componentTestPath, 'utf8');
         expect(componentSource).toContain('PROJECT_PROVIDER_IMPORT');
         expect(componentSource).toContain('applyProjectProviderMocks');
@@ -635,15 +635,47 @@ describe('code scan generation', () => {
         expect(run.status).toBe(1);
 
         const agentPayload = JSON.parse(run.output);
-        expect(agentPayload.artifacts.fixHandoff).toBe('.themis/fix-handoff.json');
-        expect(agentPayload.hints.repairGenerated).toBe('cat .themis/fix-handoff.json');
+        expect(agentPayload.artifacts.fixHandoff).toBe('.themis/runs/fix-handoff.json');
+        expect(agentPayload.hints.repairGenerated).toBe('npx themis test --fix');
 
-        const fixHandoff = JSON.parse(fs.readFileSync(resolvePath('.themis', 'fix-handoff.json'), 'utf8'));
+        const fixHandoff = JSON.parse(fs.readFileSync(resolvePath('.themis', 'runs', 'fix-handoff.json'), 'utf8'));
         expect(fixHandoff.schema).toBe('themis.fix.handoff.v1');
         expect(fixHandoff.summary.generatedFailures).toBe(1);
         expect(fixHandoff.items[0].category).toBe('source-drift');
         expect(fixHandoff.items[0].sourceFile).toBe('src/math.js');
         expect(fixHandoff.items[0].suggestedCommand).toBe('npx themis generate src/math.js --update');
+      }
+    );
+  });
+
+  test('repairs stale generated tests through npx themis test --fix', async () => {
+    await withProjectFixture(
+      {
+        'src/math.js': `module.exports = {\n  add(a, b) {\n    return a + b;\n  }\n};\n`
+      },
+      async ({ tempDir, resolvePath }) => {
+        const generated = runCli(tempDir, ['generate', 'src']);
+        expect(generated.status).toBe(0);
+
+        fs.writeFileSync(
+          resolvePath('src', 'math.js'),
+          `module.exports = {\n  subtract(a, b) {\n    return a - b;\n  }\n};\n`,
+          'utf8'
+        );
+
+        let run = runCli(tempDir, ['test', '--json']);
+        expect(run.status).toBe(1);
+
+        run = runCli(tempDir, ['test', '--fix', '--json']);
+        expect(run.status).toBe(0);
+
+        const payload = JSON.parse(run.output);
+        expect(payload.summary.failed).toBe(0);
+
+        const generatedSource = fs.readFileSync(resolvePath('tests', 'generated', 'math.generated.test.js'), 'utf8');
+        expect(generatedSource).toContain("subtract");
+        expect(generatedSource.includes("add")).toBe(false);
+        expect(fs.existsSync(resolvePath('.themis', 'runs', 'fix-handoff.json'))).toBe(false);
       }
     );
   });
@@ -660,7 +692,7 @@ describe('code scan generation', () => {
         const entry = payload.entries.find((item) => item.sourceFile === 'src/components/SignupForm.tsx');
         expect(entry.moduleKind).toBe('react-component');
 
-        const componentTestPath = resolvePath('tests', 'generated', 'components', 'SignupForm.generated.test.js');
+        const componentTestPath = resolvePath('tests', 'generated', 'components', 'SignupForm.generated.test.ts');
         const componentSource = fs.readFileSync(componentTestPath, 'utf8');
         expect(componentSource).toContain('behavioral flow contract');
         expect(componentSource).toContain('mockFetch');
@@ -681,7 +713,7 @@ describe('code scan generation', () => {
   test('infers richer stateful ui flows for async form components without hints', async () => {
     await withProjectFixture(createInferredAsyncUiFlowFixture(), async ({ tempDir, resolvePath }) => {
       const summary = generateTestsFromSource(tempDir);
-      const generatedPath = resolvePath('tests', 'generated', 'components', 'AsyncStatusForm.generated.test.js');
+      const generatedPath = resolvePath('tests', 'generated', 'components', 'AsyncStatusForm.generated.test.ts');
       const generatedSource = fs.readFileSync(generatedPath, 'utf8');
 
       expect(summary.generatedFiles).toContain(generatedPath);
@@ -705,7 +737,7 @@ describe('code scan generation', () => {
   test('supports provider preset wrappers for router, react query, zustand, and redux patterns', async () => {
     await withProjectFixture(createProviderPresetFixture(), async ({ tempDir, resolvePath }) => {
       const summary = generateTestsFromSource(tempDir);
-      const generatedPath = resolvePath('tests', 'generated', 'components', 'Dashboard.generated.test.js');
+      const generatedPath = resolvePath('tests', 'generated', 'components', 'Dashboard.generated.test.ts');
       const generatedSource = fs.readFileSync(generatedPath, 'utf8');
 
       expect(summary.generatedFiles).toContain(generatedPath);
@@ -735,7 +767,7 @@ describe('code scan generation', () => {
   test('supports richer behavioral dom flows with empty, error, retry, and disabled state expectations', async () => {
     await withProjectFixture(createRichUiFlowFixture(), async ({ tempDir, resolvePath }) => {
       const summary = generateTestsFromSource(tempDir);
-      const generatedPath = resolvePath('tests', 'generated', 'components', 'RetryingSignupForm.generated.test.js');
+      const generatedPath = resolvePath('tests', 'generated', 'components', 'RetryingSignupForm.generated.test.ts');
       const generatedSource = fs.readFileSync(generatedPath, 'utf8');
 
       expect(summary.generatedFiles).toContain(generatedPath);
@@ -818,7 +850,7 @@ describe('code scan generation', () => {
         expect(payload.entries.find((entry) => entry.sourceFile === 'src/services/math.ts').moduleKind).toBe('node-service');
         expect(payload.promptReady.prompt).toContain('CREATE src/routes/ping.ts');
 
-        const mapPayload = JSON.parse(fs.readFileSync(path.join(tempDir, '.themis', 'generate-map.json'), 'utf8'));
+        const mapPayload = JSON.parse(fs.readFileSync(path.join(tempDir, '.themis', 'generate', 'generate-map.json'), 'utf8'));
         expect(mapPayload.entries.length).toBe(4);
         expect(mapPayload.entries.find((entry) => entry.sourceFile === 'src/routes/ping.ts').scenarios[0].kind).toBe('route-handler');
 
@@ -857,12 +889,13 @@ describe('code scan generation', () => {
         expect(payload.summary.removed).toBe(0);
         expect(payload.summary.skipped).toBe(0);
         expect(payload.summary.conflicts).toBe(0);
-        expect(payload.generatedFiles).toContain('tests/generated/components/Button.generated.test.js');
+        expect(payload.generatedFiles).toContain('tests/generated/components/Button.generated.test.ts');
+        expect(payload.artifacts.helperFile).toBe('@vitronai/themis/contract-runtime');
         expect(payload.entries.find((entry) => entry.sourceFile === 'src/components/Button.tsx').scenarios[0].kind).toBe('react-component');
         expect(payload.entries.find((entry) => entry.sourceFile === 'src/hooks/useToggle.ts').scenarios[0].kind).toBe('react-hook');
-        expect(payload.artifacts.generateMap).toBe('.themis/generate-map.json');
-        expect(payload.artifacts.generateResult).toBe('.themis/generate-last.json');
-        expect(payload.artifacts.generateHandoff).toBe('.themis/generate-handoff.json');
+        expect(payload.artifacts.generateMap).toBe('.themis/generate/generate-map.json');
+        expect(payload.artifacts.generateResult).toBe('.themis/generate/generate-last.json');
+        expect(payload.artifacts.generateHandoff).toBe('.themis/generate/generate-handoff.json');
         expect(payload.mode.writeHints).toBe(false);
         expect(payload.hintFiles.created).toEqual([]);
         expect(payload.hints.writeHints).toBe('npx themis generate src --write-hints');

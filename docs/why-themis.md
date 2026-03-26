@@ -17,6 +17,8 @@ npx themis generate src
 npx themis test
 ```
 
+`npx themis init` adds `.themis/` to `.gitignore`, and `npx themis generate src` emits `.generated.test.ts` for TS/TSX sources and `.generated.test.js` for JS/JSX sources.
+
 For downstream repo instructions and a copyable `AGENTS.md` template, see [`docs/agents-adoption.md`](agents-adoption.md).
 
 ## What "Next-Gen" Means Here
@@ -48,7 +50,7 @@ Themis supports structured outputs for tooling loops:
 
 - `--json` for generic automation
 - `--agent` for AI-agent workflows
-- `.themis/failed-tests.json` for deterministic reruns
+- `.themis/runs/failed-tests.json` for deterministic reruns
 
 ## 3) Deterministic Rerun Workflow
 
@@ -86,7 +88,7 @@ Themis ships workflow features agents can use directly:
 - generated contract tests that keep baselines in readable source instead of opaque snapshot blobs
 - machine-readable artifacts that let agents inspect and explain changes before updating tests
 - mocks and spies with `fn`, `spyOn`, and `mock`
-- `.themis/run-diff.json` and `.themis/run-history.json`
+- `.themis/diffs/run-diff.json` and `.themis/runs/run-history.json`
 - HTML verdict reports for human review
 
 ### Comparable To Snapshot Workflows, Without Snapshot Rot
@@ -130,7 +132,7 @@ Performance is measured and guarded:
 
 ## 11) Editor Surface Without Replacing The CLI
 
-Themis includes a thin VS Code extension scaffold that reads `.themis/*` artifacts, reruns tests, and opens the HTML report. The CLI remains the source of truth.
+Themis includes a thin VS Code extension scaffold that reads `.themis/**` artifacts, reruns tests, and opens the HTML report. The CLI remains the source of truth.
 
 ## Proof Checklist
 

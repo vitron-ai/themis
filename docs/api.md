@@ -35,7 +35,19 @@ themis migrate <jest|vitest>
 Creates:
 
 - `themis.config.json` with default settings
-- `tests/example.test.js` sample test (if missing)
+- adds `.themis/` to `.gitignore`
+
+## `themis test`
+
+Runs discovered tests, writes `.themis/**` run artifacts, and supports rerun, contract-update, and generated-test repair loops.
+
+If generated tests fail because scanned source files drifted or hints need tightening, use:
+
+```bash
+npx themis test --fix
+```
+
+`--fix` reads `.themis/runs/fix-handoff.json`, regenerates the affected generated suites with `--update`, scaffolds hints when the repair strategy requires them, and reruns the suite.
 
 ## `themis generate`
 
@@ -47,7 +59,8 @@ Default behavior:
 
 - input directory: `src`
 - output directory: `tests/generated`
-- generated files mirror the scanned source tree with `*.generated.test.js`
+- generated files mirror the scanned source tree with `*.generated.test.ts` for TS/TSX sources and `*.generated.test.js` for JS/JSX sources
+- generated tests import their shared contract runtime from `@vitronai/themis/contract-runtime` instead of writing framework helper files into the repo
 - generated tests assert normalized runtime export contracts directly in generated source
 - scenario adapters cover React components, React hooks, Next app components, Next route handlers, generic route handlers, and Node service functions when inputs can be inferred or hinted
 - React component and hook adapters also assert inferred interaction/state contracts when event handlers or zero-argument stateful methods are available
@@ -56,10 +69,10 @@ Default behavior:
 - project-level providers from `themis.generate.js` / `themis.generate.cjs` can match source files, inject shared fixture data, register runtime mocks, and wrap generated component renders for provider-aware DOM contracts and behavioral flow coverage
 - provider presets can declare router, Next navigation, auth/session, React Query, Zustand, and Redux-style wrapper metadata without hand-writing every wrapper shell
 - richer flow expectations can assert text transitions, attribute state, and role presence for empty, disabled, retry, error, and recovery paths
-- `.themis/generate-map.json` records source-to-generated-test mappings plus scenario metadata
-- `.themis/generate-last.json` stores the full machine-readable generate payload
-- `.themis/generate-handoff.json` stores a compact prompt-ready handoff payload for agents
-- `.themis/generate-backlog.json` stores unresolved skips, conflicts, and confidence debt with suggested remediation
+- `.themis/generate/generate-map.json` records source-to-generated-test mappings plus scenario metadata
+- `.themis/generate/generate-last.json` stores the full machine-readable generate payload
+- `.themis/generate/generate-handoff.json` stores a compact prompt-ready handoff payload for agents
+- `.themis/generate/generate-backlog.json` stores unresolved skips, conflicts, and confidence debt with suggested remediation
 
 ## `themis generate` options
 
@@ -165,7 +178,7 @@ Behavior:
 - adds `tests/setup.themis.js` to `setupFiles`
 - writes `themis.compat.js` as a local compatibility bridge
 - adds `test:themis` to `package.json` when missing
-- writes `.themis/migration-report.json` with detected compatibility imports and next actions
+- writes `.themis/migration/migration-report.json` with detected compatibility imports and next actions
 - relies on built-in runtime compatibility for `@jest/globals`, `vitest`, and `@testing-library/react`
 - preserves a path to replace snapshot-heavy suites with direct assertions and generated contract tests instead of porting snapshot files as-is
 
@@ -189,9 +202,10 @@ Migration options:
 | `--update-contracts` | flag | Accept updated `captureContract(...)` baselines for the selected tests. |
 | `-w`, `--watch` | flag | Rerun the selected suite when watched project files change. |
 | `--stability <N>` | positive integer | Run selected tests `N` times and classify stability (`stable_pass`, `stable_fail`, `unstable`). |
-| `--html-output <path>` | string | Output path for `--reporter html` (default: `.themis/report.html`). |
+| `--html-output <path>` | string | Output path for `--reporter html` (default: `.themis/reports/report.html`). |
 | `--match "<regex>"` | string | Run only tests whose full name matches regex. |
-| `--rerun-failed` | flag | Rerun failures from `.themis/failed-tests.json`. |
+| `--rerun-failed` | flag | Rerun failures from `.themis/runs/failed-tests.json`. |
+| `--fix` | flag | Apply generated-test autofixes from `.themis/runs/fix-handoff.json` and rerun the suite. |
 | `--no-memes` | flag | Disable meme intent aliases (`cook`, `yeet`, `vibecheck`, `wipe`). |
 
 Migration compatibility:
@@ -199,7 +213,7 @@ Migration compatibility:
 - imports from `@jest/globals` are supported at runtime
 - imports from `vitest` are supported at runtime
 - imports from `@testing-library/react` are supported via Themis `render`, `screen`, `fireEvent`, `waitFor`, `cleanup`, and `act`
-- `themis migrate <jest|vitest>` also emits `.themis/migration-report.json` with detected files and recommended next actions
+- `themis migrate <jest|vitest>` also emits `.themis/migration/migration-report.json` with detected files and recommended next actions
 
 Additional option:
 
@@ -235,17 +249,21 @@ Generate-specific note:
 
 ## Artifacts
 
-Each run writes to `.themis/`:
+Themis writes artifacts under `.themis/`:
 
-- `last-run.json`: full run payload (`RunResult`)
-- `failed-tests.json`: failed subset (`themis.failures.v1`)
-- `run-diff.json`: diff against the previous run
-- `run-history.json`: rolling recent-run history
-- `fix-handoff.json`: deduped repair artifact for generated test failures (`themis.fix.handoff.v1`)
-- `migration-report.json`: migration inventory for Jest/Vitest bridge scaffolds (`themis.migration.report.v1`)
-- `contract-diff.json`: contract capture drift, updates, and update commands (`themis.contract.diff.v1`)
-- `benchmark-last.json`: latest benchmark comparison payload plus migration proof (`themis.benchmark.result.v1`)
-- `migration-proof.json`: synthetic migration conversion proof emitted by `npm run benchmark` (`themis.migration.proof.v1`)
+- `.themis/runs/last-run.json`: full run payload (`RunResult`)
+- `.themis/runs/failed-tests.json`: failed subset (`themis.failures.v1`)
+- `.themis/diffs/run-diff.json`: diff against the previous run
+- `.themis/runs/run-history.json`: rolling recent-run history
+- `.themis/runs/fix-handoff.json`: deduped repair artifact for generated test failures (`themis.fix.handoff.v1`)
+- `.themis/migration/migration-report.json`: migration inventory for Jest/Vitest bridge scaffolds (`themis.migration.report.v1`)
+- `.themis/diffs/contract-diff.json`: contract capture drift, updates, and update commands (`themis.contract.diff.v1`)
+- `.themis/generate/generate-last.json`: latest generate payload (`themis.generate.result.v1`)
+- `.themis/generate/generate-map.json`: source-to-generated-test mapping (`themis.generate.map.v1`)
+- `.themis/generate/generate-handoff.json`: compact agent handoff (`themis.generate.handoff.v1`)
+- `.themis/generate/generate-backlog.json`: unresolved generation debt (`themis.generate.backlog.v1`)
+- `.themis/benchmarks/benchmark-last.json`: latest benchmark comparison payload plus migration proof (`themis.benchmark.result.v1`)
+- `.themis/benchmarks/migration-proof.json`: synthetic migration conversion proof emitted by `npm run benchmark` (`themis.migration.proof.v1`)
 
 Formal schemas:
 
@@ -260,7 +278,7 @@ Formal schemas:
 
 Human-facing artifact:
 
-- `.themis/report.html`: interactive HTML verdict report
+- `.themis/reports/report.html`: interactive HTML verdict report
 
 Agent payload details:
 
@@ -268,8 +286,9 @@ Agent payload details:
 - `analysis.failureClusters` groups failures by shared fingerprint
 - `analysis.stability` captures multi-run classifications and per-test status sequences
 - `analysis.comparison` reports delta stats plus new and resolved failures against the previous run
-- `artifacts.fixHandoff` points to `.themis/fix-handoff.json` for generated failure repair loops
+- `artifacts.fixHandoff` points to `.themis/runs/fix-handoff.json` for generated failure repair loops
 - fix handoff entries include `repairStrategy`, `candidateFiles`, and `autofixCommand` for machine repair loops
+- `hints.repairGenerated` points to `npx themis test --fix` for a first-party generated-suite repair command
 
 ## UI Test Utilities
 
@@ -415,15 +434,15 @@ Converts a `GenerateSummary` into the same machine-readable payload emitted by `
 
 ## `buildGenerateBacklogPayload(summary, cwd?): GenerateBacklogPayload`
 
-Builds the unresolved-work artifact persisted at `.themis/generate-backlog.json`.
+Builds the unresolved-work artifact persisted at `.themis/generate/generate-backlog.json`.
 
 ## `buildGenerateHandoff(payload): GenerateHandoffPayload`
 
-Builds the compact handoff payload persisted at `.themis/generate-handoff.json`.
+Builds the compact handoff payload persisted at `.themis/generate/generate-handoff.json`.
 
 ## `writeGenerateArtifacts(summary, cwd?): { payload, handoff, backlog }`
 
-Writes `.themis/generate-last.json`, `.themis/generate-handoff.json`, and `.themis/generate-backlog.json` for a generate run and returns all three payloads.
+Writes `.themis/generate/generate-last.json`, `.themis/generate/generate-handoff.json`, and `.themis/generate/generate-backlog.json` for a generate run and returns all three payloads.
 
 ## `loadConfig(cwd): ThemisConfig`
 

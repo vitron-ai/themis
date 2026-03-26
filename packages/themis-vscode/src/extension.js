@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const vscode = require('vscode');
+const { ARTIFACT_RELATIVE_PATHS } = require('../../../src/artifact-paths');
 const { buildResultsTree, loadThemisWorkspaceState } = require('./core');
 
 function activate(context) {
@@ -82,7 +83,7 @@ class ThemisExtensionController {
     this.watchers = [];
 
     for (const folder of vscode.workspace.workspaceFolders || []) {
-      const pattern = new vscode.RelativePattern(folder, '.themis/*');
+      const pattern = new vscode.RelativePattern(folder, '.themis/**');
       const watcher = vscode.workspace.createFileSystemWatcher(pattern);
       watcher.onDidCreate(() => this.refresh());
       watcher.onDidChange(() => this.refresh());
@@ -101,7 +102,7 @@ class ThemisExtensionController {
     this.updateStatusBar(state);
 
     if (this.reportPanel && state.reportExists) {
-      this.renderReportPanel(state.paths.report);
+      this.renderReportPanel(state.reportPath);
     }
   }
 
@@ -179,7 +180,7 @@ class ThemisExtensionController {
 
     const state = loadThemisWorkspaceState(folder.uri.fsPath);
     if (!state.reportExists) {
-      vscode.window.showInformationMessage('No .themis/report.html file found yet. Run `npx themis test --reporter html` first.');
+      vscode.window.showInformationMessage(`No ${ARTIFACT_RELATIVE_PATHS.htmlReport} file found yet. Run \`npx themis test --reporter html\` first.`);
       return;
     }
 
@@ -191,7 +192,7 @@ class ThemisExtensionController {
         {
           enableScripts: true,
           retainContextWhenHidden: true,
-          localResourceRoots: [vscode.Uri.file(path.dirname(state.paths.report))]
+          localResourceRoots: [vscode.Uri.file(path.dirname(state.reportPath))]
         }
       );
 
@@ -203,11 +204,11 @@ class ThemisExtensionController {
       this.reportPanel.webview.options = {
         enableScripts: true,
         retainContextWhenHidden: true,
-        localResourceRoots: [vscode.Uri.file(path.dirname(state.paths.report))]
+        localResourceRoots: [vscode.Uri.file(path.dirname(state.reportPath))]
       };
     }
 
-    this.renderReportPanel(state.paths.report);
+    this.renderReportPanel(state.reportPath);
   }
 
   renderReportPanel(reportPath) {

@@ -1,31 +1,35 @@
 const fs = require('fs');
 const path = require('path');
-
-const ARTIFACT_DIR = '.themis';
-const LAST_RUN_FILE = 'last-run.json';
-const FAILED_TESTS_FILE = 'failed-tests.json';
-const RUN_DIFF_FILE = 'run-diff.json';
-const RUN_HISTORY_FILE = 'run-history.json';
-const FIX_HANDOFF_FILE = 'fix-handoff.json';
-const CONTRACT_DIFF_FILE = 'contract-diff.json';
-const GENERATE_MAP_FILE = 'generate-map.json';
-const GENERATE_BACKLOG_FILE = 'generate-backlog.json';
+const {
+  ARTIFACT_RELATIVE_PATHS,
+  getArtifactPathCandidates,
+  getArtifactPaths
+} = require('./artifact-paths');
 
 function writeRunArtifacts(cwd, result) {
-  const artifactDir = path.join(cwd, ARTIFACT_DIR);
-  fs.mkdirSync(artifactDir, { recursive: true });
+  const artifactPaths = getArtifactPaths(cwd);
+  for (const artifactPath of [
+    artifactPaths.lastRun,
+    artifactPaths.failedTests,
+    artifactPaths.runDiff,
+    artifactPaths.runHistory,
+    artifactPaths.fixHandoff,
+    artifactPaths.contractDiff
+  ]) {
+    fs.mkdirSync(path.dirname(artifactPath), { recursive: true });
+  }
 
-  const runPath = path.join(artifactDir, LAST_RUN_FILE);
-  const previousRun = readJsonIfExists(runPath);
+  const runPath = artifactPaths.lastRun;
+  const previousRun = readJsonFromCandidates(getArtifactPathCandidates(cwd, 'lastRun'));
   const runId = createRunId(result.meta?.startedAt || new Date().toISOString());
   const comparison = buildRunComparison(previousRun, result);
   const relativePaths = {
-    lastRun: path.join(ARTIFACT_DIR, LAST_RUN_FILE),
-    failedTests: path.join(ARTIFACT_DIR, FAILED_TESTS_FILE),
-    runDiff: path.join(ARTIFACT_DIR, RUN_DIFF_FILE),
-    runHistory: path.join(ARTIFACT_DIR, RUN_HISTORY_FILE),
-    fixHandoff: path.join(ARTIFACT_DIR, FIX_HANDOFF_FILE),
-    contractDiff: path.join(ARTIFACT_DIR, CONTRACT_DIFF_FILE)
+    lastRun: ARTIFACT_RELATIVE_PATHS.lastRun,
+    failedTests: ARTIFACT_RELATIVE_PATHS.failedTests,
+    runDiff: ARTIFACT_RELATIVE_PATHS.runDiff,
+    runHistory: ARTIFACT_RELATIVE_PATHS.runHistory,
+    fixHandoff: ARTIFACT_RELATIVE_PATHS.fixHandoff,
+    contractDiff: ARTIFACT_RELATIVE_PATHS.contractDiff
   };
 
   result.artifacts = {
@@ -35,6 +39,7 @@ function writeRunArtifacts(cwd, result) {
   };
 
   fs.writeFileSync(runPath, `${stringifyArtifact(result)}\n`, 'utf8');
+  removeLegacyArtifact(cwd, 'lastRun');
 
   const failedTests = [];
   for (const fileEntry of result.files || []) {
@@ -61,19 +66,21 @@ function writeRunArtifacts(cwd, result) {
     failedTests
   };
 
-  const failuresPath = path.join(artifactDir, FAILED_TESTS_FILE);
+  const failuresPath = artifactPaths.failedTests;
   fs.writeFileSync(failuresPath, `${stringifyArtifact(failuresPayload)}\n`, 'utf8');
+  removeLegacyArtifact(cwd, 'failedTests');
 
   const diffPayload = {
     schema: 'themis.run.diff.v1',
     runId,
     ...comparison
   };
-  const diffPath = path.join(artifactDir, RUN_DIFF_FILE);
+  const diffPath = artifactPaths.runDiff;
   fs.writeFileSync(diffPath, `${stringifyArtifact(diffPayload)}\n`, 'utf8');
+  removeLegacyArtifact(cwd, 'runDiff');
 
-  const historyPath = path.join(artifactDir, RUN_HISTORY_FILE);
-  const previousHistory = readJsonIfExists(historyPath);
+  const historyPath = artifactPaths.runHistory;
+  const previousHistory = readJsonFromCandidates(getArtifactPathCandidates(cwd, 'runHistory'));
   const nextHistory = Array.isArray(previousHistory) ? previousHistory.slice(-19) : [];
   nextHistory.push({
     runId,
@@ -84,16 +91,18 @@ function writeRunArtifacts(cwd, result) {
     comparison
   });
   fs.writeFileSync(historyPath, `${stringifyArtifact(nextHistory)}\n`, 'utf8');
+  removeLegacyArtifact(cwd, 'runHistory');
 
   const contractDiffPayload = buildContractDiffPayload(result, {
     runId,
     createdAt: new Date().toISOString(),
     relativePaths
   });
-  const contractDiffPath = path.join(artifactDir, CONTRACT_DIFF_FILE);
+  const contractDiffPath = artifactPaths.contractDiff;
   fs.writeFileSync(contractDiffPath, `${stringifyArtifact(contractDiffPayload)}\n`, 'utf8');
+  removeLegacyArtifact(cwd, 'contractDiff');
 
-  const fixHandoffPath = path.join(artifactDir, FIX_HANDOFF_FILE);
+  const fixHandoffPath = artifactPaths.fixHandoff;
   let fixHandoff = null;
   if (failedTests.length > 0) {
     fixHandoff = buildFixHandoffPayload(cwd, result, {
@@ -102,7 +111,11 @@ function writeRunArtifacts(cwd, result) {
       relativePaths
     });
     fs.writeFileSync(fixHandoffPath, `${stringifyArtifact(fixHandoff)}\n`, 'utf8');
+    removeLegacyArtifact(cwd, 'fixHandoff');
+  } else if (fs.existsSync(fixHandoffPath)) {
+    fs.rmSync(fixHandoffPath, { force: true });
   }
+  removeLegacyArtifact(cwd, 'fixHandoff');
 
   return {
     runPath,
@@ -119,18 +132,19 @@ function writeRunArtifacts(cwd, result) {
 }
 
 function readFailedTestsArtifact(cwd) {
-  const failuresPath = path.join(cwd, ARTIFACT_DIR, FAILED_TESTS_FILE);
-  if (!fs.existsSync(failuresPath)) {
+  const candidates = getArtifactPathCandidates(cwd, 'failedTests');
+  const existingPath = candidates.find((candidate) => fs.existsSync(candidate));
+  if (!existingPath) {
     return null;
   }
 
-  const raw = fs.readFileSync(failuresPath, 'utf8');
+  const raw = fs.readFileSync(existingPath, 'utf8');
   let parsed;
   try {
     parsed = JSON.parse(raw);
   } catch (error) {
     return {
-      failuresPath,
+      failuresPath: existingPath,
       failedTests: [],
       parseError: String(error?.message || error)
     };
@@ -138,15 +152,49 @@ function readFailedTestsArtifact(cwd) {
 
   if (!parsed || !Array.isArray(parsed.failedTests)) {
     return {
-      failuresPath,
+      failuresPath: existingPath,
       failedTests: [],
       parseError: 'Invalid artifact shape: expected "failedTests" to be an array'
     };
   }
 
   return {
-    failuresPath,
+    failuresPath: existingPath,
     failedTests: parsed.failedTests
+  };
+}
+
+function readFixHandoffArtifact(cwd) {
+  const candidates = getArtifactPathCandidates(cwd, 'fixHandoff');
+  const existingPath = candidates.find((candidate) => fs.existsSync(candidate));
+  if (!existingPath) {
+    return null;
+  }
+
+  const raw = fs.readFileSync(existingPath, 'utf8');
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (error) {
+    return {
+      fixHandoffPath: existingPath,
+      items: [],
+      parseError: String(error?.message || error)
+    };
+  }
+
+  if (!parsed || !Array.isArray(parsed.items)) {
+    return {
+      fixHandoffPath: existingPath,
+      items: [],
+      parseError: 'Invalid artifact shape: expected "items" to be an array'
+    };
+  }
+
+  return {
+    fixHandoffPath: existingPath,
+    items: parsed.items,
+    payload: parsed
   };
 }
 
@@ -271,9 +319,19 @@ function readJsonIfExists(filePath) {
   }
 }
 
+function readJsonFromCandidates(filePaths) {
+  for (const filePath of filePaths) {
+    const parsed = readJsonIfExists(filePath);
+    if (parsed) {
+      return parsed;
+    }
+  }
+  return null;
+}
+
 function buildFixHandoffPayload(cwd, result, context) {
-  const generateMap = readJsonIfExists(path.join(cwd, ARTIFACT_DIR, GENERATE_MAP_FILE));
-  const generateBacklog = readJsonIfExists(path.join(cwd, ARTIFACT_DIR, GENERATE_BACKLOG_FILE));
+  const generateMap = readJsonFromCandidates(getArtifactPathCandidates(cwd, 'generateMap'));
+  const generateBacklog = readJsonFromCandidates(getArtifactPathCandidates(cwd, 'generateBacklog'));
   const mapEntries = Array.isArray(generateMap && generateMap.entries) ? generateMap.entries : [];
   const backlogItems = Array.isArray(generateBacklog && generateBacklog.items) ? generateBacklog.items : [];
   const byGeneratedTest = new Map();
@@ -341,8 +399,8 @@ function buildFixHandoffPayload(cwd, result, context) {
     summary,
     artifacts: {
       failedTests: context.relativePaths.failedTests,
-      generateMap: path.join(ARTIFACT_DIR, GENERATE_MAP_FILE),
-      generateBacklog: path.join(ARTIFACT_DIR, GENERATE_BACKLOG_FILE),
+      generateMap: ARTIFACT_RELATIVE_PATHS.generateMap,
+      generateBacklog: ARTIFACT_RELATIVE_PATHS.generateBacklog,
       fixHandoff: context.relativePaths.fixHandoff
     },
     items,
@@ -423,7 +481,7 @@ function buildFixCandidateFiles(entry, backlogMatch) {
 function buildFixNextActions(summary) {
   const actions = [];
   if (summary.generatedFailures > 0) {
-    actions.push('Review .themis/fix-handoff.json and start with source-drift items.');
+    actions.push(`Review ${ARTIFACT_RELATIVE_PATHS.fixHandoff} and start with source-drift items.`);
     actions.push('Regenerate narrow targets before rerunning the full suite.');
   }
   if (summary.generatedFailures === 0) {
@@ -436,11 +494,21 @@ function roundDuration(value) {
   return Math.round(Number(value || 0) * 100) / 100;
 }
 
+function removeLegacyArtifact(cwd, key) {
+  const [currentPath, ...legacyPaths] = getArtifactPathCandidates(cwd, key);
+  for (const legacyPath of legacyPaths) {
+    if (legacyPath !== currentPath && fs.existsSync(legacyPath)) {
+      fs.rmSync(legacyPath, { force: true });
+    }
+  }
+}
+
 function stringifyArtifact(value) {
   return JSON.stringify(value);
 }
 
 module.exports = {
   writeRunArtifacts,
-  readFailedTestsArtifact
+  readFailedTestsArtifact,
+  readFixHandoffArtifact
 };

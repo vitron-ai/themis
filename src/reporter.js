@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const { buildStabilityReport } = require('./stability');
+const { ARTIFACT_RELATIVE_PATHS, resolveArtifactPath } = require('./artifact-paths');
 
 const REPORT_LEXICONS = {
   classic: {
@@ -28,6 +29,14 @@ const REPORT_LEXICONS = {
     fileSkipWord: 'deferred'
   }
 };
+const AGENT_ARTIFACT_PATHS = Object.freeze({
+  lastRun: ARTIFACT_RELATIVE_PATHS.lastRun,
+  failedTests: ARTIFACT_RELATIVE_PATHS.failedTests,
+  runDiff: ARTIFACT_RELATIVE_PATHS.runDiff,
+  runHistory: ARTIFACT_RELATIVE_PATHS.runHistory,
+  fixHandoff: ARTIFACT_RELATIVE_PATHS.fixHandoff,
+  contractDiff: ARTIFACT_RELATIVE_PATHS.contractDiff
+});
 
 function printSpec(result, options = {}) {
   const lexicon = resolveLexicon(options.lexicon);
@@ -62,14 +71,7 @@ function printAgent(result) {
   const failureClusters = clusterFailures(failures);
   const stability = result.stability || buildStabilityReport([result]);
   const comparison = result.artifacts?.comparison || buildAgentComparison(result, failures);
-  const artifactPaths = result.artifacts?.paths || {
-    lastRun: '.themis/last-run.json',
-    failedTests: '.themis/failed-tests.json',
-    runDiff: '.themis/run-diff.json',
-    runHistory: '.themis/run-history.json',
-    fixHandoff: '.themis/fix-handoff.json',
-    contractDiff: '.themis/contract-diff.json'
-  };
+  const artifactPaths = result.artifacts?.paths || AGENT_ARTIFACT_PATHS;
 
   const payload = {
     schema: 'themis.agent.result.v1',
@@ -86,9 +88,9 @@ function printAgent(result) {
     hints: {
       rerunFailed: 'npx themis test --rerun-failed',
       targetedRerun: 'npx themis test --match "<regex>"',
-      diffLastRun: 'cat .themis/run-diff.json',
-      repairGenerated: 'cat .themis/fix-handoff.json',
-      reviewContracts: 'cat .themis/contract-diff.json'
+      diffLastRun: `cat ${ARTIFACT_RELATIVE_PATHS.runDiff}`,
+      repairGenerated: 'npx themis test --fix',
+      reviewContracts: `cat ${ARTIFACT_RELATIVE_PATHS.contractDiff}`
     }
   };
 
@@ -483,7 +485,7 @@ function fnv1a32(input) {
 
 function resolveHtmlOutputPath(cwd, outputPath) {
   if (!outputPath) {
-    return path.join(cwd, '.themis', 'report.html');
+    return resolveArtifactPath(cwd, 'htmlReport');
   }
   if (path.isAbsolute(outputPath)) {
     return outputPath;
