@@ -1,6 +1,6 @@
 {
   "name": "@vitronai/themis",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "Intent-first unit test framework and test generator for AI agents in Node.js and TypeScript",
   "license": "MIT",
   "author": "Vitron AI",
