@@ -4,6 +4,11 @@ All notable changes to this project are documented in this file.
 
 ## Unreleased
 
+## 0.1.15 - 2026-03-27
+
+- Added a direct in-sidebar `Quick Actions` group plus an `Artifact Files` drawer to the in-repo VS Code extension scaffold so core Themis commands and raw artifact navigation remain reachable even when the VS Code view toolbar overflows.
+- Improved `themis generate` onboarding and error guidance so downstream docs/templates now refer to `npx themis generate <source-root>`, and missing `src/` targets surface corrective suggestions for likely repo layouts such as `app/`, `pages/`, or repo-root scans.
+
 ## 0.1.14 - 2026-03-27
 
 - Added first-party `npx themis test --fix` support so generated-test repair loops can apply fix-handoff autofixes, tighten hints when needed, and rerun the suite directly from the CLI.

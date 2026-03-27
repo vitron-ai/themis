@@ -298,7 +298,7 @@ Short version:
 - Migration proof job runs `npm run proof:migration` against checked-in Jest/Vitest fixtures for basic suites, table tests, RTL/jsdom flows, timers, module mocking, and a context/provider-heavy RTL example, then uploads the resulting migration reports plus Themis run artifacts as evidence.
 - Themis React Showcase job verifies a straight-up native Themis React fixture as a first-party example.
 - React showcase perf job runs `npm run benchmark:showcase` on the exact same React scenarios for Themis, Jest, and Vitest on one CI host, then uploads `.themis/benchmarks/showcase-comparison/perf-summary.{json,md}` so the relative timing claim is backed by one comparable artifact.
-- Release `0.1.14` packages this expanded proof lane so every CI run now proves the provider-heavy example alongside the earlier fixtures.
+- Release `0.1.15` packages this expanded proof lane so every CI run now proves the provider-heavy example alongside the earlier fixtures.
 
 ## Agent Guide
 
