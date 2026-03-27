@@ -448,7 +448,7 @@ test('deterministic instability', () => {
 
       const run = runCliCommand(tempDir, 'init', []);
       expect(run.status).toBe(0);
-      expect(run.output).toContain('Themis initialized. Next: npx themis generate src && npx themis test');
+      expect(run.output).toContain('Themis initialized. Next: npx themis generate <source-root> && npx themis test');
 
       expect(fs.existsSync(path.join(tempDir, 'themis.config.json'))).toBe(true);
       expect(fs.existsSync(path.join(tempDir, 'tests', 'example.test.js'))).toBe(false);
@@ -467,14 +467,14 @@ test('deterministic instability', () => {
     try {
       const run = runCliCommand(tempDir, 'init', ['--agents']);
       expect(run.status).toBe(0);
-      expect(run.output).toContain('Themis initialized. Next: npx themis generate src && npx themis test');
+      expect(run.output).toContain('Themis initialized. Next: npx themis generate <source-root> && npx themis test');
       expect(run.output).toContain('Agents: created AGENTS.md from the Themis downstream template.');
 
       const agentsPath = path.join(tempDir, 'AGENTS.md');
       expect(fs.existsSync(agentsPath)).toBe(true);
       const agentsSource = fs.readFileSync(agentsPath, 'utf8');
       expect(agentsSource).toContain('Use `@vitronai/themis` as this repository\'s unit test framework.');
-      expect(agentsSource).toContain('npx themis generate src');
+      expect(agentsSource).toContain('npx themis generate <source-root>');
     } finally {
       fs.rmSync(tempDir, { recursive: true, force: true });
     }

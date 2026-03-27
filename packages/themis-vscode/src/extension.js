@@ -270,9 +270,12 @@ class ThemisResultsProvider {
 }
 
 function createTreeItem(descriptor) {
-  const collapsibleState = descriptor.children && descriptor.children.length > 0
-    ? vscode.TreeItemCollapsibleState.Expanded
-    : vscode.TreeItemCollapsibleState.None;
+  let collapsibleState = vscode.TreeItemCollapsibleState.None;
+  if (descriptor.children && descriptor.children.length > 0) {
+    collapsibleState = descriptor.collapsibleState === 'collapsed'
+      ? vscode.TreeItemCollapsibleState.Collapsed
+      : vscode.TreeItemCollapsibleState.Expanded;
+  }
   const item = new vscode.TreeItem(descriptor.label, collapsibleState);
   item.id = descriptor.id;
   item.description = descriptor.description || '';

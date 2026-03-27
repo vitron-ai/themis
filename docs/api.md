@@ -11,11 +11,11 @@ Use it in a repo with:
 ```bash
 npm install -D @vitronai/themis
 npx themis init --agents
-npx themis generate src
+npx themis generate <source-root>
 npx themis test
 ```
 
-`npx themis generate src` writes generated tests under `__themis__/tests` by default.
+Use `src` for conventional source trees and `app` for Next App Router repos. `npx themis generate <source-root>` writes generated tests under `__themis__/tests` by default.
 
 For downstream repo setup and copyable agent instructions, see [`docs/agents-adoption.md`](agents-adoption.md) and [`templates/AGENTS.themis.md`](../templates/AGENTS.themis.md).
 For machine-readable agent adoption metadata, see [`themis.ai.json`](../themis.ai.json).
@@ -59,7 +59,7 @@ Themis uses generation and explicit assertions as a contract-first alternative t
 
 Default behavior:
 
-- input directory: `src`
+- input directory when omitted: `src`
 - output directory: `__themis__/tests`
 - generated files mirror the scanned source tree with `*.generated.test.ts` for TS/TSX sources and `*.generated.test.js` for JS/JSX sources
 - generated TypeScript suites emit `import` syntax so downstream lint and ESM rules do not reject Themis output for using `require(...)`
@@ -76,6 +76,8 @@ Default behavior:
 - `.themis/generate/generate-last.json` stores the full machine-readable generate payload
 - `.themis/generate/generate-handoff.json` stores a compact prompt-ready handoff payload for agents
 - `.themis/generate/generate-backlog.json` stores unresolved skips, conflicts, and confidence debt with suggested remediation
+
+If `src/` does not exist but the repo uses `app/` or `pages/`, pass that path explicitly. Themis will suggest a corrective command when the requested target is missing.
 
 ## `themis generate` options
 

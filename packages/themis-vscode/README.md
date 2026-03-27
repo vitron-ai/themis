@@ -5,7 +5,9 @@ This extension is the editor-side companion for Themis.
 Current MVP features:
 
 - view the latest Themis summary in a sidebar
+- access the core run/rerun/refresh/report commands from an in-view Quick Actions group when the VS Code title bar overflows
 - list current failures and jump into the source file
+- inspect raw `.themis/**` JSON outputs from an Artifact Files drawer in the sidebar
 - rerun the suite
 - rerun failed tests
 - accept reviewed contract drift with `Themis: Update Contracts`

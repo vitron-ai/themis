@@ -373,20 +373,34 @@ describe('vscode extension scaffold', () => {
       expect(state.generation.hintFiles.created).toEqual([path.join(workspaceRoot, 'src/components/CounterButton.themis.json')]);
 
       const tree = buildResultsTree(state);
+      const quickActions = tree.find((entry) => entry.id === 'quick-actions');
       const verdict = tree.find((entry) => entry.id === 'verdict');
       const comparison = tree.find((entry) => entry.id === 'comparison');
       const report = tree.find((entry) => entry.id === 'report');
+      const artifactFiles = tree.find((entry) => entry.id === 'artifact-files');
       const contracts = tree.find((entry) => entry.id === 'contracts');
       const migration = tree.find((entry) => entry.id === 'migration');
       const generation = tree.find((entry) => entry.id === 'generation');
       const failuresGroup = tree.find((entry) => entry.id === 'failures');
 
+      expect(quickActions.label).toBe('Quick Actions');
+      expect(quickActions.color).toBe('themis.color.insight');
+      expect(quickActions.children[0].command.id).toBe('themis.runTests');
+      expect(quickActions.children[1].command.id).toBe('themis.rerunFailed');
+      expect(quickActions.children[2].command.id).toBe('themis.openHtmlReport');
+      expect(quickActions.children[3].command.id).toBe('themis.updateContracts');
+      expect(quickActions.children[4].command.id).toBe('themis.runMigrationCodemods');
+      expect(quickActions.children[5].command.id).toBe('themis.refreshResults');
       expect(verdict.label).toBe('Action Needed');
       expect(verdict.color).toBe('themis.color.fail');
       expect(comparison.label).toBe('Run diff +1 failures • +4.1ms');
       expect(comparison.color).toBe('themis.color.review');
       expect(report.label).toBe('Open HTML report');
       expect(report.color).toBe('themis.color.insight');
+      expect(artifactFiles.label).toBe('Artifact Files (7)');
+      expect(artifactFiles.color).toBe('themis.color.insight');
+      expect(artifactFiles.children[0].command.id).toBe('themis.openArtifactFile');
+      expect(artifactFiles.children[0].label).toBe('Run artifact: last-run.json');
       expect(contracts.label).toBe('Contract Review (1)');
       expect(contracts.color).toBe('themis.color.review');
       expect(contracts.children[0].command.id).toBe('themis.updateContracts');
@@ -423,7 +437,11 @@ describe('vscode extension scaffold', () => {
       expect(state.parseErrors[0].filePath.endsWith(path.join('.themis', 'runs', 'last-run.json'))).toBe(true);
 
       const tree = buildResultsTree(state);
+      const quickActions = tree.find((entry) => entry.id === 'quick-actions');
+      const artifactFiles = tree.find((entry) => entry.id === 'artifact-files');
       const parseErrorGroup = tree.find((entry) => entry.id === 'parse-errors');
+      expect(Boolean(quickActions)).toBe(true);
+      expect(Boolean(artifactFiles)).toBe(true);
       expect(Boolean(parseErrorGroup)).toBe(true);
       expect(parseErrorGroup.children).toHaveLength(1);
     });

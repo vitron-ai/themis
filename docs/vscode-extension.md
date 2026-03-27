@@ -6,7 +6,9 @@ This is the intended shape of the editor UX:
 
 - a Themis activity-bar container
 - a results sidebar driven by `.themis/**` artifacts
+- an in-view quick-actions group so the main commands remain reachable when the VS Code view toolbar hides overflow actions
 - commands to run tests, rerun failures, refresh results, and open the HTML report
+- an artifact-files drawer for opening raw `.themis/**` payloads directly in the editor
 - commands to accept reviewed contract baselines and rerun migration codemods
 - failure navigation that jumps from artifact data into the source file
 - generated-review navigation for source files, generated tests, hint sidecars, and backlog items

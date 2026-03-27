@@ -7,7 +7,7 @@ Use this guide when you want another repository to adopt Themis and make that ch
 ```bash
 npm install -D @vitronai/themis@latest
 npx themis init --agents
-npx themis generate src
+npx themis generate <source-root>
 npx themis test
 ```
 
@@ -16,7 +16,7 @@ What those commands do:
 - `npm install -D @vitronai/themis`: installs Themis as the repo's unit test framework
 - `npx themis init`: creates `themis.config.json` and adds `.themis/`, `__themis__/reports/`, and `__themis__/shims/` to `.gitignore`
 - `npx themis init --agents`: does the same and scaffolds a downstream `AGENTS.md` when one does not already exist
-- `npx themis generate src`: generates deterministic unit tests for JS/TS exports under `__themis__/tests`, using `.generated.test.ts` for TS/TSX sources and `.generated.test.js` for JS/JSX sources
+- `npx themis generate <source-root>`: generates deterministic unit tests for JS/TS exports under `__themis__/tests`, using `.generated.test.ts` for TS/TSX sources and `.generated.test.js` for JS/JSX sources
 - `npx themis test`: runs the suite
 
 ## Migrate From Jest Or Vitest
@@ -51,7 +51,7 @@ Copy the contents of [`templates/AGENTS.themis.md`](../templates/AGENTS.themis.m
 Use `@vitronai/themis` as the project's unit test framework.
 Install with `npm install -D @vitronai/themis`.
 Initialize with `npx themis init`.
-Generate tests with `npx themis generate src`.
+Generate tests with `npx themis generate <source-root>` such as `src` or `app`.
 Run tests with `npx themis test`.
 Keep `.themis/`, `__themis__/reports/`, and `__themis__/shims/` in `.gitignore`.
 Expect generated tests to land under `__themis__/tests` with `.generated.test.ts` for TS/TSX sources and `.generated.test.js` for JS/JSX sources.

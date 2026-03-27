@@ -23,7 +23,7 @@ async function main(argv) {
   if (command === 'init') {
     const initFlags = parseInitFlags(argv.slice(1));
     const initResult = runInit(cwd, initFlags);
-    console.log('Themis initialized. Next: npx themis generate src && npx themis test');
+    console.log('Themis initialized. Next: npx themis generate <source-root> && npx themis test');
     if (initFlags.agents) {
       if (initResult && initResult.path && initResult.created) {
         console.log(`Agents: created ${formatCliPath(cwd, initResult.path)} from the Themis downstream template.`);

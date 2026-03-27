@@ -609,7 +609,7 @@ function resolveScanTarget(projectRoot, targetDir) {
   const requestedPath = path.resolve(projectRoot, targetDir);
 
   if (!fs.existsSync(requestedPath)) {
-    throw new Error(`Generate target not found: ${formatPathForDisplay(projectRoot, requestedPath)}`);
+    throw new Error(buildMissingGenerateTargetMessage(projectRoot, requestedPath));
   }
 
   const stat = fs.statSync(requestedPath);
@@ -630,6 +630,100 @@ function resolveScanTarget(projectRoot, targetDir) {
     isFile: true,
     mirrorBase: inferMirrorBase(projectRoot, requestedPath)
   };
+}
+
+function buildMissingGenerateTargetMessage(projectRoot, requestedPath) {
+  const requestedDisplay = formatPathForDisplay(projectRoot, requestedPath);
+  const suggestions = collectGenerateTargetSuggestions(projectRoot, requestedPath);
+
+  if (suggestions.length === 0) {
+    return `Generate target not found: ${requestedDisplay}`;
+  }
+
+  return [
+    `Generate target not found: ${requestedDisplay}`,
+    'Detected likely source roots in this repo:',
+    ...suggestions.map((suggestion) => `- ${suggestion.label}: npx themis generate ${suggestion.commandTarget}`)
+  ].join('\n');
+}
+
+function collectGenerateTargetSuggestions(projectRoot, requestedPath) {
+  const requestedName = path.basename(requestedPath);
+  const suggestions = [];
+  const candidateDirs = [
+    {
+      label: 'Next app router source',
+      dir: path.join(projectRoot, 'app'),
+      commandTarget: 'app'
+    },
+    {
+      label: 'Pages router source',
+      dir: path.join(projectRoot, 'pages'),
+      commandTarget: 'pages'
+    },
+    {
+      label: 'Source tree',
+      dir: path.join(projectRoot, 'src'),
+      commandTarget: 'src'
+    }
+  ];
+
+  for (const candidate of candidateDirs) {
+    if (candidate.dir === requestedPath || path.basename(candidate.dir) === requestedName) {
+      continue;
+    }
+    if (!containsEligibleSourceFiles(candidate.dir)) {
+      continue;
+    }
+    suggestions.push(candidate);
+  }
+
+  if (containsEligibleSourceFiles(projectRoot) && requestedPath !== projectRoot) {
+    suggestions.push({
+      label: 'Repo root scan',
+      dir: projectRoot,
+      commandTarget: '.'
+    });
+  }
+
+  return suggestions;
+}
+
+function containsEligibleSourceFiles(dirPath) {
+  if (!dirPath || !fs.existsSync(dirPath)) {
+    return false;
+  }
+
+  const stat = fs.statSync(dirPath);
+  if (stat.isFile()) {
+    return isEligibleSourceFile(dirPath);
+  }
+  if (!stat.isDirectory()) {
+    return false;
+  }
+
+  const stack = [dirPath];
+  while (stack.length > 0) {
+    const current = stack.pop();
+    const entries = fs.readdirSync(current, { withFileTypes: true });
+    for (const entry of entries) {
+      if (entry.name === 'node_modules' || entry.name === '.git' || entry.name === '.themis' || entry.name === '__themis__') {
+        continue;
+      }
+
+      const fullPath = path.join(current, entry.name);
+      if (entry.isDirectory()) {
+        stack.push(fullPath);
+        continue;
+      }
+
+      if (entry.isFile() && isEligibleSourceFile(fullPath)) {
+        return true;
+      }
+    }
+  }
+
+  return false;
 }
 
 function inferMirrorBase(projectRoot, filePath) {

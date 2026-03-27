@@ -618,6 +618,19 @@ describe('code scan generation', () => {
     );
   });
 
+  test('suggests app generation when src is missing in a Next app repo', async () => {
+    await withProjectFixture(
+      createNextAppFixture(),
+      async ({ tempDir }) => {
+        const generated = runCli(tempDir, ['generate', 'src']);
+        expect(generated.status).toBe(1);
+        expect(generated.output).toContain('Generate target not found: src');
+        expect(generated.output).toContain('Detected likely source roots in this repo:');
+        expect(generated.output).toContain('Next app router source: npx themis generate app');
+      }
+    );
+  });
+
   test('uses project-level fixture and mock providers from themis.generate.js', async () => {
     await withProjectFixture(
       createProviderDrivenFixture(),

@@ -18,9 +18,11 @@ If you are a human or AI agent adopting Themis in another repo, use:
 ```bash
 npm install -D @vitronai/themis@latest
 npx themis init --agents
-npx themis generate src
+npx themis generate <source-root>
 npx themis test
 ```
+
+Use `src` for conventional source trees and `app` for Next App Router repos.
 
 - `npx themis init --agents` writes `themis.config.json`, updates `.gitignore`, and scaffolds a downstream `AGENTS.md` when one does not already exist.
 - machine-readable agent manifest: [`themis.ai.json`](themis.ai.json)
@@ -93,7 +95,7 @@ Themis is built for modern Node.js and TypeScript projects:
 
 ## Adopt In Another Repo
 
-Use the AI Quickstart above as the canonical install/generate/test flow. Generated files land under `__themis__/tests` by default. TypeScript-generated tests are emitted as strict-typecheckable artifacts and self-reference Themis globals so downstream TS projects do not need a special `types` override just to compile generated output.
+Use the AI Quickstart above as the canonical install/generate/test flow. Replace `<source-root>` with the repo's actual source tree such as `src` or `app`. Generated files land under `__themis__/tests` by default. TypeScript-generated tests are emitted as strict-typecheckable artifacts and self-reference Themis globals so downstream TS projects do not need a special `types` override just to compile generated output.
 TypeScript-generated suites use `import` syntax so downstream ESLint and ESM-style rules do not flag Themis output as legacy `require(...)` code.
 
 If another repo wants its agents to reliably choose Themis, put the framework choice directly in that repo's agent instructions instead of assuming agents will infer it from package metadata alone.

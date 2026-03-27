@@ -137,6 +137,7 @@ function buildResultsTree(state) {
 
   if (!state.hasArtifacts) {
     return [
+      buildQuickActionsGroup(state),
       {
         id: 'no-results',
         kind: 'action',
@@ -151,6 +152,7 @@ function buildResultsTree(state) {
   }
 
   const items = [
+    buildQuickActionsGroup(state),
     {
       id: 'verdict',
       kind: 'summary',
@@ -247,6 +249,8 @@ function buildResultsTree(state) {
     });
   }
 
+  items.push(buildArtifactFilesGroup(state));
+
   items.push({
     id: 'failures',
     kind: 'group',
@@ -294,6 +298,131 @@ function buildResultsTree(state) {
   });
 
   return items;
+}
+
+function buildQuickActionsGroup(state) {
+  const actions = [
+    {
+      id: 'quick-action-run-tests',
+      kind: 'action',
+      label: 'Run Tests',
+      description: 'Run the full Themis suite',
+      tooltip: 'Run `npx themis test` in the current workspace.',
+      color: THEME_COLORS.insight,
+      icon: 'play',
+      command: { id: 'themis.runTests' }
+    },
+    {
+      id: 'quick-action-rerun-failed',
+      kind: 'action',
+      label: 'Rerun Failed',
+      description: state.failures.length > 0 ? `${state.failures.length} current failures` : 'Use the latest failed-tests artifact',
+      tooltip: 'Run `npx themis test --rerun-failed` in the current workspace.',
+      color: state.failures.length > 0 ? THEME_COLORS.fail : THEME_COLORS.muted,
+      icon: 'debug-rerun',
+      command: { id: 'themis.rerunFailed' }
+    },
+    {
+      id: 'quick-action-open-report',
+      kind: 'action',
+      label: 'Open HTML Report',
+      description: state.reportExists ? path.basename(state.reportPath || findExistingPath(state.paths.report) || '') : 'Generate the report first',
+      tooltip: state.reportExists
+        ? 'Open the interactive Themis HTML verdict report.'
+        : `Run \`npx themis test --reporter html\` to generate ${ARTIFACT_RELATIVE_PATHS.htmlReport}.`,
+      color: state.reportExists ? THEME_COLORS.insight : THEME_COLORS.muted,
+      icon: 'globe',
+      command: state.reportExists ? { id: 'themis.openHtmlReport' } : null
+    },
+    {
+      id: 'quick-action-update-contracts',
+      kind: 'action',
+      label: 'Update Contracts',
+      description: state.contracts ? `${state.contracts.summary.drifted} drifted` : 'No contract diff loaded',
+      tooltip: 'Run `npx themis test --update-contracts` in the current workspace.',
+      color: state.contracts && state.contracts.summary.drifted > 0 ? THEME_COLORS.review : THEME_COLORS.muted,
+      icon: 'symbol-constant',
+      command: { id: 'themis.updateContracts' }
+    },
+    {
+      id: 'quick-action-run-migration',
+      kind: 'action',
+      label: 'Run Migration Codemods',
+      description: state.migration ? `${state.migration.summary.matchedFiles} matched suites` : 'Use detected or default source',
+      tooltip: 'Run `npx themis migrate <source> --convert` in the current workspace.',
+      color: state.migration ? THEME_COLORS.review : THEME_COLORS.muted,
+      icon: 'git-pull-request',
+      command: { id: 'themis.runMigrationCodemods' }
+    },
+    {
+      id: 'quick-action-refresh',
+      kind: 'action',
+      label: 'Refresh Results',
+      description: 'Re-read .themis artifacts',
+      tooltip: 'Refresh the Themis sidebar from the latest artifact files.',
+      color: THEME_COLORS.muted,
+      icon: 'refresh',
+      command: { id: 'themis.refreshResults' }
+    }
+  ];
+
+  return {
+    id: 'quick-actions',
+    kind: 'group',
+    label: 'Quick Actions',
+    description: 'Run, rerun, refresh, and review',
+    tooltip: 'Core Themis commands, available even when the view toolbar overflows.',
+    color: THEME_COLORS.insight,
+    icon: 'tools',
+    collapsibleState: 'expanded',
+    children: actions
+  };
+}
+
+function buildArtifactFilesGroup(state) {
+  const artifactItems = [
+    buildExistingArtifactFileItem('artifact-last-run', 'Run artifact', state.paths && state.paths.lastRun, 'Open the latest .themis/runs/last-run.json payload.'),
+    buildExistingArtifactFileItem('artifact-failed-tests', 'Failed tests', state.paths && state.paths.failedTests, 'Open the latest .themis/runs/failed-tests.json payload.'),
+    buildExistingArtifactFileItem('artifact-run-diff', 'Run diff', state.paths && state.paths.runDiff, 'Open the latest .themis/diffs/run-diff.json payload.'),
+    buildExistingArtifactFileItem('artifact-contract-diff', 'Contract diff', state.paths && state.paths.contractDiff, 'Open the latest .themis/diffs/contract-diff.json payload.'),
+    buildExistingArtifactFileItem('artifact-migration-report', 'Migration report', state.paths && state.paths.migrationReport, 'Open the latest .themis/migration/migration-report.json payload.'),
+    buildExistingArtifactFileItem('artifact-generate-last', 'Generate result', state.paths && state.paths.generateLast, 'Open the latest .themis/generate/generate-last.json payload.'),
+    buildExistingArtifactFileItem('artifact-generate-map', 'Generate map', state.paths && state.paths.generateMap, 'Open the latest .themis/generate/generate-map.json payload.'),
+    buildExistingArtifactFileItem('artifact-generate-backlog', 'Generate backlog', state.paths && state.paths.generateBacklog, 'Open the latest .themis/generate/generate-backlog.json payload.'),
+    buildExistingArtifactFileItem('artifact-generate-handoff', 'Generate handoff', state.paths && state.paths.generateHandoff, 'Open the latest .themis/generate/generate-handoff.json payload.')
+  ].filter(Boolean);
+
+  return {
+    id: 'artifact-files',
+    kind: 'group',
+    label: `Artifact Files (${artifactItems.length})`,
+    description: artifactItems.length > 0 ? 'Open raw Themis outputs' : 'No artifact files found yet',
+    tooltip: 'Raw Themis artifacts for direct inspection inside the editor.',
+    color: artifactItems.length > 0 ? THEME_COLORS.insight : THEME_COLORS.muted,
+    icon: 'folder-library',
+    collapsibleState: 'collapsed',
+    children: artifactItems.length > 0
+      ? artifactItems
+      : [
+          {
+            id: 'artifact-files-empty',
+            kind: 'info',
+            label: 'No artifact files tracked yet',
+            description: '',
+            tooltip: 'Run Themis to generate .themis artifacts for direct inspection.',
+            color: THEME_COLORS.muted,
+            icon: 'info'
+          }
+        ]
+  };
+}
+
+function buildExistingArtifactFileItem(id, labelPrefix, filePathOrCandidates, tooltip) {
+  const filePath = findExistingPath(filePathOrCandidates);
+  if (!filePath || !fs.existsSync(filePath)) {
+    return null;
+  }
+  return buildOpenFileItem(id, labelPrefix, filePath, tooltip);
 }
 
 function extractFailureLocation(failure) {
