@@ -53,7 +53,7 @@ All notable changes to this project are documented in this file.
 - Added provider-driven `componentFlows` plus richer `applyMocks(...)` context so generated React/Next adapters can emit async behavioral flow contracts with mocked fetch/timer control.
 - Added provider preset wrappers for router, React Query, Zustand, and Redux-style app patterns in `themis.generate.js` / `themis.generate.cjs`, plus richer inferred async input/submit/loading/success component flows.
 - Added an incremental `themis migrate <jest|vitest>` scaffold and runtime compatibility imports for `@jest/globals`, `vitest`, and `@testing-library/react`.
-- Added a zero-IPC `--isolation in-process` test mode plus `--cache` for faster local rerun loops and in-process watch execution.
+- Added a zero IPC `--isolation in-process` test mode plus `--cache` for faster local rerun loops and in-process watch execution.
 - Deepened provider/app adapter presets with Next navigation and auth/session wrapper metadata alongside the existing router, React Query, Zustand, and Redux presets.
 - Strengthened failure-to-fix automation with richer `.themis/fix-handoff.json` entries (`repairStrategy`, `candidateFiles`, `autofixCommand`) and added `.themis/migration-report.json` for migration inventories and next actions.
 - Extended provider/app presets with route history/state, auth permissions/roles, query status/query keys, and store selector/action metadata for richer generated UI wrappers.

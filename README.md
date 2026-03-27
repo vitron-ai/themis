@@ -184,7 +184,7 @@ Every generation run also writes:
 - `.themis/generate/generate-handoff.json`: a compact agent handoff artifact with prompt-ready next actions
 - `.themis/generate/generate-backlog.json`: unresolved skips, conflicts, and confidence debt with suggested fixes
 
-Local test loops can also opt into a zero-IPC execution path:
+Local test loops can also opt into a zero IPC execution path:
 
 - `npx themis test --isolation in-process`: executes suites in-process instead of worker mode
 - `npx themis test --watch --isolation in-process --cache`: keeps a fast local rerun loop with file-level result caching
@@ -267,7 +267,7 @@ Short version:
 - `npx themis test --reporter html`: generates a next-gen HTML report file.
 - `npx themis test --reporter html --html-output reports/themis.html`: writes HTML report to a custom path.
 - `npx themis test --watch`: reruns the suite when watched project files change.
-- `npx themis test --watch --isolation in-process --cache`: runs a zero-IPC cached local loop for fast edit/rerun cycles.
+- `npx themis test --watch --isolation in-process --cache`: runs a zero IPC cached local loop for fast edit/rerun cycles.
 - `npx themis test --workers 8`: overrides worker count (positive integer).
 - `npx themis test --isolation in-process`: runs test files in-process instead of worker processes.
 - `npx themis test --cache`: enables file-level result caching for in-process local loops.

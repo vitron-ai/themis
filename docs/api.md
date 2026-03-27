@@ -199,7 +199,7 @@ Migration options:
 | `--reporter spec\|next\|json\|agent\|html` | string | Explicit reporter override. |
 | `--workers <N>` | positive integer | Override worker count. Invalid values fail fast. |
 | `--environment node\|jsdom` | string | Override the configured test environment. |
-| `--isolation worker\|in-process` | string | Select worker isolation or a zero-IPC in-process execution mode. |
+| `--isolation worker\|in-process` | string | Select worker isolation or a zero IPC in-process execution mode. |
 | `--cache` | flag | Enable file-level result caching for in-process local loops. |
 | `--update-contracts` | flag | Accept updated `captureContract(...)` baselines for the selected tests. |
 | `-w`, `--watch` | flag | Rerun the selected suite when watched project files change. |
