@@ -601,16 +601,23 @@ describe('code scan generation', () => {
         expect(payload.summary.generated).toBe(5);
         const componentTestPath = resolvePath('__themis__', 'tests', 'components', 'GreetingButton.generated.test.ts');
         const componentSource = fs.readFileSync(componentTestPath, 'utf8');
+        expect(componentSource.includes("import path from 'path';")).toBe(true);
+        expect(componentSource.includes('@vitronai/themis/contract-runtime')).toBe(true);
+        expect(componentSource.includes('return import(SOURCE_IMPORT);')).toBe(true);
+        expect(componentSource.includes('const path = require(')).toBe(false);
         expect(componentSource).toContain('PROJECT_PROVIDER_IMPORT');
         expect(componentSource).toContain('applyProjectProviderMocks');
         expect(componentSource).toContain('applyProjectProviderRender');
         expect(componentSource.includes('toMatchSnapshot')).toBe(false);
 
-        const run = runCli(tempDir, ['test', '--json']);
-        expect(run.status).toBe(0);
-        const runPayload = JSON.parse(run.output);
-        expect(runPayload.summary.failed).toBe(0);
-        const allTestNames = runPayload.files.flatMap((file) => file.tests.map((test) => test.fullName));
+        const result = await runTests([componentTestPath], {
+          cwd: tempDir,
+          environment: 'jsdom',
+          maxWorkers: 1,
+          tsconfigPath: 'tsconfig.json'
+        });
+        expect(result.summary.failed).toBe(0);
+        const allTestNames = result.files.flatMap((file) => file.tests.map((test) => test.fullName));
         expect(allTestNames.some((name) => name.includes('GreetingButton dom state contract'))).toBe(true);
       }
     );

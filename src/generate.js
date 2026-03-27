@@ -3232,31 +3232,27 @@ function renderGeneratedTest({ projectRoot, helperFile, outputFile, analysis }) 
   const helperImport = helperFile;
   const sourceImport = normalizeRelativeModule(path.relative(path.dirname(outputFile), analysis.file));
   const sourceAbsolutePath = normalizePath(path.relative(path.dirname(outputFile), analysis.file));
+  const useImportSyntax = path.extname(outputFile).toLowerCase() === '.ts';
   const expectedExportContracts = buildExpectedExportContracts(analysis);
   const providerImport = analysis.projectProviderFile
     ? normalizeRelativeModule(path.relative(path.dirname(outputFile), analysis.projectProviderFile))
     : null;
   const suiteName = `generated contract > ${relativeSourcePath}`;
   const exactExportBlock = analysis.exactExports
-    ? `test('matches scanned export names', () => {\n    const moduleExports = loadModuleExports();\n    expect(listExportNames(moduleExports)).toEqual(SCANNED_EXPORTS);\n  });`
-    : `test('exposes runtime exports after scan', () => {\n    const moduleExports = loadModuleExports();\n    expect(listExportNames(moduleExports).length).toBeTruthy();\n  });`;
+    ? `test('matches scanned export names', async () => {\n    const moduleExports = await loadModuleExports();\n    expect(listExportNames(moduleExports)).toEqual(SCANNED_EXPORTS);\n  });`
+    : `test('exposes runtime exports after scan', async () => {\n    const moduleExports = await loadModuleExports();\n    expect(listExportNames(moduleExports).length).toBeTruthy();\n  });`;
+  const runtimePrelude = useImportSyntax
+    ? renderGeneratedImportPrelude({ helperImport, providerImport })
+    : renderGeneratedRequirePrelude({ helperImport });
+  const providerLoadExpression = useImportSyntax ? 'PROJECT_PROVIDER_MODULE' : 'require(PROJECT_PROVIDER_IMPORT)';
+  const loadModuleBody = useImportSyntax
+    ? '  assertSourceFreshness(SOURCE_FILE, SOURCE_HASH, SOURCE_PATH, REGENERATE_COMMAND);\n  return import(SOURCE_IMPORT);'
+    : '  assertSourceFreshness(SOURCE_FILE, SOURCE_HASH, SOURCE_PATH, REGENERATE_COMMAND);\n  const resolved = require.resolve(SOURCE_IMPORT);\n  delete require.cache[resolved];\n  return require(SOURCE_IMPORT);';
 
   return `${GENERATED_MARKER}
 // Source: ${relativeSourcePath}
 
-const path = require('path');
-const {
-  listExportNames,
-  buildModuleContract,
-  readExportValue,
-  normalizeBehaviorValue,
-  normalizeRouteResult,
-  createRequestFromSpec,
-  assertSourceFreshness,
-  runComponentInteractionContract,
-  runComponentBehaviorFlowContract,
-  runHookInteractionContract
-} = require(${JSON.stringify(helperImport)});
+${runtimePrelude}
 
 const SOURCE_PATH = ${JSON.stringify(relativeSourcePath)};
 const SOURCE_IMPORT = ${JSON.stringify(sourceImport)};
@@ -3276,10 +3272,7 @@ const ROUTE_CASES = ${JSON.stringify(flattenScenarioCases(analysis.scenarios, 'r
 const SERVICE_CASES = ${JSON.stringify(flattenScenarioCases(analysis.scenarios, 'node-service'), null, 2)};
 
 function loadModuleExports() {
-  assertSourceFreshness(SOURCE_FILE, SOURCE_HASH, SOURCE_PATH, REGENERATE_COMMAND);
-  const resolved = require.resolve(SOURCE_IMPORT);
-  delete require.cache[resolved];
-  return require(SOURCE_IMPORT);
+${loadModuleBody}
 }
 
 function applyProjectProviderMocks(exportName, scenarioName) {
@@ -3287,7 +3280,7 @@ function applyProjectProviderMocks(exportName, scenarioName) {
     return;
   }
 
-  const loaded = require(PROJECT_PROVIDER_IMPORT);
+  const loaded = ${providerLoadExpression};
   const providers = Array.isArray(loaded)
     ? loaded
     : Array.isArray(loaded && loaded.providers)
@@ -3328,7 +3321,7 @@ function applyProjectProviderRender(element, exportName, scenarioName) {
     return current;
   }
 
-  const loaded = require(PROJECT_PROVIDER_IMPORT);
+  const loaded = ${providerLoadExpression};
   const providers = Array.isArray(loaded)
     ? loaded
     : Array.isArray(loaded && loaded.providers)
@@ -3679,8 +3672,8 @@ function assertServiceResultContractShape(result) {
 describe(${JSON.stringify(suiteName)}, () => {
   ${exactExportBlock}
 
-  test('captures runtime export contract', () => {
-    const moduleExports = loadModuleExports();
+  test('captures runtime export contract', async () => {
+    const moduleExports = await loadModuleExports();
     const runtime = buildModuleContract(moduleExports);
     assertExpectedRuntimeContract(runtime);
   });
@@ -3688,9 +3681,9 @@ describe(${JSON.stringify(suiteName)}, () => {
   if (NEXT_APP_CASES.length > 0) {
     describe('next app component adapter', () => {
       for (const testCase of NEXT_APP_CASES) {
-        test(testCase.exportName + ' ' + testCase.caseName, () => {
+        test(testCase.exportName + ' ' + testCase.caseName, async () => {
           applyProjectProviderMocks(testCase.exportName, 'next-app-component');
-          const moduleExports = loadModuleExports();
+          const moduleExports = await loadModuleExports();
           const component = readExportValue(moduleExports, testCase.exportName);
           const rendered = applyProjectProviderRender(component(testCase.props), testCase.exportName, 'next-app-component');
           assertNormalizedRenderContract(rendered);
@@ -3738,9 +3731,9 @@ describe(${JSON.stringify(suiteName)}, () => {
   if (COMPONENT_CASES.length > 0) {
     describe('react component adapter', () => {
       for (const testCase of COMPONENT_CASES) {
-        test(testCase.exportName + ' ' + testCase.caseName, () => {
+        test(testCase.exportName + ' ' + testCase.caseName, async () => {
           applyProjectProviderMocks(testCase.exportName, 'react-component');
-          const moduleExports = loadModuleExports();
+          const moduleExports = await loadModuleExports();
           const component = readExportValue(moduleExports, testCase.exportName);
           const rendered = applyProjectProviderRender(component(testCase.props), testCase.exportName, 'react-component');
           assertNormalizedRenderContract(rendered);
@@ -3788,9 +3781,9 @@ describe(${JSON.stringify(suiteName)}, () => {
   if (HOOK_CASES.length > 0) {
     describe('react hook adapter', () => {
       for (const testCase of HOOK_CASES) {
-        test(testCase.exportName + ' ' + testCase.caseName, () => {
+        test(testCase.exportName + ' ' + testCase.caseName, async () => {
           applyProjectProviderMocks(testCase.exportName, 'react-hook');
-          const moduleExports = loadModuleExports();
+          const moduleExports = await loadModuleExports();
           const hook = readExportValue(moduleExports, testCase.exportName);
           const result = hook(...testCase.args);
           assertHookResultContract(result);
@@ -3810,7 +3803,7 @@ describe(${JSON.stringify(suiteName)}, () => {
       for (const testCase of NEXT_ROUTE_CASES) {
         test(testCase.exportName + ' ' + testCase.caseName, async () => {
           applyProjectProviderMocks(testCase.exportName, 'next-route-handler');
-          const moduleExports = loadModuleExports();
+          const moduleExports = await loadModuleExports();
           const handler = readExportValue(moduleExports, testCase.exportName);
           const request = createRequestFromSpec(testCase.request);
           const response = await Promise.resolve(handler(request, testCase.context));
@@ -3826,7 +3819,7 @@ describe(${JSON.stringify(suiteName)}, () => {
       for (const testCase of ROUTE_CASES) {
         test(testCase.exportName + ' ' + testCase.caseName, async () => {
           applyProjectProviderMocks(testCase.exportName, 'route-handler');
-          const moduleExports = loadModuleExports();
+          const moduleExports = await loadModuleExports();
           const handler = readExportValue(moduleExports, testCase.exportName);
           const request = createRequestFromSpec(testCase.request);
           const response = await Promise.resolve(handler(request, testCase.context));
@@ -3842,7 +3835,7 @@ describe(${JSON.stringify(suiteName)}, () => {
       for (const testCase of SERVICE_CASES) {
         test(testCase.exportName + ' ' + testCase.caseName, async () => {
           applyProjectProviderMocks(testCase.exportName, 'node-service');
-          const moduleExports = loadModuleExports();
+          const moduleExports = await loadModuleExports();
           const service = readExportValue(moduleExports, testCase.exportName);
           const result = await Promise.resolve(service(...testCase.args));
           assertServiceResultContractShape(normalizeBehaviorValue(result));
@@ -3852,6 +3845,43 @@ describe(${JSON.stringify(suiteName)}, () => {
   }
 });
 `;
+}
+
+function renderGeneratedRequirePrelude({ helperImport }) {
+  return `const path = require('path');
+const {
+  listExportNames,
+  buildModuleContract,
+  readExportValue,
+  normalizeBehaviorValue,
+  normalizeRouteResult,
+  createRequestFromSpec,
+  assertSourceFreshness,
+  runComponentInteractionContract,
+  runComponentBehaviorFlowContract,
+  runHookInteractionContract
+} = require(${JSON.stringify(helperImport)});`;
+}
+
+function renderGeneratedImportPrelude({ helperImport, providerImport }) {
+  const providerLine = providerImport
+    ? `import * as PROJECT_PROVIDER_MODULE from ${JSON.stringify(providerImport)};`
+    : 'const PROJECT_PROVIDER_MODULE = null;';
+
+  return `import path from 'path';
+import {
+  listExportNames,
+  buildModuleContract,
+  readExportValue,
+  normalizeBehaviorValue,
+  normalizeRouteResult,
+  createRequestFromSpec,
+  assertSourceFreshness,
+  runComponentInteractionContract,
+  runComponentBehaviorFlowContract,
+  runHookInteractionContract
+} from ${JSON.stringify(helperImport)};
+${providerLine}`;
 }
 
 function flattenScenarioCases(scenarios, kind) {

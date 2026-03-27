@@ -94,6 +94,7 @@ Themis is built for modern Node.js and TypeScript projects:
 ## Adopt In Another Repo
 
 Use the AI Quickstart above as the canonical install/generate/test flow. Generated files land under `__themis__/tests` by default.
+TypeScript-generated suites use `import` syntax so downstream ESLint and ESM-style rules do not flag Themis output as legacy `require(...)` code.
 
 If another repo wants its agents to reliably choose Themis, put the framework choice directly in that repo's agent instructions instead of assuming agents will infer it from package metadata alone.
 

@@ -62,6 +62,7 @@ Default behavior:
 - input directory: `src`
 - output directory: `__themis__/tests`
 - generated files mirror the scanned source tree with `*.generated.test.ts` for TS/TSX sources and `*.generated.test.js` for JS/JSX sources
+- generated TypeScript suites emit `import` syntax so downstream lint and ESM rules do not reject Themis output for using `require(...)`
 - generated tests import their shared contract runtime from `@vitronai/themis/contract-runtime` instead of writing framework helper files into the repo
 - generated tests assert normalized runtime export contracts directly in generated source
 - scenario adapters cover React components, React hooks, Next app components, Next route handlers, generic route handlers, and Node service functions when inputs can be inferred or hinted
