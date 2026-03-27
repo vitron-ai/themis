@@ -1,0 +1,37 @@
+<svg width="256" height="256" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Themis package icon">
+  <defs>
+    <linearGradient id="bg" x1="28" y1="20" x2="220" y2="236" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#07111B"/>
+      <stop offset="0.55" stop-color="#13283E"/>
+      <stop offset="1" stop-color="#1A4761"/>
+    </linearGradient>
+    <linearGradient id="frame" x1="48" y1="32" x2="210" y2="218" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#F6D89A"/>
+      <stop offset="0.5" stop-color="#F4A641"/>
+      <stop offset="1" stop-color="#6ED3FF"/>
+    </linearGradient>
+    <linearGradient id="glow" x1="76" y1="58" x2="188" y2="194" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#B6ECFF"/>
+    </linearGradient>
+    <radialGradient id="aura" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(128 126) rotate(90) scale(112)">
+      <stop offset="0" stop-color="#19476B" stop-opacity="0.85"/>
+      <stop offset="1" stop-color="#19476B" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect x="12" y="12" width="232" height="232" rx="52" fill="url(#bg)"/>
+  <rect x="18" y="18" width="220" height="220" rx="46" fill="none" stroke="url(#frame)" stroke-width="4" opacity="0.55"/>
+  <circle cx="128" cy="126" r="82" fill="url(#aura)"/>
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M128 54v26" stroke="url(#frame)" stroke-width="14"/>
+    <path d="M82 84h92" stroke="url(#glow)" stroke-width="14"/>
+    <path d="M96 84 62 136" stroke="url(#glow)" stroke-width="9"/>
+    <path d="M160 84 194 136" stroke="url(#glow)" stroke-width="9"/>
+    <path d="M46 136c7 19 24 31 42 31s35-12 42-31H46Z" stroke="url(#frame)" stroke-width="9"/>
+    <path d="M126 136c7 19 24 31 42 31s35-12 42-31h-84Z" stroke="url(#frame)" stroke-width="9"/>
+    <path d="M128 78v76" stroke="url(#glow)" stroke-width="14"/>
+    <path d="M94 196h68" stroke="url(#frame)" stroke-width="14"/>
+    <path d="M84 214h88" stroke="url(#frame)" stroke-width="10" opacity="0.85"/>
+  </g>
+  <circle cx="128" cy="48" r="10" fill="#6ED3FF"/>
+</svg>

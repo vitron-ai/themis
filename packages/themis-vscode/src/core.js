@@ -6,6 +6,14 @@ const {
   getArtifactPathCandidates
 } = require('../../../src/artifact-paths');
 
+const THEME_COLORS = Object.freeze({
+  pass: 'themis.color.pass',
+  fail: 'themis.color.fail',
+  review: 'themis.color.review',
+  insight: 'themis.color.insight',
+  muted: 'themis.color.muted'
+});
+
 function getArtifactPaths(workspaceRoot) {
   if (!workspaceRoot) {
     return null;
@@ -120,7 +128,8 @@ function buildResultsTree(state) {
         kind: 'info',
         label: 'Open a workspace to use Themis',
         description: '',
-      tooltip: 'Themis needs a workspace folder to find .themis artifacts.',
+        tooltip: 'Themis needs a workspace folder to find .themis artifacts.',
+        color: THEME_COLORS.muted,
         icon: 'folder-opened'
       }
     ];
@@ -134,6 +143,7 @@ function buildResultsTree(state) {
         label: 'Run Themis to generate results',
         description: '',
         tooltip: 'Run `npx themis test` to create .themis artifacts.',
+        color: THEME_COLORS.insight,
         icon: 'play',
         command: { id: 'themis.runTests' }
       }
@@ -147,6 +157,7 @@ function buildResultsTree(state) {
       label: state.verdictLabel,
       description: state.statusText,
       tooltip: `${state.verdictLabel}\n${state.statusText}`,
+      color: state.summary && state.summary.failed > 0 ? THEME_COLORS.fail : THEME_COLORS.pass,
       icon: state.summary && state.summary.failed > 0 ? 'error' : 'pass'
     }
   ];
@@ -158,6 +169,7 @@ function buildResultsTree(state) {
       label: buildComparisonLabel(state.comparison),
       description: buildComparisonDescription(state.comparison),
       tooltip: buildComparisonTooltip(state.comparison),
+      color: state.comparison.status === 'baseline' ? THEME_COLORS.insight : THEME_COLORS.review,
       icon: state.comparison.status === 'baseline' ? 'pulse' : 'git-compare'
     });
   }
@@ -170,6 +182,7 @@ function buildResultsTree(state) {
       tooltip: state.reportExists
         ? 'Open the interactive Themis HTML verdict report.'
         : `Run \`npx themis test --reporter html\` to generate ${ARTIFACT_RELATIVE_PATHS.htmlReport}.`,
+      color: state.reportExists ? THEME_COLORS.insight : THEME_COLORS.muted,
       icon: 'globe',
       command: state.reportExists ? { id: 'themis.openHtmlReport' } : null
     });
@@ -181,6 +194,7 @@ function buildResultsTree(state) {
       label: buildGenerationLabel(state.generation),
       description: buildGenerationDescription(state.generation),
       tooltip: buildGenerationTooltip(state.generation),
+      color: state.generation.gates && state.generation.gates.failed ? THEME_COLORS.review : THEME_COLORS.insight,
       icon: state.generation.gates && state.generation.gates.failed ? 'warning' : 'symbol-array',
       children: buildGenerationChildren(state.generation)
     });
@@ -193,6 +207,7 @@ function buildResultsTree(state) {
       label: buildContractLabel(state.contracts),
       description: buildContractDescription(state.contracts),
       tooltip: buildContractTooltip(state.contracts),
+      color: state.contracts.summary.drifted > 0 ? THEME_COLORS.review : THEME_COLORS.pass,
       icon: state.contracts.summary.drifted > 0 ? 'warning' : 'symbol-constant',
       children: buildContractChildren(state.contracts)
     });
@@ -205,6 +220,7 @@ function buildResultsTree(state) {
       label: buildMigrationLabel(state.migration),
       description: buildMigrationDescription(state.migration),
       tooltip: buildMigrationTooltip(state.migration),
+      color: THEME_COLORS.insight,
       icon: 'git-pull-request',
       children: buildMigrationChildren(state.migration)
     });
@@ -217,6 +233,7 @@ function buildResultsTree(state) {
       label: `Artifact issues (${state.parseErrors.length})`,
       description: 'Refresh or rerun tests',
       tooltip: 'One or more Themis artifact files could not be parsed.',
+      color: THEME_COLORS.fail,
       icon: 'warning',
       children: state.parseErrors.map((entry, index) => ({
         id: `parse-error-${index}`,
@@ -224,6 +241,7 @@ function buildResultsTree(state) {
         label: path.basename(entry.filePath),
         description: entry.message,
         tooltip: `${entry.filePath}\n${entry.message}`,
+        color: THEME_COLORS.fail,
         icon: 'warning'
       }))
     });
@@ -237,6 +255,7 @@ function buildResultsTree(state) {
     tooltip: state.failures.length > 0
       ? 'Open a failure to jump into the source file.'
       : 'The latest Themis run has no failing tests.',
+    color: state.failures.length > 0 ? THEME_COLORS.fail : THEME_COLORS.pass,
     icon: state.failures.length > 0 ? 'error' : 'pass',
     children: state.failures.length > 0
       ? state.failures.map((failure, index) => {
@@ -247,6 +266,7 @@ function buildResultsTree(state) {
             label: failure.fullName || failure.name || `Failure ${index + 1}`,
             description: location ? `${path.basename(location.filePath)}:${location.lineNumber}` : path.basename(failure.file || ''),
             tooltip: buildFailureTooltip(failure, location),
+            color: THEME_COLORS.fail,
             icon: 'circle-filled',
             command: {
               id: 'themis.openFailure',
@@ -267,6 +287,7 @@ function buildResultsTree(state) {
             label: 'No failing tests',
             description: '',
             tooltip: 'The latest Themis run completed without failures.',
+            color: THEME_COLORS.pass,
             icon: 'pass'
           }
         ]
@@ -661,6 +682,7 @@ function buildGenerationChildren(generation) {
     label: `Mapped targets (${generation.entries.length})`,
     description: generation.entries.length > 0 ? 'Open source, generated tests, or hint sidecars' : 'No generated mappings',
     tooltip: 'Source-to-generated-test mappings from the latest Themis generate run.',
+    color: THEME_COLORS.insight,
     icon: 'files',
     children: generation.entries.length > 0
       ? generation.entries.map((entry) => buildGenerateEntryItem(entry))
@@ -671,6 +693,7 @@ function buildGenerationChildren(generation) {
             label: 'No generated targets',
             description: '',
             tooltip: 'Run `npx themis generate src` to populate generated mappings.',
+            color: THEME_COLORS.muted,
             icon: 'info'
           }
         ]
@@ -682,6 +705,7 @@ function buildGenerationChildren(generation) {
     label: `Generation backlog (${generation.backlog.summary.total})`,
     description: generation.backlog.summary.total > 0 ? 'Resolve skips, conflicts, and low-confidence entries' : 'No generation backlog',
     tooltip: `Unresolved generation backlog from ${ARTIFACT_RELATIVE_PATHS.generateBacklog}.`,
+    color: generation.backlog.summary.errors > 0 ? THEME_COLORS.review : THEME_COLORS.pass,
     icon: generation.backlog.summary.errors > 0 ? 'warning' : 'pass',
     children: generation.backlog.items.length > 0
       ? generation.backlog.items.map((item) => buildGenerateBacklogItem(item))
@@ -692,6 +716,7 @@ function buildGenerationChildren(generation) {
             label: 'No backlog items',
             description: '',
             tooltip: 'The latest generate run does not report unresolved backlog.',
+            color: THEME_COLORS.pass,
             icon: 'pass'
           }
         ]
@@ -704,6 +729,7 @@ function buildGenerationChildren(generation) {
     label: `Hint sidecars (${hintTotal})`,
     description: hintTotal > 0 ? 'Review scaffolded or reused hint files' : 'No hint sidecars tracked',
     tooltip: 'Hint sidecars from the latest generate run.',
+    color: hintTotal > 0 ? THEME_COLORS.review : THEME_COLORS.muted,
     icon: 'edit',
     children: hintTotal > 0
       ? buildHintFileItems(generation.hintFiles)
@@ -714,6 +740,7 @@ function buildGenerationChildren(generation) {
             label: 'No hint sidecars recorded',
             description: '',
             tooltip: 'Run `npx themis generate src --write-hints` to scaffold hint files.',
+            color: THEME_COLORS.muted,
             icon: 'info'
           }
         ]
@@ -746,6 +773,7 @@ function buildContractChildren(contracts) {
       label: 'Run Update Contracts',
       description: 'Accept reviewed contract changes',
       tooltip: 'Run `npx themis test --update-contracts` from the workspace root.',
+      color: THEME_COLORS.review,
       icon: 'play',
       command: { id: 'themis.updateContracts' }
     }
@@ -758,6 +786,7 @@ function buildContractChildren(contracts) {
       label: 'No contract diffs',
       description: '',
       tooltip: 'The latest run did not record contract drift or updates.',
+      color: THEME_COLORS.pass,
       icon: 'pass'
     });
     return children;
@@ -772,6 +801,7 @@ function buildContractChildren(contracts) {
       label: `${item.status.toUpperCase()} ${item.name}`,
       description: path.basename(item.contractFile || item.file || ''),
       tooltip: [item.fullName, item.updateCommand].filter(Boolean).join('\n'),
+      color: item.status === 'drifted' ? THEME_COLORS.review : THEME_COLORS.pass,
       icon: item.status === 'drifted' ? 'warning' : 'symbol-constant',
       children: [contractFileItem, sourceFileItem].filter(Boolean)
     });
@@ -804,6 +834,7 @@ function buildMigrationChildren(migration) {
       label: 'Run Migration Codemods',
       description: 'Run `themis migrate --convert` in this workspace',
       tooltip: 'Apply migration codemods for the current framework.',
+      color: THEME_COLORS.review,
       icon: 'play',
       command: { id: 'themis.runMigrationCodemods' }
     }
@@ -838,6 +869,7 @@ function buildGenerateEntryItem(entry) {
     label: `${entry.action.toUpperCase()} ${path.basename(entry.sourceFile)}`,
     description: `${entry.moduleKind} • ${entry.confidence}`,
     tooltip: [entry.sourceFile, entry.testFile || '(no generated test)', entry.reason || ''].filter(Boolean).join('\n'),
+    color: entry.action === 'conflict' ? THEME_COLORS.review : THEME_COLORS.insight,
     icon: entry.action === 'conflict' ? 'warning' : 'symbol-event',
     children
   };
@@ -850,6 +882,7 @@ function buildGenerateBacklogItem(item) {
     label: `${item.severity.toUpperCase()} ${path.basename(item.sourceFile)}`,
     description: item.type,
     tooltip: [item.reason, item.suggestedAction, item.suggestedCommand || ''].filter(Boolean).join('\n\n'),
+    color: item.severity === 'error' ? THEME_COLORS.review : THEME_COLORS.insight,
     icon: item.severity === 'error' ? 'warning' : 'info',
     command: {
       id: 'themis.openArtifactFile',
@@ -882,6 +915,7 @@ function buildOpenFileItem(id, labelPrefix, filePath, tooltip) {
     label: `${labelPrefix}: ${path.basename(filePath)}`,
     description: filePath,
     tooltip,
+    color: resolveOpenFileColor(labelPrefix),
     icon: 'go-to-file',
     command: {
       id: 'themis.openArtifactFile',
@@ -894,6 +928,19 @@ function buildOpenFileItem(id, labelPrefix, filePath, tooltip) {
       ]
     }
   };
+}
+
+function resolveOpenFileColor(labelPrefix) {
+  if (labelPrefix === 'CREATED') {
+    return THEME_COLORS.review;
+  }
+  if (labelPrefix === 'UPDATED') {
+    return THEME_COLORS.insight;
+  }
+  if (labelPrefix === 'UNCHANGED') {
+    return THEME_COLORS.muted;
+  }
+  return THEME_COLORS.insight;
 }
 
 function normalizeDelta(delta) {

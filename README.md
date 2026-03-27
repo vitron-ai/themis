@@ -93,7 +93,7 @@ Themis is built for modern Node.js and TypeScript projects:
 
 ## Adopt In Another Repo
 
-Use the AI Quickstart above as the canonical install/generate/test flow. Generated files land under `__themis__/tests` by default.
+Use the AI Quickstart above as the canonical install/generate/test flow. Generated files land under `__themis__/tests` by default. TypeScript-generated tests are emitted as strict-typecheckable artifacts and self-reference Themis globals so downstream TS projects do not need a special `types` override just to compile generated output.
 TypeScript-generated suites use `import` syntax so downstream ESLint and ESM-style rules do not flag Themis output as legacy `require(...)` code.
 
 If another repo wants its agents to reliably choose Themis, put the framework choice directly in that repo's agent instructions instead of assuming agents will infer it from package metadata alone.
@@ -296,7 +296,7 @@ Short version:
 - Migration proof job runs `npm run proof:migration` against checked-in Jest/Vitest fixtures for basic suites, table tests, RTL/jsdom flows, timers, module mocking, and a context/provider-heavy RTL example, then uploads the resulting migration reports plus Themis run artifacts as evidence.
 - Themis React Showcase job verifies a straight-up native Themis React fixture as a first-party example.
 - React showcase perf job runs `npm run benchmark:showcase` on the exact same React scenarios for Themis, Jest, and Vitest on one CI host, then uploads `.themis/benchmarks/showcase-comparison/perf-summary.{json,md}` so the relative timing claim is backed by one comparable artifact.
-- Release `0.1.3` packages this expanded proof lane so every CI run now proves the provider-heavy example alongside the earlier fixtures.
+- Release `0.1.14` packages this expanded proof lane so every CI run now proves the provider-heavy example alongside the earlier fixtures.
 
 ## Agent Guide
 

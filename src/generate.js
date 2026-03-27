@@ -3233,6 +3233,8 @@ function renderGeneratedTest({ projectRoot, helperFile, outputFile, analysis }) 
   const sourceImport = normalizeRelativeModule(path.relative(path.dirname(outputFile), analysis.file));
   const sourceAbsolutePath = normalizePath(path.relative(path.dirname(outputFile), analysis.file));
   const useImportSyntax = path.extname(outputFile).toLowerCase() === '.ts';
+  const typeReferences = useImportSyntax ? '/// <reference types="@vitronai/themis/globals" />\n' : '';
+  const typePrelude = useImportSyntax ? `${renderGeneratedTypePrelude()}\n\n` : '';
   const expectedExportContracts = buildExpectedExportContracts(analysis);
   const providerImport = analysis.projectProviderFile
     ? normalizeRelativeModule(path.relative(path.dirname(outputFile), analysis.projectProviderFile))
@@ -3246,48 +3248,182 @@ function renderGeneratedTest({ projectRoot, helperFile, outputFile, analysis }) 
     : renderGeneratedRequirePrelude({ helperImport });
   const providerLoadExpression = useImportSyntax ? 'PROJECT_PROVIDER_MODULE' : 'require(PROJECT_PROVIDER_IMPORT)';
   const loadModuleBody = useImportSyntax
-    ? '  assertSourceFreshness(SOURCE_FILE, SOURCE_HASH, SOURCE_PATH, REGENERATE_COMMAND);\n  return import(SOURCE_IMPORT);'
+    ? '  assertSourceFreshness(SOURCE_FILE, SOURCE_HASH, SOURCE_PATH, REGENERATE_COMMAND);\n  return import(SOURCE_IMPORT) as Promise<RuntimeModuleExports>;'
     : '  assertSourceFreshness(SOURCE_FILE, SOURCE_HASH, SOURCE_PATH, REGENERATE_COMMAND);\n  const resolved = require.resolve(SOURCE_IMPORT);\n  delete require.cache[resolved];\n  return require(SOURCE_IMPORT);';
+  const sourceFileDeclaration = useImportSyntax
+    ? 'const SOURCE_FILE = require.resolve(SOURCE_IMPORT);'
+    : `const SOURCE_FILE = path.resolve(__dirname, ${JSON.stringify(sourceAbsolutePath)});`;
+  const scannedExportsDeclaration = useImportSyntax
+    ? `const SCANNED_EXPORTS: readonly string[] | null = ${analysis.exactExports ? JSON.stringify(analysis.exportNames, null, 2) : 'null'};`
+    : `const SCANNED_EXPORTS = ${analysis.exactExports ? JSON.stringify(analysis.exportNames, null, 2) : 'null'};`;
+  const expectedExportDeclaration = useImportSyntax
+    ? `const EXPECTED_EXPORT_CONTRACTS: RuntimeModuleContractExpectations = ${JSON.stringify(expectedExportContracts, null, 2)};`
+    : `const EXPECTED_EXPORT_CONTRACTS = ${JSON.stringify(expectedExportContracts, null, 2)};`;
+  const providerImportDeclaration = useImportSyntax
+    ? `const PROJECT_PROVIDER_IMPORT: string | null = ${providerImport ? JSON.stringify(providerImport) : 'null'};`
+    : `const PROJECT_PROVIDER_IMPORT = ${providerImport ? JSON.stringify(providerImport) : 'null'};`;
+  const providerIndexesDeclaration = useImportSyntax
+    ? `const PROJECT_PROVIDER_INDEXES: readonly number[] = ${JSON.stringify(analysis.providerRuntimeIndexes || [], null, 2)};`
+    : `const PROJECT_PROVIDER_INDEXES = ${JSON.stringify(analysis.providerRuntimeIndexes || [], null, 2)};`;
+  const providerPresetsDeclaration = useImportSyntax
+    ? `const PROJECT_PROVIDER_PRESETS: readonly ProviderPreset[] = ${JSON.stringify(analysis.providerRuntimePresets || [], null, 2)};`
+    : `const PROJECT_PROVIDER_PRESETS = ${JSON.stringify(analysis.providerRuntimePresets || [], null, 2)};`;
+  const nextAppCasesDeclaration = useImportSyntax
+    ? `const NEXT_APP_CASES: readonly ComponentCase[] = ${JSON.stringify(flattenScenarioCases(analysis.scenarios, 'next-app-component'), null, 2)};`
+    : `const NEXT_APP_CASES = ${JSON.stringify(flattenScenarioCases(analysis.scenarios, 'next-app-component'), null, 2)};`;
+  const nextRouteCasesDeclaration = useImportSyntax
+    ? `const NEXT_ROUTE_CASES: readonly RouteCase[] = ${JSON.stringify(flattenScenarioCases(analysis.scenarios, 'next-route-handler'), null, 2)};`
+    : `const NEXT_ROUTE_CASES = ${JSON.stringify(flattenScenarioCases(analysis.scenarios, 'next-route-handler'), null, 2)};`;
+  const componentCasesDeclaration = useImportSyntax
+    ? `const COMPONENT_CASES: readonly ComponentCase[] = ${JSON.stringify(flattenScenarioCases(analysis.scenarios, 'react-component'), null, 2)};`
+    : `const COMPONENT_CASES = ${JSON.stringify(flattenScenarioCases(analysis.scenarios, 'react-component'), null, 2)};`;
+  const hookCasesDeclaration = useImportSyntax
+    ? `const HOOK_CASES: readonly HookCase[] = ${JSON.stringify(flattenScenarioCases(analysis.scenarios, 'react-hook'), null, 2)};`
+    : `const HOOK_CASES = ${JSON.stringify(flattenScenarioCases(analysis.scenarios, 'react-hook'), null, 2)};`;
+  const routeCasesDeclaration = useImportSyntax
+    ? `const ROUTE_CASES: readonly RouteCase[] = ${JSON.stringify(flattenScenarioCases(analysis.scenarios, 'route-handler'), null, 2)};`
+    : `const ROUTE_CASES = ${JSON.stringify(flattenScenarioCases(analysis.scenarios, 'route-handler'), null, 2)};`;
+  const serviceCasesDeclaration = useImportSyntax
+    ? `const SERVICE_CASES: readonly ServiceCase[] = ${JSON.stringify(flattenScenarioCases(analysis.scenarios, 'node-service'), null, 2)};`
+    : `const SERVICE_CASES = ${JSON.stringify(flattenScenarioCases(analysis.scenarios, 'node-service'), null, 2)};`;
+  const loadModuleSignature = useImportSyntax
+    ? 'function loadModuleExports(): Promise<RuntimeModuleExports> {'
+    : 'function loadModuleExports() {';
+  const resolveProvidersSignature = useImportSyntax
+    ? 'function resolveProjectProviders(loaded: unknown): ProjectProviderRuntime[] {'
+    : 'function resolveProjectProviders(loaded) {';
+  const applyMocksSignature = useImportSyntax
+    ? 'function applyProjectProviderMocks(exportName: string, scenarioName: ScenarioName): void {'
+    : 'function applyProjectProviderMocks(exportName, scenarioName) {';
+  const applyRenderSignature = useImportSyntax
+    ? 'function applyProjectProviderRender(element: unknown, exportName: string, scenarioName: ScenarioName): unknown {'
+    : 'function applyProjectProviderRender(element, exportName, scenarioName) {';
+  const createRenderOptionsSignature = useImportSyntax
+    ? 'function createProjectProviderRenderOptions(exportName: string, scenarioName: ScenarioName): { wrapRender(element: unknown): unknown } {'
+    : 'function createProjectProviderRenderOptions(exportName, scenarioName) {';
+  const applyPresetsSignature = useImportSyntax
+    ? 'function applyProjectProviderPresets(element: unknown): unknown {'
+    : 'function applyProjectProviderPresets(element) {';
+  const withProviderShellSignature = useImportSyntax
+    ? 'function withProviderShell(type: string, element: unknown, attributes: ProviderConfig = {}): ReactTestElement {'
+    : 'function withProviderShell(type, element, attributes = {}) {';
+  const providerHelperSignature = (name) => useImportSyntax
+    ? `function ${name}(element: unknown, config: ProviderConfig = {}): ReactTestElement {`
+    : `function ${name}(element, config = {}) {`;
+  const serializeProviderDataSignature = useImportSyntax
+    ? 'function serializeProviderData(value: unknown): string {'
+    : 'function serializeProviderData(value) {';
+  const assertExpectedRuntimeContractSignature = useImportSyntax
+    ? 'function assertExpectedRuntimeContract(runtime: RuntimeModuleExports): void {'
+    : 'function assertExpectedRuntimeContract(runtime) {';
+  const assertNormalizedRenderContractSignature = useImportSyntax
+    ? 'function assertNormalizedRenderContract(rendered: unknown): void {'
+    : 'function assertNormalizedRenderContract(rendered) {';
+  const assertDomContractShapeSignature = useImportSyntax
+    ? 'function assertDomContractShape(contract: DomContract): void {'
+    : 'function assertDomContractShape(contract) {';
+  const countPlannedStepsSignature = useImportSyntax
+    ? 'function countPlannedSteps(plan: readonly RepeatedPlanStep[] | null | undefined): number {'
+    : 'function countPlannedSteps(plan) {';
+  const assertComponentInteractionContractShapeSignature = useImportSyntax
+    ? 'function assertComponentInteractionContractShape(contract: ComponentInteractionContract, plan: readonly InteractionPlanStep[] | null | undefined): void {'
+    : 'function assertComponentInteractionContractShape(contract, plan) {';
+  const assertFlowContractShapeSignature = useImportSyntax
+    ? 'function assertFlowContractShape(flow: ComponentBehaviorFlowContract, plan: readonly FlowPlanStep[] | null | undefined): void {'
+    : 'function assertFlowContractShape(flow, plan) {';
+  const assertHookResultContractSignature = useImportSyntax
+    ? 'function assertHookResultContract(result: unknown): void {'
+    : 'function assertHookResultContract(result) {';
+  const assertHookInteractionContractShapeSignature = useImportSyntax
+    ? 'function assertHookInteractionContractShape(contract: HookInteractionContract, plan: readonly HookInteractionPlanStep[] | null | undefined): void {'
+    : 'function assertHookInteractionContractShape(contract, plan) {';
+  const assertRouteResultContractShapeSignature = useImportSyntax
+    ? 'function assertRouteResultContractShape(response: unknown): void {'
+    : 'function assertRouteResultContractShape(response) {';
+  const assertServiceResultContractShapeSignature = useImportSyntax
+    ? 'function assertServiceResultContractShape(result: unknown): void {'
+    : 'function assertServiceResultContractShape(result) {';
+  const componentReadExpression = useImportSyntax
+    ? 'readExportValue<(props: Record<string, unknown>) => unknown>(moduleExports, testCase.exportName)'
+    : 'readExportValue(moduleExports, testCase.exportName)';
+  const hookReadExpression = useImportSyntax
+    ? 'readExportValue<(...args: unknown[]) => unknown>(moduleExports, testCase.exportName)'
+    : 'readExportValue(moduleExports, testCase.exportName)';
+  const handlerReadExpression = useImportSyntax
+    ? 'readExportValue<(request: unknown, context?: unknown) => unknown>(moduleExports, testCase.exportName)'
+    : 'readExportValue(moduleExports, testCase.exportName)';
+  const serviceReadExpression = useImportSyntax
+    ? 'readExportValue<(...args: unknown[]) => unknown>(moduleExports, testCase.exportName)'
+    : 'readExportValue(moduleExports, testCase.exportName)';
+  const interactionContractExpression = useImportSyntax
+    ? 'await runComponentInteractionContract(SOURCE_FILE, testCase.exportName, testCase.props, testCase.interactions, createProjectProviderRenderOptions(testCase.exportName, \'next-app-component\')) as ComponentInteractionContract'
+    : 'await runComponentInteractionContract(SOURCE_FILE, testCase.exportName, testCase.props, testCase.interactions, createProjectProviderRenderOptions(testCase.exportName, \'next-app-component\'))';
+  const nextDomContractExpression = useImportSyntax
+    ? 'await runComponentInteractionContract(SOURCE_FILE, testCase.exportName, testCase.props, testCase.interactions, createProjectProviderRenderOptions(testCase.exportName, \'next-app-component\')) as ComponentInteractionContract'
+    : 'await runComponentInteractionContract(SOURCE_FILE, testCase.exportName, testCase.props, testCase.interactions, createProjectProviderRenderOptions(testCase.exportName, \'next-app-component\'))';
+  const nextFlowExpression = useImportSyntax
+    ? 'await runComponentBehaviorFlowContract(SOURCE_FILE, testCase.exportName, testCase.props, testCase.flows, createProjectProviderRenderOptions(testCase.exportName, \'next-app-component\')) as ComponentBehaviorFlowContract'
+    : 'await runComponentBehaviorFlowContract(SOURCE_FILE, testCase.exportName, testCase.props, testCase.flows, createProjectProviderRenderOptions(testCase.exportName, \'next-app-component\'))';
+  const componentInteractionExpression = useImportSyntax
+    ? 'await runComponentInteractionContract(SOURCE_FILE, testCase.exportName, testCase.props, testCase.interactions, createProjectProviderRenderOptions(testCase.exportName, \'react-component\')) as ComponentInteractionContract'
+    : 'await runComponentInteractionContract(SOURCE_FILE, testCase.exportName, testCase.props, testCase.interactions, createProjectProviderRenderOptions(testCase.exportName, \'react-component\'))';
+  const componentDomExpression = useImportSyntax
+    ? 'await runComponentInteractionContract(SOURCE_FILE, testCase.exportName, testCase.props, testCase.interactions, createProjectProviderRenderOptions(testCase.exportName, \'react-component\')) as ComponentInteractionContract'
+    : 'await runComponentInteractionContract(SOURCE_FILE, testCase.exportName, testCase.props, testCase.interactions, createProjectProviderRenderOptions(testCase.exportName, \'react-component\'))';
+  const componentFlowExpression = useImportSyntax
+    ? 'await runComponentBehaviorFlowContract(SOURCE_FILE, testCase.exportName, testCase.props, testCase.flows, createProjectProviderRenderOptions(testCase.exportName, \'react-component\')) as ComponentBehaviorFlowContract'
+    : 'await runComponentBehaviorFlowContract(SOURCE_FILE, testCase.exportName, testCase.props, testCase.flows, createProjectProviderRenderOptions(testCase.exportName, \'react-component\'))';
+  const hookInteractionExpression = useImportSyntax
+    ? 'runHookInteractionContract(SOURCE_FILE, testCase.exportName, testCase.args, testCase.interactions) as HookInteractionContract'
+    : 'runHookInteractionContract(SOURCE_FILE, testCase.exportName, testCase.args, testCase.interactions)';
 
   return `${GENERATED_MARKER}
-// Source: ${relativeSourcePath}
+${typeReferences}// Source: ${relativeSourcePath}
 
 ${runtimePrelude}
-
-const SOURCE_PATH = ${JSON.stringify(relativeSourcePath)};
+${typePrelude}const SOURCE_PATH = ${JSON.stringify(relativeSourcePath)};
 const SOURCE_IMPORT = ${JSON.stringify(sourceImport)};
-const SOURCE_FILE = path.resolve(__dirname, ${JSON.stringify(sourceAbsolutePath)});
+${sourceFileDeclaration}
 const SOURCE_HASH = ${JSON.stringify(analysis.sourceHash)};
 const REGENERATE_COMMAND = ${JSON.stringify(`npx themis generate ${relativeSourcePath}`)};
-const SCANNED_EXPORTS = ${analysis.exactExports ? JSON.stringify(analysis.exportNames, null, 2) : 'null'};
-const EXPECTED_EXPORT_CONTRACTS = ${JSON.stringify(expectedExportContracts, null, 2)};
-const PROJECT_PROVIDER_IMPORT = ${providerImport ? JSON.stringify(providerImport) : 'null'};
-const PROJECT_PROVIDER_INDEXES = ${JSON.stringify(analysis.providerRuntimeIndexes || [], null, 2)};
-const PROJECT_PROVIDER_PRESETS = ${JSON.stringify(analysis.providerRuntimePresets || [], null, 2)};
-const NEXT_APP_CASES = ${JSON.stringify(flattenScenarioCases(analysis.scenarios, 'next-app-component'), null, 2)};
-const NEXT_ROUTE_CASES = ${JSON.stringify(flattenScenarioCases(analysis.scenarios, 'next-route-handler'), null, 2)};
-const COMPONENT_CASES = ${JSON.stringify(flattenScenarioCases(analysis.scenarios, 'react-component'), null, 2)};
-const HOOK_CASES = ${JSON.stringify(flattenScenarioCases(analysis.scenarios, 'react-hook'), null, 2)};
-const ROUTE_CASES = ${JSON.stringify(flattenScenarioCases(analysis.scenarios, 'route-handler'), null, 2)};
-const SERVICE_CASES = ${JSON.stringify(flattenScenarioCases(analysis.scenarios, 'node-service'), null, 2)};
+${scannedExportsDeclaration}
+${expectedExportDeclaration}
+${providerImportDeclaration}
+${providerIndexesDeclaration}
+${providerPresetsDeclaration}
+${nextAppCasesDeclaration}
+${nextRouteCasesDeclaration}
+${componentCasesDeclaration}
+${hookCasesDeclaration}
+${routeCasesDeclaration}
+${serviceCasesDeclaration}
 
-function loadModuleExports() {
+${loadModuleSignature}
 ${loadModuleBody}
 }
 
-function applyProjectProviderMocks(exportName, scenarioName) {
+${resolveProvidersSignature}
+  if (Array.isArray(loaded)) {
+    return loaded;
+  }
+
+  if (loaded && typeof loaded === 'object') {
+    const moduleValue = ${useImportSyntax ? 'loaded as { providers?: ProjectProviderRuntime[] } & ProjectProviderRuntime' : 'loaded'};
+    if (Array.isArray(moduleValue.providers)) {
+      return moduleValue.providers;
+    }
+    return [moduleValue];
+  }
+
+  return [];
+}
+
+${applyMocksSignature}
   if (!PROJECT_PROVIDER_IMPORT || PROJECT_PROVIDER_INDEXES.length === 0) {
     return;
   }
 
-  const loaded = ${providerLoadExpression};
-  const providers = Array.isArray(loaded)
-    ? loaded
-    : Array.isArray(loaded && loaded.providers)
-      ? loaded.providers
-      : loaded
-        ? [loaded]
-        : [];
+  const providers = resolveProjectProviders(${providerLoadExpression});
 
   for (const providerIndex of PROJECT_PROVIDER_INDEXES) {
     const provider = providers[providerIndex];
@@ -3314,21 +3450,14 @@ function applyProjectProviderMocks(exportName, scenarioName) {
   }
 }
 
-function applyProjectProviderRender(element, exportName, scenarioName) {
+${applyRenderSignature}
   let current = applyProjectProviderPresets(element);
 
   if (!PROJECT_PROVIDER_IMPORT) {
     return current;
   }
 
-  const loaded = ${providerLoadExpression};
-  const providers = Array.isArray(loaded)
-    ? loaded
-    : Array.isArray(loaded && loaded.providers)
-      ? loaded.providers
-      : loaded
-        ? [loaded]
-        : [];
+  const providers = resolveProjectProviders(${providerLoadExpression});
 
   for (const providerIndex of PROJECT_PROVIDER_INDEXES) {
     const provider = providers[providerIndex];
@@ -3343,24 +3472,12 @@ function applyProjectProviderRender(element, exportName, scenarioName) {
       scenario: scenarioName,
       element: current,
       withProviderShell,
-      withReactRouter(elementValue, config) {
-        return withReactRouter(elementValue, config);
-      },
-      withNextNavigation(elementValue, config) {
-        return withNextNavigation(elementValue, config);
-      },
-      withAuthSession(elementValue, config) {
-        return withAuthSession(elementValue, config);
-      },
-      withReactQuery(elementValue, config) {
-        return withReactQuery(elementValue, config);
-      },
-      withZustandStore(elementValue, config) {
-        return withZustandStore(elementValue, config);
-      },
-      withReduxStore(elementValue, config) {
-        return withReduxStore(elementValue, config);
-      }
+      withReactRouter,
+      withNextNavigation,
+      withAuthSession,
+      withReactQuery,
+      withZustandStore,
+      withReduxStore
     });
 
     if (nextValue !== undefined) {
@@ -3371,7 +3488,13 @@ function applyProjectProviderRender(element, exportName, scenarioName) {
   return current;
 }
 
-function applyProjectProviderPresets(element) {
+${createRenderOptionsSignature}
+  return {
+    wrapRender: (element${useImportSyntax ? ': unknown' : ''}) => applyProjectProviderRender(element, exportName, scenarioName)
+  };
+}
+
+${applyPresetsSignature}
   let current = element;
 
   for (const preset of PROJECT_PROVIDER_PRESETS) {
@@ -3398,7 +3521,7 @@ function applyProjectProviderPresets(element) {
   return current;
 }
 
-function withProviderShell(type, element, attributes = {}) {
+${withProviderShellSignature}
   return {
     $$typeof: 'react.test.element',
     type,
@@ -3411,7 +3534,7 @@ function withProviderShell(type, element, attributes = {}) {
   };
 }
 
-function withReactRouter(element, config = {}) {
+${providerHelperSignature('withReactRouter')}
   return withProviderShell('themis-router-provider', element, {
     role: 'navigation',
     'data-themis-provider': 'router',
@@ -3424,7 +3547,7 @@ function withReactRouter(element, config = {}) {
   });
 }
 
-function withReactQuery(element, config = {}) {
+${providerHelperSignature('withReactQuery')}
   return withProviderShell('themis-react-query-provider', element, {
     'data-themis-provider': 'react-query',
     'data-query-client': typeof config.clientName === 'string' ? config.clientName : 'themis-query-client',
@@ -3436,7 +3559,7 @@ function withReactQuery(element, config = {}) {
   });
 }
 
-function withNextNavigation(element, config = {}) {
+${providerHelperSignature('withNextNavigation')}
   return withProviderShell('themis-next-navigation-provider', element, {
     'data-themis-provider': 'next-navigation',
     'data-next-pathname': typeof config.pathname === 'string' ? config.pathname : '/',
@@ -3447,7 +3570,7 @@ function withNextNavigation(element, config = {}) {
   });
 }
 
-function withAuthSession(element, config = {}) {
+${providerHelperSignature('withAuthSession')}
   return withProviderShell('themis-auth-provider', element, {
     'data-themis-provider': 'auth',
     'data-auth-user': typeof config.user === 'string' ? config.user : 'anonymous',
@@ -3458,7 +3581,7 @@ function withAuthSession(element, config = {}) {
   });
 }
 
-function withZustandStore(element, config = {}) {
+${providerHelperSignature('withZustandStore')}
   return withProviderShell('themis-zustand-provider', element, {
     'data-themis-provider': 'zustand',
     'data-store-name': typeof config.name === 'string' ? config.name : 'zustand-store',
@@ -3468,7 +3591,7 @@ function withZustandStore(element, config = {}) {
   });
 }
 
-function withReduxStore(element, config = {}) {
+${providerHelperSignature('withReduxStore')}
   return withProviderShell('themis-redux-provider', element, {
     'data-themis-provider': 'redux',
     'data-redux-slice': typeof config.slice === 'string' ? config.slice : 'root',
@@ -3478,14 +3601,14 @@ function withReduxStore(element, config = {}) {
   });
 }
 
-function serializeProviderData(value) {
+${serializeProviderDataSignature}
   if (value === undefined) {
     return '';
   }
   return JSON.stringify(normalizeBehaviorValue(value));
 }
 
-function assertExpectedRuntimeContract(runtime) {
+${assertExpectedRuntimeContractSignature}
   expect(typeof runtime).toBe('object');
   expect(runtime === null).toBe(false);
 
@@ -3495,7 +3618,7 @@ function assertExpectedRuntimeContract(runtime) {
   }
 
   for (const [exportName, expected] of Object.entries(EXPECTED_EXPORT_CONTRACTS)) {
-    const actual = runtime[exportName];
+    const actual = ${useImportSyntax ? 'runtime[exportName] as Record<string, unknown>' : 'runtime[exportName]'};
     expect(Boolean(actual)).toBe(true);
 
     if (expected.kind && expected.kind !== 'unknown') {
@@ -3512,7 +3635,7 @@ function assertExpectedRuntimeContract(runtime) {
   }
 }
 
-function assertNormalizedRenderContract(rendered) {
+${assertNormalizedRenderContractSignature}
   const normalized = normalizeBehaviorValue(rendered);
   expect(normalized !== undefined && normalized !== null).toBe(true);
 
@@ -3521,21 +3644,22 @@ function assertNormalizedRenderContract(rendered) {
     return;
   }
 
-  if (typeof normalized === 'object') {
-    if (normalized.kind === 'element') {
-      expect(Boolean(normalized.type)).toBe(true);
-      expect(typeof normalized.props).toBe('object');
+  if (normalized && typeof normalized === 'object') {
+    const normalizedRecord = ${useImportSyntax ? 'normalized as Record<string, unknown>' : 'normalized'};
+    if (normalizedRecord.kind === 'element') {
+      expect(Boolean(normalizedRecord.type)).toBe(true);
+      expect(typeof normalizedRecord.props).toBe('object');
       return;
     }
 
-    expect(Object.keys(normalized).length >= 0).toBe(true);
+    expect(Object.keys(normalizedRecord).length >= 0).toBe(true);
     return;
   }
 
   expect(['string', 'number', 'boolean'].includes(typeof normalized)).toBe(true);
 }
 
-function assertDomContractShape(contract) {
+${assertDomContractShapeSignature}
   expect(typeof contract).toBe('object');
   expect(contract === null).toBe(false);
   expect(Array.isArray(contract.nodes)).toBe(true);
@@ -3543,7 +3667,7 @@ function assertDomContractShape(contract) {
   expect(typeof contract.textContent).toBe('string');
 }
 
-function countPlannedSteps(plan) {
+${countPlannedStepsSignature}
   if (!Array.isArray(plan)) {
     return 0;
   }
@@ -3554,7 +3678,7 @@ function countPlannedSteps(plan) {
   }, 0);
 }
 
-function assertComponentInteractionContractShape(contract, plan) {
+${assertComponentInteractionContractShapeSignature}
   assertNormalizedRenderContract(contract.rendered);
   assertDomContractShape(contract.dom);
   expect(Array.isArray(contract.interactions)).toBe(true);
@@ -3571,7 +3695,7 @@ function assertComponentInteractionContractShape(contract, plan) {
   }
 }
 
-function assertFlowContractShape(flow, plan) {
+${assertFlowContractShapeSignature}
   assertDomContractShape(flow.dom);
   expect(Array.isArray(flow.steps)).toBe(true);
   expect(flow.steps.length).toBe(Array.isArray(plan) ? plan.length : 0);
@@ -3624,7 +3748,7 @@ function assertFlowContractShape(flow, plan) {
     }
 
     if (expected.expected && expected.expected.rolesInclude !== undefined) {
-      const expectedRoles = Array.isArray(expected.expected.rolesInclude)
+      const expectedRoles${useImportSyntax ? ': string[]' : ''} = Array.isArray(expected.expected.rolesInclude)
         ? expected.expected.rolesInclude
         : [expected.expected.rolesInclude];
       const matchesRoles = [step.immediateDom, step.settledDom].some((dom) => {
@@ -3636,12 +3760,12 @@ function assertFlowContractShape(flow, plan) {
   }
 }
 
-function assertHookResultContract(result) {
+${assertHookResultContractSignature}
   const normalized = normalizeBehaviorValue(result);
   expect(normalized !== undefined).toBe(true);
 }
 
-function assertHookInteractionContractShape(contract, plan) {
+${assertHookInteractionContractShapeSignature}
   expect(Array.isArray(contract.interactions)).toBe(true);
 
   if (countPlannedSteps(plan) > 0) {
@@ -3654,18 +3778,19 @@ function assertHookInteractionContractShape(contract, plan) {
   }
 }
 
-function assertRouteResultContractShape(response) {
+${assertRouteResultContractShapeSignature}
   expect(response !== undefined && response !== null).toBe(true);
 
-  if (response && typeof response === 'object' && response.kind === 'response') {
-    expect(typeof response.status).toBe('number');
-    expect(response.status >= 100).toBe(true);
-    expect(response.status < 600).toBe(true);
-    expect(typeof response.headers).toBe('object');
+  if (response && typeof response === 'object' && ${useImportSyntax ? '(response as Record<string, unknown>).kind' : 'response.kind'} === 'response') {
+    const routeResponse = ${useImportSyntax ? 'response as { status: number; headers: unknown }' : 'response'};
+    expect(typeof routeResponse.status).toBe('number');
+    expect(routeResponse.status >= 100).toBe(true);
+    expect(routeResponse.status < 600).toBe(true);
+    expect(typeof routeResponse.headers).toBe('object');
   }
 }
 
-function assertServiceResultContractShape(result) {
+${assertServiceResultContractShapeSignature}
   expect(result !== undefined).toBe(true);
 }
 
@@ -3684,28 +3809,20 @@ describe(${JSON.stringify(suiteName)}, () => {
         test(testCase.exportName + ' ' + testCase.caseName, async () => {
           applyProjectProviderMocks(testCase.exportName, 'next-app-component');
           const moduleExports = await loadModuleExports();
-          const component = readExportValue(moduleExports, testCase.exportName);
+          const component = ${componentReadExpression};
           const rendered = applyProjectProviderRender(component(testCase.props), testCase.exportName, 'next-app-component');
           assertNormalizedRenderContract(rendered);
         });
 
         test(testCase.exportName + ' next interaction contract', async () => {
           applyProjectProviderMocks(testCase.exportName, 'next-app-component');
-          const interaction = await runComponentInteractionContract(SOURCE_FILE, testCase.exportName, testCase.props, testCase.interactions, {
-            wrapRender(element) {
-              return applyProjectProviderRender(element, testCase.exportName, 'next-app-component');
-            }
-          });
+          const interaction = ${interactionContractExpression};
           assertComponentInteractionContractShape(interaction, testCase.interactions);
         });
 
         test(testCase.exportName + ' next dom state contract', async () => {
           applyProjectProviderMocks(testCase.exportName, 'next-app-component');
-          const contract = await runComponentInteractionContract(SOURCE_FILE, testCase.exportName, testCase.props, testCase.interactions, {
-            wrapRender(element) {
-              return applyProjectProviderRender(element, testCase.exportName, 'next-app-component');
-            }
-          });
+          const contract = ${nextDomContractExpression};
           assertDomContractShape(contract.dom);
           if (Array.isArray(testCase.interactions) && testCase.interactions.length > 0) {
             expect(contract.interactions.length > 0).toBe(true);
@@ -3715,11 +3832,7 @@ describe(${JSON.stringify(suiteName)}, () => {
         if (Array.isArray(testCase.flows) && testCase.flows.length > 0) {
           test(testCase.exportName + ' next behavioral flow contract', async () => {
             applyProjectProviderMocks(testCase.exportName, 'next-app-component');
-            const flow = await runComponentBehaviorFlowContract(SOURCE_FILE, testCase.exportName, testCase.props, testCase.flows, {
-              wrapRender(element) {
-                return applyProjectProviderRender(element, testCase.exportName, 'next-app-component');
-              }
-            });
+            const flow = ${nextFlowExpression};
             assertFlowContractShape(flow, testCase.flows);
             expect(flow.steps.some((step) => !step.skipped)).toBe(true);
           });
@@ -3734,28 +3847,20 @@ describe(${JSON.stringify(suiteName)}, () => {
         test(testCase.exportName + ' ' + testCase.caseName, async () => {
           applyProjectProviderMocks(testCase.exportName, 'react-component');
           const moduleExports = await loadModuleExports();
-          const component = readExportValue(moduleExports, testCase.exportName);
+          const component = ${componentReadExpression};
           const rendered = applyProjectProviderRender(component(testCase.props), testCase.exportName, 'react-component');
           assertNormalizedRenderContract(rendered);
         });
 
         test(testCase.exportName + ' interaction contract', async () => {
           applyProjectProviderMocks(testCase.exportName, 'react-component');
-          const interaction = await runComponentInteractionContract(SOURCE_FILE, testCase.exportName, testCase.props, testCase.interactions, {
-            wrapRender(element) {
-              return applyProjectProviderRender(element, testCase.exportName, 'react-component');
-            }
-          });
+          const interaction = ${componentInteractionExpression};
           assertComponentInteractionContractShape(interaction, testCase.interactions);
         });
 
         test(testCase.exportName + ' dom state contract', async () => {
           applyProjectProviderMocks(testCase.exportName, 'react-component');
-          const contract = await runComponentInteractionContract(SOURCE_FILE, testCase.exportName, testCase.props, testCase.interactions, {
-            wrapRender(element) {
-              return applyProjectProviderRender(element, testCase.exportName, 'react-component');
-            }
-          });
+          const contract = ${componentDomExpression};
           assertDomContractShape(contract.dom);
           if (Array.isArray(testCase.interactions) && testCase.interactions.length > 0) {
             expect(contract.interactions.length > 0).toBe(true);
@@ -3765,11 +3870,7 @@ describe(${JSON.stringify(suiteName)}, () => {
         if (Array.isArray(testCase.flows) && testCase.flows.length > 0) {
           test(testCase.exportName + ' behavioral flow contract', async () => {
             applyProjectProviderMocks(testCase.exportName, 'react-component');
-            const flow = await runComponentBehaviorFlowContract(SOURCE_FILE, testCase.exportName, testCase.props, testCase.flows, {
-              wrapRender(element) {
-                return applyProjectProviderRender(element, testCase.exportName, 'react-component');
-              }
-            });
+            const flow = ${componentFlowExpression};
             assertFlowContractShape(flow, testCase.flows);
             expect(flow.steps.some((step) => !step.skipped)).toBe(true);
           });
@@ -3784,14 +3885,14 @@ describe(${JSON.stringify(suiteName)}, () => {
         test(testCase.exportName + ' ' + testCase.caseName, async () => {
           applyProjectProviderMocks(testCase.exportName, 'react-hook');
           const moduleExports = await loadModuleExports();
-          const hook = readExportValue(moduleExports, testCase.exportName);
+          const hook = ${hookReadExpression};
           const result = hook(...testCase.args);
           assertHookResultContract(result);
         });
 
         test(testCase.exportName + ' interaction contract', () => {
           applyProjectProviderMocks(testCase.exportName, 'react-hook');
-          const interaction = runHookInteractionContract(SOURCE_FILE, testCase.exportName, testCase.args, testCase.interactions);
+          const interaction = ${hookInteractionExpression};
           assertHookInteractionContractShape(interaction, testCase.interactions);
         });
       }
@@ -3804,7 +3905,7 @@ describe(${JSON.stringify(suiteName)}, () => {
         test(testCase.exportName + ' ' + testCase.caseName, async () => {
           applyProjectProviderMocks(testCase.exportName, 'next-route-handler');
           const moduleExports = await loadModuleExports();
-          const handler = readExportValue(moduleExports, testCase.exportName);
+          const handler = ${handlerReadExpression};
           const request = createRequestFromSpec(testCase.request);
           const response = await Promise.resolve(handler(request, testCase.context));
           const normalizedResponse = await normalizeRouteResult(response);
@@ -3820,7 +3921,7 @@ describe(${JSON.stringify(suiteName)}, () => {
         test(testCase.exportName + ' ' + testCase.caseName, async () => {
           applyProjectProviderMocks(testCase.exportName, 'route-handler');
           const moduleExports = await loadModuleExports();
-          const handler = readExportValue(moduleExports, testCase.exportName);
+          const handler = ${handlerReadExpression};
           const request = createRequestFromSpec(testCase.request);
           const response = await Promise.resolve(handler(request, testCase.context));
           const normalizedResponse = await normalizeRouteResult(response);
@@ -3836,7 +3937,7 @@ describe(${JSON.stringify(suiteName)}, () => {
         test(testCase.exportName + ' ' + testCase.caseName, async () => {
           applyProjectProviderMocks(testCase.exportName, 'node-service');
           const moduleExports = await loadModuleExports();
-          const service = readExportValue(moduleExports, testCase.exportName);
+          const service = ${serviceReadExpression};
           const result = await Promise.resolve(service(...testCase.args));
           assertServiceResultContractShape(normalizeBehaviorValue(result));
         });
@@ -3866,10 +3967,9 @@ const {
 function renderGeneratedImportPrelude({ helperImport, providerImport }) {
   const providerLine = providerImport
     ? `import * as PROJECT_PROVIDER_MODULE from ${JSON.stringify(providerImport)};`
-    : 'const PROJECT_PROVIDER_MODULE = null;';
+    : 'const PROJECT_PROVIDER_MODULE: unknown = null;';
 
-  return `import path from 'path';
-import {
+  return `import {
   listExportNames,
   buildModuleContract,
   readExportValue,
@@ -3881,7 +3981,226 @@ import {
   runComponentBehaviorFlowContract,
   runHookInteractionContract
 } from ${JSON.stringify(helperImport)};
+import type {
+  AdvanceTimersByTime,
+  FlushMicrotasks,
+  Fn,
+  MockFetch,
+  MockModule,
+  ResetFetchMocks,
+  RestoreFetch,
+  RunAllTimers,
+  UseFakeTimers,
+  UseRealTimers
+} from "@vitronai/themis";
 ${providerLine}`;
+}
+
+function renderGeneratedTypePrelude() {
+  return `declare const require: {
+  resolve(id: string): string;
+};
+
+type ScenarioName =
+  | 'next-app-component'
+  | 'next-route-handler'
+  | 'react-component'
+  | 'react-hook'
+  | 'route-handler'
+  | 'node-service';
+type RuntimeModuleExports = Record<string, unknown>;
+type RuntimeModuleContractExpectations = Record<string, {
+  kind: string;
+  arity: number | null;
+  prototypeKeys: string[] | null;
+}>;
+type ProviderConfig = Record<string, unknown>;
+
+interface RepeatedPlanStep {
+  repeat?: number | null;
+}
+
+interface InteractionPlanStep extends RepeatedPlanStep {
+  event?: string | null;
+  labelIncludes?: string | null;
+  elementType?: string | null;
+}
+
+interface FlowExpectation {
+  immediateTextIncludes?: string;
+  beforeTextIncludes?: string;
+  settledTextIncludes?: string;
+  textExcludes?: string;
+  attributes?: Record<string, unknown>;
+  rolesInclude?: string | string[];
+}
+
+interface FlowPlanStep extends RepeatedPlanStep {
+  label?: string | null;
+  event: string;
+  labelIncludes?: string | null;
+  elementType?: string | null;
+  target?: Record<string, unknown>;
+  awaitResult?: boolean;
+  flushMicrotasks?: number;
+  advanceTimersByTime?: number;
+  runAllTimers?: boolean;
+  expected?: FlowExpectation;
+}
+
+interface HookInteractionPlanStep extends RepeatedPlanStep {
+  method?: string | null;
+}
+
+interface ComponentCase {
+  exportName: string;
+  displayName: string;
+  caseName: string;
+  props: Record<string, unknown>;
+  interactions: InteractionPlanStep[];
+  flows: FlowPlanStep[];
+  confidence: string;
+}
+
+interface HookCase {
+  exportName: string;
+  displayName: string;
+  caseName: string;
+  args: unknown[];
+  interactions: HookInteractionPlanStep[];
+  confidence: string;
+}
+
+interface RouteCase {
+  exportName: string;
+  displayName: string;
+  caseName: string;
+  request: {
+    method?: string;
+    url: string;
+    headers?: Record<string, string>;
+    body?: unknown;
+    json?: unknown;
+  };
+  context: Record<string, unknown>;
+  confidence: string;
+}
+
+interface ServiceCase {
+  exportName: string;
+  displayName: string;
+  caseName: string;
+  args: unknown[];
+  confidence: string;
+}
+
+interface ProviderPreset {
+  router?: ProviderConfig;
+  nextNavigation?: ProviderConfig;
+  auth?: ProviderConfig;
+  reactQuery?: ProviderConfig;
+  zustand?: ProviderConfig;
+  redux?: ProviderConfig;
+}
+
+type ProviderTransform = (element: unknown, config?: ProviderConfig) => unknown;
+
+interface ProjectProviderMockContext {
+  sourceFile: string;
+  sourcePath: string;
+  exportName: string;
+  scenario: ScenarioName;
+  mock: MockModule | null;
+  fn: Fn | null;
+  mockFetch: MockFetch | null;
+  resetFetchMocks: ResetFetchMocks | null;
+  restoreFetch: RestoreFetch | null;
+  useFakeTimers: UseFakeTimers | null;
+  useRealTimers: UseRealTimers | null;
+  advanceTimersByTime: AdvanceTimersByTime | null;
+  runAllTimers: RunAllTimers | null;
+  flushMicrotasks: FlushMicrotasks | null;
+}
+
+interface ProjectProviderRenderContext {
+  sourceFile: string;
+  sourcePath: string;
+  exportName: string;
+  scenario: ScenarioName;
+  element: unknown;
+  withProviderShell(type: string, element: unknown, attributes?: ProviderConfig): unknown;
+  withReactRouter: ProviderTransform;
+  withNextNavigation: ProviderTransform;
+  withAuthSession: ProviderTransform;
+  withReactQuery: ProviderTransform;
+  withZustandStore: ProviderTransform;
+  withReduxStore: ProviderTransform;
+}
+
+interface ProjectProviderRuntime {
+  providers?: ProjectProviderRuntime[];
+  applyMocks?(context: ProjectProviderMockContext): void;
+  wrapRender?(context: ProjectProviderRenderContext): unknown;
+}
+
+interface DomRoleContract {
+  role: string;
+  name: string;
+  path: string;
+  type: string;
+  attributes: Record<string, unknown>;
+}
+
+type DomNodeContract =
+  | { kind: 'text'; value: string; path: string }
+  | { kind: 'value'; value: unknown; path: string }
+  | { kind: 'element'; type: string; path: string; textContent: string; attributes: Record<string, unknown> };
+
+interface DomContract {
+  textContent: string;
+  roles: DomRoleContract[];
+  nodes: DomNodeContract[];
+}
+
+interface ComponentInteractionEntry {
+  label: string;
+  beforeDom: DomContract;
+  afterDom: DomContract;
+}
+
+interface ComponentInteractionContract {
+  rendered: unknown;
+  dom: DomContract;
+  interactions: ComponentInteractionEntry[];
+}
+
+interface FlowStepContract {
+  label: string;
+  skipped?: boolean;
+  beforeDom: DomContract;
+  immediateDom: DomContract;
+  settledDom: DomContract;
+}
+
+interface ComponentBehaviorFlowContract {
+  dom: DomContract;
+  steps: FlowStepContract[];
+}
+
+interface HookInteractionEntry {
+  label: string;
+}
+
+interface HookInteractionContract {
+  interactions: HookInteractionEntry[];
+}
+
+interface ReactTestElement {
+  $$typeof: 'react.test.element';
+  type: string;
+  key: null;
+  props: Record<string, unknown>;
+}`;
 }
 
 function flattenScenarioCases(scenarios, kind) {

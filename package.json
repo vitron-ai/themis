@@ -1,6 +1,6 @@
 {
   "name": "@vitronai/themis",
-  "version": "0.1.13",
+  "version": "0.1.14",
   "description": "Intent-first unit test framework and test generator for AI agents in Node.js and TypeScript",
   "license": "MIT",
   "author": "Vitron AI",
@@ -55,6 +55,7 @@
       "default": "./globals.js"
     },
     "./contract-runtime": {
+      "types": "./contract-runtime.d.ts",
       "require": "./src/contract-runtime.js",
       "default": "./src/contract-runtime.js"
     },
@@ -63,6 +64,7 @@
   "files": [
     "bin",
     "src/*.js",
+    "src/*.d.ts",
     "src/assets/*",
     "docs",
     "templates",
@@ -70,6 +72,7 @@
     "index.d.ts",
     "globals.js",
     "globals.d.ts",
+    "contract-runtime.d.ts",
     "themis.ai.json",
     "README.md",
     "CHANGELOG.md",

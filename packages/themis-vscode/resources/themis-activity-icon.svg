@@ -1,0 +1,12 @@
+<svg width="128" height="128" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Themis activity icon">
+  <g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M64 18v16" stroke-width="8"/>
+    <path d="M36 38h56" stroke-width="8"/>
+    <path d="M46 38 26 68" stroke-width="6"/>
+    <path d="M82 38 102 68" stroke-width="6"/>
+    <path d="M18 68c4 11 13 18 24 18s20-7 24-18H18Z" stroke-width="6"/>
+    <path d="M62 68c4 11 13 18 24 18s20-7 24-18H62Z" stroke-width="6"/>
+    <path d="M64 34v46" stroke-width="8"/>
+    <path d="M44 106h40" stroke-width="8"/>
+  </g>
+</svg>

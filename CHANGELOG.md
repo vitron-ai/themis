@@ -4,12 +4,16 @@ All notable changes to this project are documented in this file.
 
 ## Unreleased
 
+## 0.1.14 - 2026-03-27
+
 - Added first-party `npx themis test --fix` support so generated-test repair loops can apply fix-handoff autofixes, tighten hints when needed, and rerun the suite directly from the CLI.
 - Moved the generated contract runtime into the npm package (`@vitronai/themis/contract-runtime`), stopped `init` from creating `tests/example.test.js`, taught generated tests to emit `.generated.test.ts` for TS/TSX sources, and made `init` / `migrate` add `.themis/` to downstream `.gitignore`.
 - Reorganized framework-managed artifacts under `.themis/` into subdirectories like `.themis/runs/`, `.themis/diffs/`, `.themis/generate/`, `.themis/reports/`, `.themis/migration/`, and `.themis/benchmarks/` so volatile output stays bundled but easier to navigate.
 - Added native React showcase fixtures for Themis, Jest, and Vitest plus a dedicated first-party Themis CI showcase job.
 - Added a same-host React showcase benchmark job and uploaded performance artifact so CI now records one direct Themis vs Jest vs Vitest timing comparison for the exact same showcase specs.
 - Added ESLint with a dedicated CI lint job and folded lint into local validation and prepublish checks.
+- Generated `.generated.test.ts` output now typechecks cleanly under strict TypeScript without requiring downstream `types` overrides, and the packaged `@vitronai/themis/contract-runtime` surface now ships first-party type declarations.
+- Refined the in-repo VS Code extension scaffold with judge-only branding assets, semantic Themis review colors, and a themed HTML report webview shell so artifact review inside VS Code reads like the rest of the product.
 
 ## 0.1.4 - 2026-03-26
 

@@ -2,9 +2,10 @@
   "name": "themis-vscode",
   "displayName": "Themis",
   "description": "Review Themis test and generate artifacts, rerun suites, and open the HTML verdict report inside VS Code.",
-  "version": "0.1.3",
+  "version": "0.1.14",
   "license": "MIT",
   "publisher": "vitron-ai",
+  "icon": "resources/themis-package-icon.png",
   "repository": {
     "type": "git",
     "url": "https://github.com/vitron-ai/themis.git"
@@ -40,7 +41,7 @@
         {
           "id": "themis",
           "title": "Themis",
-          "icon": "resources/themis-icon.svg"
+          "icon": "resources/themis-activity-icon.svg"
         }
       ]
     },
@@ -118,6 +119,58 @@
         }
       ]
     },
+    "colors": [
+      {
+        "id": "themis.color.pass",
+        "description": "Primary success color for cleared Themis verdicts and resolved review groups.",
+        "defaults": {
+          "dark": "#4DB889",
+          "light": "#1F7A52",
+          "highContrast": "#5EE6A8",
+          "highContrastLight": "#146B45"
+        }
+      },
+      {
+        "id": "themis.color.fail",
+        "description": "Primary failure color for active Themis test failures and broken artifact states.",
+        "defaults": {
+          "dark": "#E26D5A",
+          "light": "#B63E2E",
+          "highContrast": "#FF8F7F",
+          "highContrastLight": "#9C2313"
+        }
+      },
+      {
+        "id": "themis.color.review",
+        "description": "Review color for contract drift, migration actions, and intervention-needed generated work.",
+        "defaults": {
+          "dark": "#E3A23B",
+          "light": "#A86B00",
+          "highContrast": "#FFD37A",
+          "highContrastLight": "#8A5600"
+        }
+      },
+      {
+        "id": "themis.color.insight",
+        "description": "Insight color for generated mappings, report navigation, and runtime context.",
+        "defaults": {
+          "dark": "#5CB8D8",
+          "light": "#0D6F94",
+          "highContrast": "#86E0FF",
+          "highContrastLight": "#005B79"
+        }
+      },
+      {
+        "id": "themis.color.muted",
+        "description": "Muted utility color for empty or inactive Themis states.",
+        "defaults": {
+          "dark": "#94A3B8",
+          "light": "#5F6B7A",
+          "highContrast": "#C8D4E5",
+          "highContrastLight": "#3F4A58"
+        }
+      }
+    ],
     "configuration": {
       "title": "Themis",
       "properties": {

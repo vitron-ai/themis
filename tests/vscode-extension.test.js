@@ -1,4 +1,5 @@
 const fs = require('fs');
+const Module = require('module');
 const os = require('os');
 const path = require('path');
 const extensionManifest = require('../packages/themis-vscode/package.json');
@@ -381,20 +382,33 @@ describe('vscode extension scaffold', () => {
       const failuresGroup = tree.find((entry) => entry.id === 'failures');
 
       expect(verdict.label).toBe('Action Needed');
+      expect(verdict.color).toBe('themis.color.fail');
       expect(comparison.label).toBe('Run diff +1 failures • +4.1ms');
+      expect(comparison.color).toBe('themis.color.review');
       expect(report.label).toBe('Open HTML report');
+      expect(report.color).toBe('themis.color.insight');
       expect(contracts.label).toBe('Contract Review (1)');
+      expect(contracts.color).toBe('themis.color.review');
       expect(contracts.children[0].command.id).toBe('themis.updateContracts');
+      expect(contracts.children[0].color).toBe('themis.color.review');
       expect(contracts.children[1].label).toBe('DRIFTED banner');
+      expect(contracts.children[1].color).toBe('themis.color.review');
       expect(migration.label).toBe('Migration Review (1)');
+      expect(migration.color).toBe('themis.color.insight');
       expect(migration.children[0].command.id).toBe('themis.runMigrationCodemods');
       expect(generation.label).toBe('Generated Review (2)');
+      expect(generation.color).toBe('themis.color.review');
       expect(generation.children[0].label).toBe('Mapped targets (1)');
+      expect(generation.children[0].color).toBe('themis.color.insight');
       expect(generation.children[1].label).toBe('Generation backlog (1)');
+      expect(generation.children[1].color).toBe('themis.color.review');
       expect(generation.children[2].label).toBe('Hint sidecars (2)');
+      expect(generation.children[2].color).toBe('themis.color.review');
       expect(generation.children[0].children[0].children[0].command.id).toBe('themis.openArtifactFile');
       expect(failuresGroup.label).toBe('Failures (1)');
+      expect(failuresGroup.color).toBe('themis.color.fail');
       expect(failuresGroup.children[0].command.id).toBe('themis.openFailure');
+      expect(failuresGroup.children[0].color).toBe('themis.color.fail');
       expect(failuresGroup.children[0].description).toBe('sample.test.ts:4');
     });
   });
@@ -439,6 +453,13 @@ describe('vscode extension scaffold', () => {
     expect(extensionManifest.main).toBe('./src/extension.js');
     expect(extensionManifest.activationEvents).toContain('onView:themis.results');
     expect(extensionManifest.contributes.views.themis[0].id).toBe('themis.results');
+    expect(extensionManifest.contributes.colors.map((entry) => entry.id)).toEqual([
+      'themis.color.pass',
+      'themis.color.fail',
+      'themis.color.review',
+      'themis.color.insight',
+      'themis.color.muted'
+    ]);
 
     const commands = extensionManifest.contributes.commands.map((entry) => entry.command);
     expect(commands).toContain('themis.runTests');
@@ -448,5 +469,65 @@ describe('vscode extension scaffold', () => {
     expect(commands).toContain('themis.openHtmlReport');
     expect(commands).toContain('themis.refreshResults');
     expect(commands).toContain('themis.openArtifactFile');
+  });
+
+  test('wraps the html report in a VS Code themed review shell', () => {
+    const extensionPath = path.resolve(__dirname, '..', 'packages', 'themis-vscode', 'src', 'extension.js');
+    const originalLoad = Module._load;
+    delete require.cache[extensionPath];
+
+    Module._load = function patchedLoad(request, parent, isMain) {
+      if (request === 'vscode') {
+        return {
+          Uri: {
+            file(filePath) {
+              return { fsPath: filePath };
+            }
+          }
+        };
+      }
+
+      return originalLoad.call(this, request, parent, isMain);
+    };
+
+    let rewriteReportHtmlForWebview;
+    try {
+      ({ rewriteReportHtmlForWebview } = require(extensionPath));
+    } finally {
+      Module._load = originalLoad;
+      delete require.cache[extensionPath];
+    }
+
+    const webview = {
+      asWebviewUri(uri) {
+        return {
+          toString() {
+            return `webview:${uri.fsPath}`;
+          }
+        };
+      }
+    };
+
+    const reportDir = fs.mkdtempSync(path.join(os.tmpdir(), 'themis-report-webview-'));
+    const assetPath = path.join(reportDir, 'report.css');
+    fs.writeFileSync(assetPath, 'body { color: white; }\n', 'utf8');
+
+    try {
+      const html = [
+        '<html>',
+        '<head><link rel="stylesheet" href="report.css"></head>',
+        '<body class="report-body"><main>Verdict</main></body>',
+        '</html>'
+      ].join('');
+      const rewritten = rewriteReportHtmlForWebview(webview, path.join(reportDir, 'report.html'), html);
+
+      expect(rewritten).toContain('id="themis-webview-theme"');
+      expect(rewritten).toContain('Themis Review Surface');
+      expect(rewritten).toContain('Verdict Report In VS Code');
+      expect(rewritten).toContain('class="themis-webview-report report-body"');
+      expect(rewritten).toContain(`webview:${assetPath}`);
+    } finally {
+      fs.rmSync(reportDir, { recursive: true, force: true });
+    }
   });
 });
