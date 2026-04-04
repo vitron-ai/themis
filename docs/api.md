@@ -191,6 +191,7 @@ Migration options:
 
 - `--rewrite-imports`: rewrites matched imports from `@jest/globals`, `vitest`, and `@testing-library/react` to the local `themis.compat.js` bridge
 - `--convert`: removes common framework imports and rewrites common Jest/Vitest matcher patterns (`it`, `toStrictEqual`, `toContainEqual`, `toBeCalled*`) into Themis-native forms
+- `--assist`: enables `--rewrite-imports` and `--convert`, then scans migrated files for leftover framework-only helpers or matcher chains that still need manual follow-up
 
 ## `themis test` options
 
@@ -218,7 +219,7 @@ Migration compatibility:
 - imports from `@jest/globals` are supported at runtime
 - imports from `vitest` are supported at runtime
 - imports from `@testing-library/react` are supported via Themis `render`, `screen`, `fireEvent`, `waitFor`, `cleanup`, and `act`
-- `themis migrate <jest|vitest>` also emits `.themis/migration/migration-report.json` with detected files and recommended next actions
+- `themis migrate <jest|vitest>` also emits `.themis/migration/migration-report.json` with detected files, migration mode details, assistant findings, and recommended next actions
 
 Additional option:
 
@@ -280,6 +281,7 @@ Formal schemas:
 - `docs/schemas/fix-handoff.v1.json`
 - `docs/schemas/failures.v1.json`
 - `docs/schemas/contract-diff.v1.json`
+- `docs/schemas/migration-report.v1.json`
 
 Human-facing artifact:
 

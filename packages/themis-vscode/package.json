@@ -2,7 +2,7 @@
   "name": "themis-vscode",
   "displayName": "Themis",
   "description": "Review Themis test and generate artifacts, rerun suites, and open the HTML verdict report inside VS Code.",
-  "version": "0.1.15",
+  "version": "1.0.17",
   "license": "MIT",
   "publisher": "vitron-ai",
   "icon": "resources/themis-package-icon.png",

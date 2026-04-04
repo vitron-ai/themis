@@ -95,6 +95,17 @@ async function main(argv) {
     if (result.convertedFiles && result.convertedFiles.length > 0) {
       console.log(`Codemods: converted ${result.convertedFiles.length} file(s) to Themis-native patterns.`);
     }
+    if (result.assist) {
+      console.log(`Assistant: analyzed ${result.assistSummary.analyzedFiles} migrated file(s).`);
+      if (result.assistSummary.findings.length > 0) {
+        console.log(
+          `Assistant: flagged ${result.assistSummary.findings.length} manual follow-up item(s) across ${result.assistSummary.unresolvedFiles.length} file(s).`
+        );
+      } else {
+        console.log('Assistant: no unsupported Jest/Vitest-only patterns detected in migrated files.');
+      }
+      console.log(`Report: ${formatCliPath(cwd, result.reportPath)}`);
+    }
     console.log('Runtime compatibility is enabled for @jest/globals, vitest, and @testing-library/react imports.');
     console.log('Next: run npx themis test or npm run test:themis');
     return;
@@ -500,7 +511,8 @@ function parseMigrateFlags(args) {
   const flags = {
     source: args[0],
     rewriteImports: false,
-    convert: false
+    convert: false,
+    assist: false
   };
 
   for (let i = 1; i < args.length; i += 1) {
@@ -511,6 +523,16 @@ function parseMigrateFlags(args) {
     }
     if (token === '--convert') {
       flags.convert = true;
+      continue;
+    }
+    if (token === '--assist') {
+      flags.assist = true;
+      flags.rewriteImports = true;
+      flags.convert = true;
+      continue;
+    }
+    if (token.startsWith('-')) {
+      throw new Error(`Unsupported migrate option: ${token}`);
     }
   }
 
@@ -741,7 +763,7 @@ function printUsage() {
   console.log('  generate [path]         Scan source files and generate Themis contract tests');
   console.log('                         Options: [--json] [--plan] [--output path] [--files a,b] [--match-source regex] [--match-export regex] [--scenario name] [--min-confidence level] [--require-confidence level] [--include regex] [--exclude regex] [--review] [--update] [--clean] [--changed] [--force] [--strict] [--write-hints] [--fail-on-skips] [--fail-on-conflicts]');
   console.log('  scan [path]             Alias for generate');
-  console.log('  migrate <jest|vitest> [--rewrite-imports] [--convert]   Scaffold an incremental migration bridge for existing suites');
+  console.log('  migrate <jest|vitest> [--rewrite-imports] [--convert] [--assist]   Scaffold an incremental migration bridge for existing suites');
   console.log('  test [--json] [--agent] [--next] [--reporter spec|next|json|agent|html] [--workers N] [--stability N] [--environment node|jsdom] [--isolation worker|in-process] [--cache] [--update-contracts] [--fix] [-w|--watch] [--html-output path] [--match regex] [--rerun-failed] [--no-memes] [--lexicon classic|themis]');
 }
 

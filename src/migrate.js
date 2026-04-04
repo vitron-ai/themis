@@ -10,6 +10,40 @@ const THEMIS_COMPAT_FILE = 'themis.compat.js';
 const MIGRATION_REPORT_FILE = ARTIFACT_RELATIVE_PATHS.migrationReport;
 const SCANNABLE_EXTENSIONS = new Set(['.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs']);
 const IGNORED_DIRECTORIES = new Set(['node_modules', '.git', '.themis']);
+const MIGRATION_ASSIST_PATTERNS = Object.freeze([
+  {
+    id: 'remaining-framework-import',
+    category: 'remaining-framework-import',
+    severity: 'warning',
+    pattern: /(?:import\s+[^;]*?from\s+['"](?:@jest\/globals|vitest|@testing-library\/react)['"]|import\s*\(\s*['"](?:@jest\/globals|vitest|@testing-library\/react)['"]\s*\)|require\(\s*['"](?:@jest\/globals|vitest|@testing-library\/react)['"]\s*\))/,
+    message: 'Framework-specific imports are still present after migration scaffolding.',
+    suggestion: 'Rewrite or remove remaining framework imports so the suite only depends on Themis-compatible entry points.'
+  },
+  {
+    id: 'unsupported-helper',
+    category: 'unsupported-helper',
+    severity: 'warning',
+    pattern: /\b(?:jest|vi)\.(?:mocked|doMock|dontMock|setMock|requireActual|requireMock|createMockFromModule|isolateModules|isolateModulesAsync|unstable_mockModule|importActual|importMock)\s*\(/,
+    message: 'Unsupported Jest/Vitest helper detected.',
+    suggestion: 'Replace the helper with an explicit Themis mock, fixture, or project-local test utility before relying on the migrated suite.'
+  },
+  {
+    id: 'async-matcher-chain',
+    category: 'async-matcher-chain',
+    severity: 'warning',
+    pattern: /\.\s*(?:resolves|rejects)\b/,
+    message: 'Promise matcher chains remain in the migrated file.',
+    suggestion: 'Rewrite promise assertions to explicit await-based checks so they run under Themis without framework-specific matcher chaining.'
+  },
+  {
+    id: 'focused-alias',
+    category: 'focused-alias',
+    severity: 'warning',
+    pattern: /\b(?:fit|xit|fdescribe|xdescribe)\s*\(/,
+    message: 'Focused or excluded Jest/Vitest aliases remain in the migrated file.',
+    suggestion: 'Replace focused aliases with Themis-supported describe/test forms before running the migrated suite broadly.'
+  }
+]);
 
 function runMigrate(cwd, framework, options = {}) {
   const source = String(framework || '').trim().toLowerCase();
@@ -66,7 +100,14 @@ function runMigrate(cwd, framework, options = {}) {
   const conversionSummary = options.convert
     ? convertMigrationFiles(projectRoot, scan.matches)
     : { convertedFiles: [], convertedAssertions: 0, removedImports: 0 };
-  const report = buildMigrationReport(projectRoot, source, scan.matches, rewriteSummary, conversionSummary);
+  const assistSummary = analyzeMigrationAssist(projectRoot, scan.matches, {
+    enabled: Boolean(options.assist)
+  });
+  const report = buildMigrationReport(projectRoot, source, scan.matches, rewriteSummary, conversionSummary, assistSummary, {
+    rewriteImports: Boolean(options.rewriteImports),
+    convert: Boolean(options.convert),
+    assist: Boolean(options.assist)
+  });
   fs.mkdirSync(path.dirname(reportPath), { recursive: true });
   fs.writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`, 'utf8');
 
@@ -84,7 +125,9 @@ function runMigrate(cwd, framework, options = {}) {
     rewriteImports: Boolean(options.rewriteImports),
     rewrittenFiles: rewriteSummary.rewrittenFiles,
     convert: Boolean(options.convert),
-    convertedFiles: conversionSummary.convertedFiles
+    convertedFiles: conversionSummary.convertedFiles,
+    assist: Boolean(options.assist),
+    assistSummary
   };
 }
 
@@ -170,12 +213,20 @@ function buildMigrationReport(
   source,
   matches,
   rewriteSummary = { rewrittenFiles: [], rewrittenImports: 0 },
-  conversionSummary = { convertedFiles: [], convertedAssertions: 0, removedImports: 0 }
+  conversionSummary = { convertedFiles: [], convertedAssertions: 0, removedImports: 0 },
+  assistSummary = buildEmptyAssistSummary(false),
+  mode = { rewriteImports: false, convert: false, assist: false }
 ) {
+  const effectiveAssistSummary = normalizeAssistSummary(assistSummary, Boolean(mode.assist));
   return {
     schema: 'themis.migration.report.v1',
     source,
     createdAt: new Date().toISOString(),
+    mode: {
+      rewriteImports: Boolean(mode.rewriteImports),
+      convert: Boolean(mode.convert),
+      assist: Boolean(mode.assist)
+    },
     summary: {
       matchedFiles: matches.length,
       jestGlobals: matches.filter((entry) => entry.imports.includes('@jest/globals')).length,
@@ -185,11 +236,18 @@ function buildMigrationReport(
       rewrittenImports: Number(rewriteSummary.rewrittenImports || 0),
       convertedFiles: Array.isArray(conversionSummary.convertedFiles) ? conversionSummary.convertedFiles.length : 0,
       convertedAssertions: Number(conversionSummary.convertedAssertions || 0),
-      removedImports: Number(conversionSummary.removedImports || 0)
+      removedImports: Number(conversionSummary.removedImports || 0),
+      assistedFiles: Number(effectiveAssistSummary.analyzedFiles || 0),
+      unresolvedFiles: Array.isArray(effectiveAssistSummary.unresolvedFiles) ? effectiveAssistSummary.unresolvedFiles.length : 0,
+      findings: Array.isArray(effectiveAssistSummary.findings) ? effectiveAssistSummary.findings.length : 0,
+      unsupportedPatterns: Number(effectiveAssistSummary.unsupportedPatterns || 0)
     },
     files: matches,
     nextActions: [
       'Run npx themis test to execute migrated suites under the Themis runtime.',
+      ...(effectiveAssistSummary.findings.length > 0
+        ? ['Resolve assistant findings in the migration report before relying on the migrated suite in CI.']
+        : []),
       'Replace any unsupported Jest/Vitest-only helpers with Themis built-ins or project setup utilities.',
       'Use npx themis generate src for source-driven unit-layer coverage alongside migrated suites.'
     ],
@@ -198,7 +256,71 @@ function buildMigrationReport(
       : [],
     conversions: Array.isArray(conversionSummary.convertedFiles)
       ? conversionSummary.convertedFiles
-      : []
+      : [],
+    assistant: effectiveAssistSummary
+  };
+}
+
+function analyzeMigrationAssist(projectRoot, matches, options = {}) {
+  const enabled = Boolean(options.enabled);
+  if (!enabled) {
+    return buildEmptyAssistSummary(false);
+  }
+
+  const findings = [];
+  const unresolvedFiles = new Set();
+
+  for (const match of matches) {
+    const absoluteFile = path.join(projectRoot, match.file);
+    const sourceText = fs.readFileSync(absoluteFile, 'utf8');
+
+    for (const definition of MIGRATION_ASSIST_PATTERNS) {
+      if (!definition.pattern.test(sourceText)) {
+        continue;
+      }
+      unresolvedFiles.add(match.file);
+      findings.push({
+        file: match.file,
+        category: definition.category,
+        severity: definition.severity,
+        pattern: definition.id,
+        message: definition.message,
+        suggestion: definition.suggestion
+      });
+    }
+  }
+
+  return normalizeAssistSummary(
+    {
+      enabled: true,
+      analyzedFiles: matches.length,
+      findings,
+      unresolvedFiles: Array.from(unresolvedFiles).sort(),
+      unsupportedPatterns: findings.length
+    },
+    true
+  );
+}
+
+function buildEmptyAssistSummary(enabled) {
+  return {
+    enabled: Boolean(enabled),
+    analyzedFiles: 0,
+    findings: [],
+    unresolvedFiles: [],
+    unsupportedPatterns: 0
+  };
+}
+
+function normalizeAssistSummary(summary, enabled) {
+  const findings = Array.isArray(summary && summary.findings) ? summary.findings : [];
+  const unresolvedFiles = Array.isArray(summary && summary.unresolvedFiles) ? summary.unresolvedFiles : [];
+  return {
+    enabled: Boolean(enabled),
+    analyzedFiles: Number((summary && summary.analyzedFiles) || 0),
+    findings,
+    unresolvedFiles,
+    unsupportedPatterns: Number((summary && summary.unsupportedPatterns) || findings.length)
   };
 }
 

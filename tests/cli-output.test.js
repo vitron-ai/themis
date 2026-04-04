@@ -821,4 +821,73 @@ test('deterministic instability', () => {
       }
     );
   });
+
+  test('migration assistant enables rewrite and convert passes and reports clean follow-up state', async () => {
+    await withProjectFiles(
+      async ({ tempDir }) => {
+        const run = runCliCommand(tempDir, 'migrate', ['jest', '--assist']);
+        expect(run.status).toBe(0);
+        expect(run.output).toContain('Imports: rewrote 1 file(s) to local Themis compatibility imports.');
+        expect(run.output).toContain('Codemods: converted 1 file(s) to Themis-native patterns.');
+        expect(run.output).toContain('Assistant: analyzed 1 migrated file(s).');
+        expect(run.output).toContain('Assistant: no unsupported Jest/Vitest-only patterns detected in migrated files.');
+
+        const testSource = fs.readFileSync(path.join(tempDir, 'tests', 'sample.test.js'), 'utf8');
+        expect(testSource).toContain(`require('../themis.compat.js')`);
+        expect(testSource).toContain('test(');
+        expect(testSource.includes('@jest/globals')).toBe(false);
+
+        const report = JSON.parse(fs.readFileSync(path.join(tempDir, '.themis', 'migration', 'migration-report.json'), 'utf8'));
+        expect(report.mode.assist).toBe(true);
+        expect(report.mode.rewriteImports).toBe(true);
+        expect(report.mode.convert).toBe(true);
+        expect(report.summary.assistedFiles).toBe(1);
+        expect(report.summary.unresolvedFiles).toBe(0);
+        expect(report.summary.findings).toBe(0);
+        expect(report.assistant.enabled).toBe(true);
+        expect(report.assistant.findings).toEqual([]);
+      },
+      {
+        'package.json': `{\n  "name": "themis-migrate-assist-clean",\n  "private": true,\n  "version": "0.0.0",\n  "scripts": {\n    "test": "jest"\n  }\n}\n`,
+        'tests/sample.test.js': `const { describe, it, expect } = require('@jest/globals');\n\ndescribe('migration assistant clean', () => {\n  it('normalizes matchers', () => {\n    const worker = fn();\n    worker('ok');\n    expect({ status: 'ok' }).toStrictEqual({ status: 'ok' });\n    expect(worker).toBeCalledTimes(1);\n  });\n});\n`
+      },
+      {
+        testRegex: '\\.(test|spec)\\.js$',
+        reporter: 'json',
+        environment: 'node',
+        setupFiles: [],
+        tsconfigPath: null
+      }
+    );
+  });
+
+  test('migration assistant reports unsupported helpers that still need manual follow-up', async () => {
+    await withProjectFiles(
+      async ({ tempDir }) => {
+        const run = runCliCommand(tempDir, 'migrate', ['jest', '--assist']);
+        expect(run.status).toBe(0);
+        expect(run.output).toContain('Assistant: flagged 2 manual follow-up item(s) across 1 file(s).');
+
+        const report = JSON.parse(fs.readFileSync(path.join(tempDir, '.themis', 'migration', 'migration-report.json'), 'utf8'));
+        expect(report.summary.unresolvedFiles).toBe(1);
+        expect(report.summary.findings).toBe(2);
+        expect(report.summary.unsupportedPatterns).toBe(2);
+        expect(report.assistant.unresolvedFiles).toEqual(['tests/sample.test.js']);
+        expect(report.assistant.findings.map((entry) => entry.category).sort()).toEqual(['async-matcher-chain', 'unsupported-helper']);
+        expect(report.nextActions).toContain('Resolve assistant findings in the migration report before relying on the migrated suite in CI.');
+      },
+      {
+        'package.json': `{\n  "name": "themis-migrate-assist-blocked",\n  "private": true,\n  "version": "0.0.0",\n  "scripts": {\n    "test": "jest"\n  }\n}\n`,
+        'tests/sample.test.js': `const { describe, test, expect } = require('@jest/globals');\n\ndescribe('migration assistant blocked', () => {\n  test('needs manual follow-up', async () => {\n    const actual = jest.requireActual('../src/value');\n    await expect(Promise.resolve(actual.answer)).resolves.toBe(42);\n  });\n});\n`,
+        'src/value.js': `module.exports = { answer: 42 };\n`
+      },
+      {
+        testRegex: '\\.(test|spec)\\.js$',
+        reporter: 'json',
+        environment: 'node',
+        setupFiles: [],
+        tsconfigPath: null
+      }
+    );
+  });
 });

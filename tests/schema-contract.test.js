@@ -13,6 +13,7 @@ const GENERATE_HANDOFF_SCHEMA_PATH = path.join(__dirname, '..', 'docs', 'schemas
 const GENERATE_BACKLOG_SCHEMA_PATH = path.join(__dirname, '..', 'docs', 'schemas', 'generate-backlog.v1.json');
 const FIX_HANDOFF_SCHEMA_PATH = path.join(__dirname, '..', 'docs', 'schemas', 'fix-handoff.v1.json');
 const CONTRACT_DIFF_SCHEMA_PATH = path.join(__dirname, '..', 'docs', 'schemas', 'contract-diff.v1.json');
+const MIGRATION_REPORT_SCHEMA_PATH = path.join(__dirname, '..', 'docs', 'schemas', 'migration-report.v1.json');
 const CLI_PATH = path.join(__dirname, '..', 'bin', 'themis.js');
 
 describe('schema contracts', () => {
@@ -491,6 +492,45 @@ describe('schema contracts', () => {
       const payload = JSON.parse(fs.readFileSync(contractDiffPath, 'utf8'));
       assertMatchesSchema(payload, schema, schema);
       expect(payload.summary.updated).toBe(1);
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  test('migration report artifact matches docs schema contract', () => {
+    const schema = loadSchema(MIGRATION_REPORT_SCHEMA_PATH);
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'themis-migration-schema-'));
+
+    try {
+      fs.writeFileSync(
+        path.join(tempDir, 'package.json'),
+        `{\n  "name": "themis-migration-schema-fixture",\n  "private": true,\n  "version": "0.0.0",\n  "scripts": {\n    "test": "jest"\n  }\n}\n`,
+        'utf8'
+      );
+      fs.mkdirSync(path.join(tempDir, 'tests'), { recursive: true });
+      fs.writeFileSync(
+        path.join(tempDir, 'tests', 'sample.test.js'),
+        `const { describe, test, expect } = require('@jest/globals');\n\ndescribe('migration schema fixture', () => {\n  test('needs follow-up', async () => {\n    const actual = jest.requireActual('../src/value');\n    await expect(Promise.resolve(actual.answer)).resolves.toBe(42);\n  });\n});\n`,
+        'utf8'
+      );
+      fs.mkdirSync(path.join(tempDir, 'src'), { recursive: true });
+      fs.writeFileSync(path.join(tempDir, 'src', 'value.js'), `module.exports = { answer: 42 };\n`, 'utf8');
+
+      const run = spawnSync(process.execPath, [CLI_PATH, 'migrate', 'jest', '--assist'], {
+        cwd: tempDir,
+        encoding: 'utf8',
+        env: {
+          ...process.env,
+          NO_COLOR: '1'
+        }
+      });
+
+      expect(run.status).toBe(0);
+      const payload = JSON.parse(fs.readFileSync(path.join(tempDir, '.themis', 'migration', 'migration-report.json'), 'utf8'));
+      assertMatchesSchema(payload, schema, schema);
+      expect(payload.mode.assist).toBe(true);
+      expect(payload.assistant.findings.length > 0).toBe(true);
+      expect(payload.summary.unresolvedFiles).toBe(1);
     } finally {
       fs.rmSync(tempDir, { recursive: true, force: true });
     }

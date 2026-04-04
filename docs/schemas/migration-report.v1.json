@@ -1,0 +1,122 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/vitron-ai/themis/docs/schemas/migration-report.v1.json",
+  "title": "Themis Migration Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "source", "createdAt", "mode", "summary", "files", "nextActions", "rewrites", "conversions", "assistant"],
+  "properties": {
+    "schema": {
+      "type": "string",
+      "const": "themis.migration.report.v1"
+    },
+    "source": {
+      "type": "string",
+      "enum": ["jest", "vitest"]
+    },
+    "createdAt": {
+      "type": "string"
+    },
+    "mode": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["rewriteImports", "convert", "assist"],
+      "properties": {
+        "rewriteImports": { "type": "boolean" },
+        "convert": { "type": "boolean" },
+        "assist": { "type": "boolean" }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "matchedFiles",
+        "jestGlobals",
+        "vitest",
+        "testingLibraryReact",
+        "rewrittenFiles",
+        "rewrittenImports",
+        "convertedFiles",
+        "convertedAssertions",
+        "removedImports",
+        "assistedFiles",
+        "unresolvedFiles",
+        "findings",
+        "unsupportedPatterns"
+      ],
+      "properties": {
+        "matchedFiles": { "type": "number" },
+        "jestGlobals": { "type": "number" },
+        "vitest": { "type": "number" },
+        "testingLibraryReact": { "type": "number" },
+        "rewrittenFiles": { "type": "number" },
+        "rewrittenImports": { "type": "number" },
+        "convertedFiles": { "type": "number" },
+        "convertedAssertions": { "type": "number" },
+        "removedImports": { "type": "number" },
+        "assistedFiles": { "type": "number" },
+        "unresolvedFiles": { "type": "number" },
+        "findings": { "type": "number" },
+        "unsupportedPatterns": { "type": "number" }
+      }
+    },
+    "files": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["file", "imports"],
+        "properties": {
+          "file": { "type": "string" },
+          "imports": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      }
+    },
+    "nextActions": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "rewrites": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "conversions": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "assistant": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "analyzedFiles", "findings", "unresolvedFiles", "unsupportedPatterns"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "analyzedFiles": { "type": "number" },
+        "findings": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["file", "category", "severity", "pattern", "message", "suggestion"],
+            "properties": {
+              "file": { "type": "string" },
+              "category": { "type": "string" },
+              "severity": { "type": "string" },
+              "pattern": { "type": "string" },
+              "message": { "type": "string" },
+              "suggestion": { "type": "string" }
+            }
+          }
+        },
+        "unresolvedFiles": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "unsupportedPatterns": { "type": "number" }
+      }
+    }
+  }
+}

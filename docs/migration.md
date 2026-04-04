@@ -8,6 +8,7 @@ Themis is designed for incremental migration. Start by running existing suites u
 npx themis migrate jest
 npx themis migrate jest --rewrite-imports
 npx themis migrate jest --convert
+npx themis migrate jest --assist
 npx themis test
 ```
 
@@ -18,6 +19,7 @@ Use `vitest` instead of `jest` for Vitest suites.
 - `themis migrate <jest|vitest>`: scaffold config, setup, compat bridge, and migration report.
 - `--rewrite-imports`: point framework imports at `themis.compat.js`.
 - `--convert`: remove common Jest/Vitest imports and rewrite common matcher/test patterns into Themis-native forms.
+- `--assist`: run the safe rewrite and conversion passes together, then report leftover Jest/Vitest-only helpers that still need manual follow-up.
 
 ## Before And After
 
@@ -154,14 +156,16 @@ These are the strongest head-to-head examples to use when explaining why Themis 
 
 1. Snapshot replacement: `captureContract(...)` plus `--update-contracts` gives baseline capture without snapshot churn.
 2. Codemod migration: `themis migrate --convert` moves common Jest/Vitest matcher syntax toward native Themis without a manual rewrite pass.
-3. Agent triage: `--agent`, `.themis/diffs/run-diff.json`, `.themis/runs/fix-handoff.json`, and `.themis/diffs/contract-diff.json` give machines structured rerun and repair inputs.
-4. Human review: next reporter and HTML report now surface contract drift alongside failures, instead of burying meaning in raw output.
-5. Generated coverage: `themis generate src` adds source-driven contract tests next to migrated suites, so adoption improves coverage instead of merely changing runners.
+3. Migration assistant: `themis migrate --assist` bundles the safe codemods and emits findings for files that still need manual migration work.
+4. Agent triage: `--agent`, `.themis/diffs/run-diff.json`, `.themis/runs/fix-handoff.json`, and `.themis/diffs/contract-diff.json` give machines structured rerun and repair inputs.
+5. Human review: next reporter and HTML report now surface contract drift alongside failures, instead of burying meaning in raw output.
+6. Generated coverage: `themis generate src` adds source-driven contract tests next to migrated suites, so adoption improves coverage instead of merely changing runners.
 
 ## Recommended rollout
 
 1. Run `themis migrate <jest|vitest>`.
 2. Add `--rewrite-imports` if you want local explicit compat imports.
 3. Add `--convert` to normalize the easy matcher/import cases immediately.
-4. Replace snapshots with `captureContract(...)` or explicit assertions in files you touch.
-5. Use `themis generate src` to add source-driven coverage in parallel with migrated suites.
+4. Add `--assist` when you want a guided follow-up report for leftover framework-only helpers.
+5. Replace snapshots with `captureContract(...)` or explicit assertions in files you touch.
+6. Use `themis generate src` to add source-driven coverage in parallel with migrated suites.

@@ -1,6 +1,6 @@
 {
   "name": "vitron-ai/themis",
-  "version": "1.0.16",
+  "version": "1.0.17",
   "summary": "Reference tile for Themis, a Node.js and TypeScript unit testing framework, test runner, and test generator covering unit-test conventions, Jest and Vitest migration, and repository workflows.",
   "private": false,
   "docs": "docs/index.md",

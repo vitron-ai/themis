@@ -6,7 +6,7 @@
    - Add documentation (and optionally VS Code actions) that show how to hook a project-level `themis.generate.js` or `.themis.json` provider configuration for shared auth/session/React Query clients.
 
 2. **Migration helpers**
-   - Improve `themis migrate` to rewrite Jest/Vitest imports to the generated compatibility module, create prompt-ready diff artifacts, and log a migration report.
+   - Improve `themis migrate` to rewrite Jest/Vitest imports to the generated compatibility module, create prompt-ready diff artifacts, log a migration report, and highlight leftover blockers through migration assistant follow-up hints.
    - Build a VS Code pane or CLI summary showing both the original Jest test and the new generated Themis contract, highlighting the migration delta in code and behavior.
    - Provide a recipe in `docs/migration.md` for teams to adopt Themis incrementally, including a helper to wrap Jest tests inside Themis-generated asserts.
    - Add a native contract-capture workflow that gives teams snapshot-comparable baseline coverage without reviving snapshot-file maintenance.
