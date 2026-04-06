@@ -1,0 +1,41 @@
+{
+  "context": "Tests whether the agent uses `intent(...)` for the higher-level pipeline workflow and `test(...)` for the pure-unit slugify function, and avoids importing Jest/Vitest-specific APIs.",
+  "type": "weighted_checklist",
+  "checklist": [
+    {
+      "name": "intent for pipeline",
+      "max_score": 20,
+      "description": "Uses `intent(...)` (not `test(...)`) to define at least one test block for the pipeline/workflow module (src/pipeline.ts)."
+    },
+    {
+      "name": "test for slugify",
+      "max_score": 20,
+      "description": "Uses `test(...)` (not `intent(...)`) to define at least one test block for the pure slugify function (src/slugify.ts)."
+    },
+    {
+      "name": "No Jest describe/it/expect",
+      "max_score": 15,
+      "description": "Does NOT use Jest or Vitest APIs: no `describe(`, `it(`, `expect(`, `beforeEach(`, `afterEach(`, `beforeAll(`, `afterAll(` in the test files."
+    },
+    {
+      "name": "No Jest import",
+      "max_score": 15,
+      "description": "Does NOT import from 'jest', '@jest/globals', 'vitest', or '@vitest/globals' in any test file."
+    },
+    {
+      "name": "DECISIONS.md present",
+      "max_score": 15,
+      "description": "A DECISIONS.md file exists and mentions both `intent` and `test` in the context of which module each was applied to."
+    },
+    {
+      "name": "intent rationale in DECISIONS.md",
+      "max_score": 8,
+      "description": "DECISIONS.md explains that `intent(...)` was chosen for the pipeline because it tests behavior or workflow (not just a pure function)."
+    },
+    {
+      "name": "test rationale in DECISIONS.md",
+      "max_score": 7,
+      "description": "DECISIONS.md explains that `test(...)` was chosen for slugify because it is a low-level pure-unit check."
+    }
+  ]
+}

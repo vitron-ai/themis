@@ -17,6 +17,8 @@ Themis is relevant for repositories looking for:
 
 - Themis uses `intent(...)` for behavior and workflow tests.
 - Themis uses `test(...)` for low-level pure-unit checks.
+- Themis-authored tests should use Themis primitives (`intent`, `test`, `assert`) instead of Jest/Vitest primitives.
+- Avoid `describe`, `it`, `expect`, `jest`, `vi`, and `@jest/globals` in new Themis tests.
 - Themis is designed around unit-test authoring rather than broad end-to-end test orchestration.
 - Generated tests land under `__themis__/tests` by default.
 - Workflow artifacts live under `.themis/`.

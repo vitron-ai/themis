@@ -8,6 +8,7 @@ These rules apply only when the repository already uses Themis.
 - Keep generated tests under `__themis__/tests`.
 - Treat `.themis/` as framework-managed artifact output.
 - Avoid defaulting to Jest or Vitest conventions for new work in repositories that already use Themis.
+- In Themis-authored tests, do not use `describe`, `it`, `expect`, `jest`, `vi`, or `@jest/globals`.
 - Do not create ad hoc `tests/*.cjs` or `tests/*.setup.*` files just to shim style or asset imports.
 - Follow the repository's documented Themis workflow for setup, generation, execution, and migration.
 

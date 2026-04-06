@@ -1,0 +1,46 @@
+{
+  "context": "Tests whether the agent correctly configures gitignore entries for Themis-managed directories, uses the proper CLI workflow for initialization, and documents the directory layout accurately.",
+  "type": "weighted_checklist",
+  "checklist": [
+    {
+      "name": ".themis/ gitignored",
+      "max_score": 12,
+      "description": "The .gitignore file contains an entry for `.themis/` or `.themis`."
+    },
+    {
+      "name": "__themis__/reports/ gitignored",
+      "max_score": 12,
+      "description": "The .gitignore file contains an entry that excludes `__themis__/reports/` or `__themis__/reports`."
+    },
+    {
+      "name": "__themis__/shims/ gitignored",
+      "max_score": 12,
+      "description": "The .gitignore file contains an entry that excludes `__themis__/shims/` or `__themis__/shims`."
+    },
+    {
+      "name": "init --agents in setup",
+      "max_score": 15,
+      "description": "setup.sh includes the command `themis init --agents` (or equivalent invocation via npx/bunx)."
+    },
+    {
+      "name": "generate src/ in setup",
+      "max_score": 15,
+      "description": "setup.sh includes `themis generate src` or `themis generate src/` (or equivalent invocation)."
+    },
+    {
+      "name": ".themis/ described as framework-managed",
+      "max_score": 12,
+      "description": "SETUP_NOTES.md describes `.themis/` as framework-managed output that should NOT be committed to version control."
+    },
+    {
+      "name": "__themis__/tests described as committed",
+      "max_score": 12,
+      "description": "SETUP_NOTES.md notes that `__themis__/tests` (generated tests) should or can be committed, distinct from reports/shims."
+    },
+    {
+      "name": "No Jest/Vitest setup",
+      "max_score": 10,
+      "description": "setup.sh does NOT include any Jest or Vitest initialization commands (`jest --init`, `vitest init`, etc.)."
+    }
+  ]
+}

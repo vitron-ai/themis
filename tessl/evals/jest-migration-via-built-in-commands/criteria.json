@@ -1,0 +1,46 @@
+{
+  "context": "Tests whether the agent uses Themis's built-in migration commands rather than manually rewriting test files, and produces a plan that avoids large manual Jest-to-Themis rewrites.",
+  "type": "weighted_checklist",
+  "checklist": [
+    {
+      "name": "themis migrate command used",
+      "max_score": 20,
+      "description": "migrate.sh or migration-plan.md references a `themis migrate` command (or `npx themis migrate` / `bunx themis migrate`) rather than manual file-by-file rewriting."
+    },
+    {
+      "name": "No manual Jest rewrite",
+      "max_score": 15,
+      "description": "migrate.sh does NOT contain sed/awk/perl commands or scripts that manually convert Jest syntax (describe/it/expect) to Themis syntax line-by-line across all test files."
+    },
+    {
+      "name": "Built-in workflow first",
+      "max_score": 15,
+      "description": "migration-plan.md describes running Themis migration commands as the primary approach BEFORE any manual rewriting step."
+    },
+    {
+      "name": "rerun-failed mentioned",
+      "max_score": 10,
+      "description": "migrate.sh or MIGRATION_NOTES.md mentions `themis test --rerun-failed` (or equivalent) as a step to handle failures after migration."
+    },
+    {
+      "name": "update-contracts mentioned",
+      "max_score": 10,
+      "description": "migrate.sh, migration-plan.md, or MIGRATION_NOTES.md mentions `themis test --update-contracts` as part of the post-migration workflow."
+    },
+    {
+      "name": "No Jest config preserved",
+      "max_score": 10,
+      "description": "migrate.sh or migration-plan.md includes a step to remove or replace jest.config.ts / jest.config.js, not preserve it alongside Themis."
+    },
+    {
+      "name": "MIGRATION_NOTES.md present",
+      "max_score": 10,
+      "description": "A MIGRATION_NOTES.md file exists with content about handling migration failures or edge cases."
+    },
+    {
+      "name": "No Jest devDependencies kept",
+      "max_score": 10,
+      "description": "migrate.sh or migration-plan.md includes removing Jest-related devDependencies (jest, @types/jest, ts-jest) from package.json."
+    }
+  ]
+}

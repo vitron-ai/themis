@@ -1,0 +1,46 @@
+{
+  "context": "Tests whether the agent uses the Themis generate workflow for baseline test creation, places hand-authored tests in the correct directory, correctly uses intent/test distinction, and accurately documents the framework's directory layout.",
+  "type": "weighted_checklist",
+  "checklist": [
+    {
+      "name": "generate command in script",
+      "max_score": 15,
+      "description": "generate-tests.sh contains a `themis generate src` or `themis generate src/` command (or npx/bunx equivalent)."
+    },
+    {
+      "name": "intent for runPipeline",
+      "max_score": 15,
+      "description": "The hand-authored test for workflow behavior uses `intent(...)` (not `test(...)`) for the `runPipeline` / pipeline sequence test."
+    },
+    {
+      "name": "test for aggregateStep",
+      "max_score": 15,
+      "description": "The hand-authored test for the pure arithmetic unit check uses `test(...)` (not `intent(...)`) for the `aggregateStep` function."
+    },
+    {
+      "name": "Tests in __themis__/tests",
+      "max_score": 15,
+      "description": "Both hand-authored test files are placed under `__themis__/tests/` directory."
+    },
+    {
+      "name": ".themis/ described as artifact output",
+      "max_score": 10,
+      "description": "GENERATION_REPORT.md describes `.themis/` as the directory where Themis writes workflow artifacts (not test files), and notes it should not be committed."
+    },
+    {
+      "name": "__themis__/tests described as committed",
+      "max_score": 10,
+      "description": "GENERATION_REPORT.md states that `__themis__/tests/` is where test files (generated and authored) live and can be committed."
+    },
+    {
+      "name": "No Jest/Vitest APIs in tests",
+      "max_score": 10,
+      "description": "Hand-authored test files do NOT use `describe(`, `it(`, `expect(`, `beforeEach(`, or imports from jest/@jest/globals/vitest."
+    },
+    {
+      "name": "GENERATION_REPORT.md present",
+      "max_score": 10,
+      "description": "A GENERATION_REPORT.md file exists with content about the commands and directory layout."
+    }
+  ]
+}

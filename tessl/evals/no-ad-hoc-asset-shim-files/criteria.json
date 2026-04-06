@@ -1,0 +1,46 @@
+{
+  "context": "Tests whether the agent avoids creating ad hoc shim/setup files for CSS, SVG, and PNG imports when using Themis, relying on Themis's native asset handling instead.",
+  "type": "weighted_checklist",
+  "checklist": [
+    {
+      "name": "No tests/*.cjs shim",
+      "max_score": 15,
+      "description": "No file matching `tests/*.cjs` or `tests/**/*.cjs` is created in the output."
+    },
+    {
+      "name": "No tests/*.setup.* file",
+      "max_score": 15,
+      "description": "No file matching `tests/*.setup.*` or `tests/**/*.setup.*` (e.g. setup.js, setup.ts, setup.cjs) is created."
+    },
+    {
+      "name": "No jest.config shim",
+      "max_score": 10,
+      "description": "No `jest.config.*`, `vitest.config.*`, or transform configuration file is created."
+    },
+    {
+      "name": "No moduleNameMapper",
+      "max_score": 10,
+      "description": "No `moduleNameMapper` or `transform` key for CSS/SVG/PNG handling appears in any config or setup file."
+    },
+    {
+      "name": "APPROACH.md present",
+      "max_score": 10,
+      "description": "An APPROACH.md file exists and discusses the CSS, SVG, and/or PNG import situation."
+    },
+    {
+      "name": "APPROACH.md no-shim rationale",
+      "max_score": 15,
+      "description": "APPROACH.md states that no separate shim/setup files were created for asset imports, and attributes this to Themis's native handling."
+    },
+    {
+      "name": "Test files use Themis constructs",
+      "max_score": 15,
+      "description": "Test files use `intent(...)` or `test(...)` and do NOT use `describe(`, `it(`, or `expect(` from Jest/Vitest."
+    },
+    {
+      "name": "Test files in __themis__/tests",
+      "max_score": 10,
+      "description": "Test files are placed under `__themis__/tests/` directory."
+    }
+  ]
+}
