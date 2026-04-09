@@ -4,6 +4,13 @@ All notable changes to this project are documented in this file.
 
 ## Unreleased
 
+## 1.2.1 - 2026-04-09
+
+- Added `init --cursor` flag to install a `.cursorrules` file with Themis conventions. Composable with `--agents` and `--claude-code`.
+- Bare `npx themis init` now auto-detects agent markers (`.claude/` dir, `.cursorrules` file) and installs the right assets without requiring flags.
+- Added 5 new Tessl eval scenarios (agent reporter fix loop, Claude Code integration setup, deterministic test authoring, intent phase structure, Vitest full migration). Eval results: 37% baseline → 97% with skill.
+- Published Tessl tile `vitron-ai/themis@1.2.1` with eval scenarios included.
+
 ## 1.2.0 - 2026-04-08
 
 ### Added
