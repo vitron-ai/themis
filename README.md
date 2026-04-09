@@ -58,6 +58,7 @@ npx themis test
 - [Why Themis](docs/why-themis.md)
 - [API Reference](docs/api.md)
 - [Showcase Comparisons](docs/showcases.md)
+- [Tutorial: Testing With Claude Code](docs/tutorial-claude-code.md)
 - [Release Policy](docs/release-policy.md)
 - [Publish Guide](docs/publish.md)
 
