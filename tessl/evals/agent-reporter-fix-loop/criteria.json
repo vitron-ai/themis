@@ -1,0 +1,46 @@
+{
+  "context": "Tests whether the agent uses --reporter agent to get structured JSON failure output rather than parsing raw stack traces, and uses --rerun-failed for efficient re-validation after fixes. Also checks that the agent knows the specific fields available in the structured output.",
+  "type": "weighted_checklist",
+  "checklist": [
+    {
+      "name": "--reporter agent in script",
+      "max_score": 20,
+      "description": "fix-workflow.sh includes a `themis test --reporter agent` command (or npx/bunx equivalent) as the primary failure diagnosis step"
+    },
+    {
+      "name": "--rerun-failed in script",
+      "max_score": 20,
+      "description": "fix-workflow.sh includes `themis test --rerun-failed` (or equivalent) as the step used to confirm fixes without running the full suite"
+    },
+    {
+      "name": "failures[].cluster mentioned",
+      "max_score": 12,
+      "description": "DIAGNOSIS_REPORT.md mentions `failures[].cluster` (or `cluster`) as a field that groups failures by likely common cause"
+    },
+    {
+      "name": "failures[].repairHints mentioned",
+      "max_score": 12,
+      "description": "DIAGNOSIS_REPORT.md mentions `failures[].repairHints` (or `repairHints`) as structured suggestions that can be acted on directly"
+    },
+    {
+      "name": "sourceFile/lineNumber mentioned",
+      "max_score": 10,
+      "description": "DIAGNOSIS_REPORT.md mentions `sourceFile` and/or `lineNumber` fields as pre-parsed location information"
+    },
+    {
+      "name": "No stack trace re-reading",
+      "max_score": 10,
+      "description": "DIAGNOSIS_REPORT.md explicitly states that re-reading stack traces is unnecessary because the structured output pre-parses location information"
+    },
+    {
+      "name": "expected/actual mentioned",
+      "max_score": 8,
+      "description": "DIAGNOSIS_REPORT.md mentions `expected` and/or `actual` fields from the structured failure output"
+    },
+    {
+      "name": "Script comment explains why agent reporter",
+      "max_score": 8,
+      "description": "fix-workflow.sh contains a comment explaining that --reporter agent provides structured/machine-readable output (not just naming the flag)"
+    }
+  ]
+}

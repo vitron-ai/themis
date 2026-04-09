@@ -1,0 +1,51 @@
+{
+  "context": "Tests whether the agent uses the correct Themis construct for each module (intent for the multi-step pipeline, test for the pure function), structures intent blocks with the proper ordered phases, includes the triple-slash reference directive in TypeScript files, and avoids Jest/Vitest primitives.",
+  "type": "weighted_checklist",
+  "checklist": [
+    {
+      "name": "Triple-slash reference in pipeline test",
+      "max_score": 12,
+      "description": "document-parser.test.ts contains `/// <reference types=\"@vitronai/themis/globals\" />` as the first line"
+    },
+    {
+      "name": "Triple-slash reference in utility test",
+      "max_score": 12,
+      "description": "normalize-text.test.ts contains `/// <reference types=\"@vitronai/themis/globals\" />` as the first line"
+    },
+    {
+      "name": "intent() for DocumentParser",
+      "max_score": 14,
+      "description": "document-parser.test.ts uses `intent(...)` (not `test(...)`) for the DocumentParser pipeline test block"
+    },
+    {
+      "name": "test() for normalizeText",
+      "max_score": 14,
+      "description": "normalize-text.test.ts uses `test(...)` (not `intent(...)`) for the normalizeText check"
+    },
+    {
+      "name": "intent has context phase",
+      "max_score": 8,
+      "description": "The intent block in document-parser.test.ts includes a `context(...)` phase (or legacy `arrange(...)`)"
+    },
+    {
+      "name": "intent has run phase",
+      "max_score": 8,
+      "description": "The intent block in document-parser.test.ts includes a `run(...)` phase (or legacy `act(...)`)"
+    },
+    {
+      "name": "intent has assert/verify phase",
+      "max_score": 8,
+      "description": "The intent block in document-parser.test.ts includes an `assert(...)` or `verify(...)` phase"
+    },
+    {
+      "name": "No Jest/Vitest APIs in test files",
+      "max_score": 12,
+      "description": "Neither test file uses `describe(`, `it(`, `expect(`, or imports from `jest`, `@jest/globals`, `vitest`, or `@vitest/globals`"
+    },
+    {
+      "name": "Reference directive explained",
+      "max_score": 12,
+      "description": "AUTHORING_NOTES.md mentions the triple-slash reference directive and explains it provides global type access for Themis constructs"
+    }
+  ]
+}

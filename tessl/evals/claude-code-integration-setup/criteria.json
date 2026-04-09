@@ -1,0 +1,46 @@
+{
+  "context": "Tests whether the agent uses the --claude-code init flag (not just --agents) and correctly documents all four artifacts it installs: CLAUDE.md, the skill file, slash commands, and the optional PostToolUse hook.",
+  "type": "weighted_checklist",
+  "checklist": [
+    {
+      "name": "--claude-code flag used",
+      "max_score": 20,
+      "description": "setup.sh contains `themis init --claude-code` (or `npx themis init --claude-code` / `bunx themis init --claude-code`) — NOT just `themis init --agents`"
+    },
+    {
+      "name": "CLAUDE.md mentioned in notes",
+      "max_score": 12,
+      "description": "SETUP_NOTES.md lists `CLAUDE.md` as a file installed by the initialization at the repo root"
+    },
+    {
+      "name": "Skill file path mentioned",
+      "max_score": 12,
+      "description": "SETUP_NOTES.md mentions `.claude/skills/themis/SKILL.md` (or `.claude/skills/themis/`) as an installed artifact"
+    },
+    {
+      "name": "Slash commands mentioned",
+      "max_score": 12,
+      "description": "SETUP_NOTES.md mentions `.claude/commands/` or the slash commands `themis-test`, `themis-generate`, `themis-migrate`, `themis-fix`"
+    },
+    {
+      "name": "PostToolUse hook mentioned",
+      "max_score": 10,
+      "description": "SETUP_NOTES.md mentions the `PostToolUse` hook or `scripts/claude-hook.js` as an optional component"
+    },
+    {
+      "name": "generate command in setup.sh",
+      "max_score": 10,
+      "description": "setup.sh includes `themis generate src` or `themis generate src/` to create baseline tests"
+    },
+    {
+      "name": "Skill auto-load behavior described",
+      "max_score": 12,
+      "description": "SETUP_NOTES.md explains that the skill file auto-loads when the user asks to write, run, fix, or migrate tests"
+    },
+    {
+      "name": "Hook feedback loop described",
+      "max_score": 12,
+      "description": "SETUP_NOTES.md explains that the PostToolUse hook runs Themis after edits and feeds failures back into the conversation"
+    }
+  ]
+}

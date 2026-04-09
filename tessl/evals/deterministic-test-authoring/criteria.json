@@ -1,0 +1,51 @@
+{
+  "context": "Tests whether the agent avoids nondeterministic time and network behavior in Themis tests by using controlled inputs, mocks, or stubs — and uses the correct Themis constructs (intent vs test) and includes the triple-slash reference directive.",
+  "type": "weighted_checklist",
+  "checklist": [
+    {
+      "name": "Clock controlled in scheduler test",
+      "max_score": 14,
+      "description": "report-scheduler.test.ts does NOT call `Date.now()` directly inside assertion logic — instead passes a fixed/controlled clock value to the schedule() method or otherwise avoids real-time dependency"
+    },
+    {
+      "name": "Network mocked in rate test",
+      "max_score": 14,
+      "description": "fetch-external-rate.test.ts does NOT make a real network call — passes a mock/stub fetcher function or otherwise avoids live HTTP requests"
+    },
+    {
+      "name": "test() for aggregateRecords",
+      "max_score": 12,
+      "description": "report-aggregator.test.ts uses `test(...)` (not `intent(...)`) for the pure aggregation function"
+    },
+    {
+      "name": "intent() for ReportScheduler",
+      "max_score": 12,
+      "description": "report-scheduler.test.ts uses `intent(...)` (not `test(...)`) for the ReportScheduler workflow test"
+    },
+    {
+      "name": "Triple-slash reference present",
+      "max_score": 8,
+      "description": "At least one of the three test files contains `/// <reference types=\"@vitronai/themis/globals\" />` as the first line"
+    },
+    {
+      "name": "No Jest/Vitest APIs in test files",
+      "max_score": 10,
+      "description": "None of the three test files use `describe(`, `it(`, `expect(`, or import from jest/vitest packages"
+    },
+    {
+      "name": "Nondeterminism handling documented",
+      "max_score": 12,
+      "description": "TESTING_NOTES.md describes the specific technique used for the time-dependent scheduler (controlled clock) and the network-dependent rate fetcher (mock/stub)"
+    },
+    {
+      "name": "Tests in __themis__/tests",
+      "max_score": 10,
+      "description": "All three test files are placed under `__themis__/tests/` directory"
+    },
+    {
+      "name": "Deterministic assertions",
+      "max_score": 8,
+      "description": "All assertions in the three test files compare against fixed, known values — not against dynamic values like `Date.now()` or randomly-generated IDs"
+    }
+  ]
+}

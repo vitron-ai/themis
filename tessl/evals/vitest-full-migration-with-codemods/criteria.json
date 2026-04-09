@@ -1,0 +1,51 @@
+{
+  "context": "Tests whether the agent uses the built-in Vitest migration commands (including the --rewrite-imports --convert codemod flags) rather than manual rewrites, and correctly documents the full post-migration failure-handling workflow.",
+  "type": "weighted_checklist",
+  "checklist": [
+    {
+      "name": "themis migrate vitest in script",
+      "max_score": 15,
+      "description": "migrate.sh contains `themis migrate vitest` (or `npx/bunx themis migrate vitest`) as a migration step"
+    },
+    {
+      "name": "--rewrite-imports --convert flags used",
+      "max_score": 15,
+      "description": "migrate.sh contains `themis migrate vitest --rewrite-imports --convert` (or equivalent with npx/bunx) for the full conversion pass"
+    },
+    {
+      "name": "No manual sed/awk rewrite",
+      "max_score": 10,
+      "description": "migrate.sh does NOT use sed, awk, perl, or find-replace scripts to manually convert Vitest syntax to Themis syntax across test files"
+    },
+    {
+      "name": "--rerun-failed in script",
+      "max_score": 10,
+      "description": "migrate.sh includes `themis test --rerun-failed` as a step after fixing failures"
+    },
+    {
+      "name": "--update-contracts in script",
+      "max_score": 10,
+      "description": "migrate.sh includes `themis test --update-contracts` as a step for handling intentional contract drift"
+    },
+    {
+      "name": "Vitest deps removal mentioned",
+      "max_score": 8,
+      "description": "migrate.sh or MIGRATION_PLAN.md includes removing Vitest-related devDependencies (vitest, @vitest/globals, etc.) from package.json"
+    },
+    {
+      "name": "Three failure states documented",
+      "max_score": 12,
+      "description": "MIGRATION_PLAN.md distinguishes between: (1) all passing, (2) failures from migration bugs (use --rerun-failed to fix), (3) intentional contract drift (use --update-contracts)"
+    },
+    {
+      "name": "Built-in commands before manual work",
+      "max_score": 10,
+      "description": "MIGRATION_PLAN.md describes running Themis migration commands as the primary approach, explicitly before any manual rewriting"
+    },
+    {
+      "name": "Final themis test confirms stable",
+      "max_score": 10,
+      "description": "migrate.sh ends with `themis test` (no flags) to confirm the suite is stable after all fixes"
+    }
+  ]
+}
