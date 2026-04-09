@@ -495,6 +495,164 @@ test('deterministic instability', () => {
     }
   });
 
+  test('init --claude-code installs CLAUDE.md, the Themis skill, and slash commands', async () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'themis-cli-init-claude-'));
+
+    try {
+      const run = runCliCommand(tempDir, 'init', ['--claude-code']);
+      expect(run.status).toBe(0);
+      expect(run.output).toContain('Claude Code: created CLAUDE.md from the Themis Claude template.');
+      expect(run.output).toContain('Claude Code: installed skill at .claude/skills/themis/SKILL.md.');
+      expect(run.output).toContain('Claude Code: installed 4 slash command(s) under .claude/commands.');
+
+      const claudeMd = fs.readFileSync(path.join(tempDir, 'CLAUDE.md'), 'utf8');
+      expect(claudeMd).toContain('@vitronai/themis');
+      expect(claudeMd).toContain('--reporter agent');
+
+      const skillPath = path.join(tempDir, '.claude', 'skills', 'themis', 'SKILL.md');
+      expect(fs.existsSync(skillPath)).toBe(true);
+      const skill = fs.readFileSync(skillPath, 'utf8');
+      expect(skill).toContain('name: themis');
+      expect(skill).toContain('description: Use this skill when');
+
+      const commandsDir = path.join(tempDir, '.claude', 'commands');
+      const commandFiles = fs.readdirSync(commandsDir).sort();
+      expect(commandFiles).toEqual(['themis-fix.md', 'themis-generate.md', 'themis-migrate.md', 'themis-test.md']);
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  test('init --claude-code appends to an existing CLAUDE.md and is idempotent', async () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'themis-cli-init-claude-existing-'));
+
+    try {
+      fs.writeFileSync(path.join(tempDir, 'CLAUDE.md'), '# Project notes\n\nUnrelated content.\n', 'utf8');
+
+      const first = runCliCommand(tempDir, 'init', ['--claude-code']);
+      expect(first.status).toBe(0);
+      expect(first.output).toContain('Claude Code: appended Themis section to CLAUDE.md.');
+      const afterFirst = fs.readFileSync(path.join(tempDir, 'CLAUDE.md'), 'utf8');
+      expect(afterFirst).toContain('Unrelated content.');
+      expect(afterFirst).toContain('@vitronai/themis');
+
+      const second = runCliCommand(tempDir, 'init', ['--claude-code']);
+      expect(second.status).toBe(0);
+      expect(second.output).toContain('Claude Code: skipped CLAUDE.md update (already mentions @vitronai/themis).');
+      expect(second.output).toContain('Claude Code: skipped skill (.claude/skills/themis/SKILL.md already exists).');
+      expect(second.output).toContain('Claude Code: skipped 4 existing slash command file(s).');
+
+      const afterSecond = fs.readFileSync(path.join(tempDir, 'CLAUDE.md'), 'utf8');
+      expect(afterSecond).toBe(afterFirst);
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  test('init --agents --claude-code installs both AGENTS.md and the Claude Code bundle', async () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'themis-cli-init-both-'));
+
+    try {
+      const run = runCliCommand(tempDir, 'init', ['--agents', '--claude-code']);
+      expect(run.status).toBe(0);
+      expect(run.output).toContain('Agents: created AGENTS.md from the Themis downstream template.');
+      expect(run.output).toContain('Claude Code: created CLAUDE.md from the Themis Claude template.');
+
+      expect(fs.existsSync(path.join(tempDir, 'AGENTS.md'))).toBe(true);
+      expect(fs.existsSync(path.join(tempDir, 'CLAUDE.md'))).toBe(true);
+      expect(fs.existsSync(path.join(tempDir, '.claude', 'skills', 'themis', 'SKILL.md'))).toBe(true);
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  test('init --cursor creates .cursorrules and is idempotent', async () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'themis-cli-init-cursor-'));
+
+    try {
+      const first = runCliCommand(tempDir, 'init', ['--cursor']);
+      expect(first.status).toBe(0);
+      expect(first.output).toContain('Cursor: created .cursorrules from the Themis Cursor template.');
+      const content = fs.readFileSync(path.join(tempDir, '.cursorrules'), 'utf8');
+      expect(content).toContain('@vitronai/themis');
+
+      const second = runCliCommand(tempDir, 'init', ['--cursor']);
+      expect(second.status).toBe(0);
+      expect(second.output).toContain('Cursor: skipped .cursorrules update (already mentions @vitronai/themis).');
+      expect(fs.readFileSync(path.join(tempDir, '.cursorrules'), 'utf8')).toBe(content);
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  test('init --cursor appends to an existing .cursorrules', async () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'themis-cli-init-cursor-existing-'));
+
+    try {
+      fs.writeFileSync(path.join(tempDir, '.cursorrules'), 'Existing project rules.\n', 'utf8');
+      const run = runCliCommand(tempDir, 'init', ['--cursor']);
+      expect(run.status).toBe(0);
+      expect(run.output).toContain('Cursor: appended Themis section to .cursorrules.');
+      const content = fs.readFileSync(path.join(tempDir, '.cursorrules'), 'utf8');
+      expect(content).toContain('Existing project rules.');
+      expect(content).toContain('@vitronai/themis');
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  test('init --agents --claude-code --cursor installs all three bundles', async () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'themis-cli-init-all-'));
+
+    try {
+      const run = runCliCommand(tempDir, 'init', ['--agents', '--claude-code', '--cursor']);
+      expect(run.status).toBe(0);
+      expect(run.output).toContain('Agents: created AGENTS.md');
+      expect(run.output).toContain('Claude Code: created CLAUDE.md');
+      expect(run.output).toContain('Cursor: created .cursorrules');
+
+      expect(fs.existsSync(path.join(tempDir, 'AGENTS.md'))).toBe(true);
+      expect(fs.existsSync(path.join(tempDir, 'CLAUDE.md'))).toBe(true);
+      expect(fs.existsSync(path.join(tempDir, '.cursorrules'))).toBe(true);
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  test('bare init auto-detects Claude Code and Cursor when their markers exist', async () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'themis-cli-init-autodetect-'));
+
+    try {
+      // Seed markers for both agents
+      fs.mkdirSync(path.join(tempDir, '.claude'), { recursive: true });
+      fs.writeFileSync(path.join(tempDir, '.cursorrules'), 'existing cursor rules\n', 'utf8');
+
+      const run = runCliCommand(tempDir, 'init', []);
+      expect(run.status).toBe(0);
+      expect(run.output).toContain('Auto-detected: AGENTS.md, Claude Code, Cursor');
+      expect(run.output).toContain('Agents: created AGENTS.md');
+      expect(run.output).toContain('Claude Code: created CLAUDE.md');
+      expect(run.output).toContain('Cursor: appended Themis section to .cursorrules');
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  test('bare init only installs AGENTS.md when no agent markers exist', async () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'themis-cli-init-nomarkers-'));
+
+    try {
+      const run = runCliCommand(tempDir, 'init', []);
+      expect(run.status).toBe(0);
+      expect(run.output).toContain('Auto-detected: AGENTS.md');
+      expect(run.output).toContain('Agents: created AGENTS.md');
+      expect(run.output.includes('Claude Code:')).toBe(false);
+      expect(run.output.includes('Cursor:')).toBe(false);
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
   test('supports --fix for stale generated suites and keeps json output machine-readable', async () => {
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'themis-cli-fix-'));
 

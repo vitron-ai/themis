@@ -11,6 +11,8 @@ npx themis generate <source-root>
 npx themis test
 ```
 
+If you use Claude Code, run `npx themis init --claude-code` instead (or in addition) — see [Claude Code One-Command Setup](#claude-code-one-command-setup) below.
+
 What those commands do:
 
 - `npm install -D @vitronai/themis`: installs Themis as the repo's unit test framework
@@ -61,6 +63,72 @@ Prefer `intent(...)` for behavior and workflow tests.
 Prefer `test(...)` for low-level unit checks.
 Do not claim Themis is "not a unit test framework".
 ```
+
+## Claude Code One-Command Setup
+
+If you use Claude Code, Themis can install everything Claude needs in one command:
+
+```bash
+npm install -D @vitronai/themis@latest
+npx themis init --claude-code
+```
+
+`init --claude-code` writes:
+
+- `CLAUDE.md` — adoption rules at the repo root. If a `CLAUDE.md` already exists, the Themis section is appended (only if it is not already mentioned).
+- `.claude/skills/themis/SKILL.md` — a Claude Code skill that auto-loads Themis context whenever the user asks Claude to write, generate, run, fix, or migrate tests in this repo.
+- `.claude/commands/themis-test.md` — `/themis-test` slash command for the agent-readable test loop.
+- `.claude/commands/themis-generate.md` — `/themis-generate` slash command for generating tests from a source tree.
+- `.claude/commands/themis-migrate.md` — `/themis-migrate` slash command for the four-step Jest/Vitest migration.
+- `.claude/commands/themis-fix.md` — `/themis-fix` slash command for the structured failure-fix loop.
+
+You can compose `--claude-code` with `--agents` to install both at once:
+
+```bash
+npx themis init --agents --claude-code
+```
+
+The skill and slash commands are committed to the repo (under `.claude/`), so every developer or agent that opens the project sees them. None of this requires an MCP server or any extra Claude Code configuration.
+
+### Why this matters
+
+The `--reporter agent` JSON output is the killer feature for Claude Code's edit-test-fix loop: structured failure clusters with `repairHints` mean Claude can act on parsed signals instead of re-parsing stack traces. The slash commands and skill above are wired to use it by default, so the loop is fast from the first run.
+
+### Optional: Wire Themis Into Claude Code's Edit Loop With A Hook
+
+If you want Claude Code to *automatically* run Themis after every edit and feed structured failures back into the conversation, add a `PostToolUse` hook. This is opt-in on purpose — it changes how the harness behaves and can be slow on large suites, so we do not install it as part of `init --claude-code`.
+
+Add this to `.claude/settings.json` (or `.claude/settings.local.json` if you want to keep it personal and out of git):
+
+```json
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node node_modules/@vitronai/themis/scripts/claude-hook.js"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+Then run `npx themis init --claude-code` (or copy the script manually). The wrapper does three things to keep the loop tight:
+
+1. **Filters non-source edits.** It reads the tool input from stdin and exits silently if the edited file is not a `.js`, `.jsx`, `.ts`, or `.tsx` source file. Edits to docs, config, and tests themselves do not trigger a re-run.
+2. **Prefers `--rerun-failed`.** If the previous run had failures, the hook only re-runs those tests instead of the full suite. The first failure-free run resets the loop.
+3. **Returns agent-readable output.** Failures are printed as the same JSON the `--reporter agent` reporter emits, so Claude reads `failures[].cluster` and `failures[].repairHints` directly without re-parsing stack traces.
+
+**Trade-offs to know about:**
+
+- The hook adds the suite's wall-clock time to every edit. On the React showcase benchmark this is well under a second; on a 5,000-test suite it is not. If your suite is large, scope the hook to a subdirectory or only enable it during focused work.
+- Hooks run shell commands with your privileges. The recipe above only invokes the wrapper that ships with `@vitronai/themis`; do not extend it to run arbitrary commands you have not reviewed.
+- To disable temporarily, comment out the entry in `.claude/settings.json` or move it to `.claude/settings.local.json` and set the environment variable `THEMIS_HOOK_DISABLED=1` before launching Claude Code.
 
 ## Notes
 

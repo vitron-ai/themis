@@ -20,10 +20,10 @@ For deeper references:
 
 ## Primary Workflow
 
-1. Initialize Themis in a downstream repository with `npx themis init --agents`.
+1. Initialize Themis in a downstream repository with `npx themis init --agents` (or `npx themis init --claude-code` for Claude Code users — this installs a `CLAUDE.md`, a skill at `.claude/skills/themis/`, and slash commands under `.claude/commands/`).
 2. Generate baseline tests with `npx themis generate <source-root>` (for example `src`).
 3. Run tests with `npx themis test`.
-4. If tests fail, run `npx themis test --rerun-failed` and inspect `__themis__/reports/` plus `.themis/` artifacts.
+4. If tests fail, run `npx themis test --reporter agent` to get structured JSON output with `failures[].cluster` and `failures[].repairHints`. Use those to fix, then re-run with `npx themis test --rerun-failed`.
 5. If failures are expected contract shifts, run `npx themis test --update-contracts` and re-run `npx themis test`.
 
 ## Authoring Rules
@@ -79,6 +79,29 @@ When migrating from Jest or Vitest, run this sequence:
 
 - Keep `.themis/`, `__themis__/reports/`, and `__themis__/shims/` gitignored.
 - Do not create ad hoc `tests/*.cjs` or `tests/*.setup.*` files just to shim asset/style imports.
+
+## Agent-Readable Output
+
+When in an edit-test-fix loop, always use `--reporter agent`:
+
+```bash
+npx themis test --reporter agent
+```
+
+The JSON output includes:
+- `failures[].cluster` — failures grouped by likely common cause
+- `failures[].repairHints` — structured suggestions you can act on directly
+- `failures[].sourceFile`, `lineNumber`, `expected`, `actual` — pre-parsed, no need to re-read stack traces
+
+After fixing a cluster, use `npx themis test --rerun-failed` to confirm without running the full suite.
+
+## Claude Code Integration
+
+For Claude Code users, `npx themis init --claude-code` installs:
+- `CLAUDE.md` with Themis adoption rules at the repo root
+- `.claude/skills/themis/SKILL.md` — auto-loads when the user asks to write, run, fix, or migrate tests
+- `.claude/commands/themis-{test,generate,migrate,fix}.md` — slash commands wired to the agent reporter
+- An optional `PostToolUse` hook (`scripts/claude-hook.js`) that runs Themis after edits and feeds failures back into the conversation
 
 ## Scope Notes
 

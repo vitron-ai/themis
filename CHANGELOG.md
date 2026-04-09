@@ -4,6 +4,31 @@ All notable changes to this project are documented in this file.
 
 ## Unreleased
 
+## 1.2.0 - 2026-04-08
+
+### Added
+
+- **Claude Code one-command adoption.** New `npx themis init --claude-code` flag installs everything Claude Code needs to drive Themis natively: a `CLAUDE.md` at the repo root, a Claude Code skill at `.claude/skills/themis/SKILL.md` that auto-loads when the user asks Claude to write, run, fix, or migrate tests, and four slash commands (`/themis-test`, `/themis-generate`, `/themis-migrate`, `/themis-fix`) wired to the agent-readable test loop. Composes with `--agents` so a single `init --agents --claude-code` installs both bundles. Idempotent: re-running appends to an existing `CLAUDE.md` only when the Themis section is missing, and skips skill/command files that already exist.
+- **Claude Code `PostToolUse` hook wrapper** at `scripts/claude-hook.js`. Reads tool input from stdin, filters non-source edits and edits inside `.themis/`, `__themis__/`, `node_modules/`, `.git/`, prefers `--rerun-failed` when a prior failed-tests artifact exists, and surfaces failures via stderr + exit 2 so Claude Code feeds the structured `failures[].cluster` and `failures[].repairHints` payload directly back into the model. Disable with `THEMIS_HOOK_DISABLED=1`. Opt-in only — not installed by `init --claude-code`. See [Claude Code one-command setup](docs/agents-adoption.md#claude-code-one-command-setup) for the `.claude/settings.json` recipe.
+- New downstream templates under `templates/`: `CLAUDE.themis.md`, `claude-skill/SKILL.md`, and `claude-commands/{themis-test,themis-generate,themis-migrate,themis-fix}.md`. All ship in the npm tarball.
+- New `--claude` alias for `--claude-code`.
+
+### Changed
+
+- **Repositioned README and `package.json` description** to lead with the job-to-be-done (a Node/TS unit test framework designed for AI coding agents — drop-in alternative to Jest and Vitest) instead of the philosophy ("intent-first ... for AI agents"), which read ambiguously as "tests AI agents". The five-bullet value prop now sits above the fold with the benchmark numbers, and Claude Code, Cursor, and Codex are named explicitly in the agent-output bullet.
+- `runInit` now returns `{ agents, claudeCode }` instead of a single `{ path, created }` object so both flags can report independently. Existing `--agents` CLI output strings are preserved exactly.
+
+### Documentation
+
+- Added a "Claude Code One-Command Setup" section to `docs/agents-adoption.md` listing every file `init --claude-code` installs and explaining why the agent reporter loop matters.
+- Added an "Optional: Wire Themis Into Claude Code's Edit Loop With A Hook" section with the `.claude/settings.json` snippet, plain-English explanation of the wrapper's three behaviors, and trade-offs (wall-clock cost, hook security, two ways to disable).
+- README quickstart now includes a one-paragraph "Using Claude Code?" callout linking to the adoption guide.
+
+### Tests
+
+- Added `tests/claude-hook.test.js` with six tests covering `THEMIS_HOOK_DISABLED`, empty/invalid stdin, non-source extensions, ignored directories, real-source-edit-with-green-suite (end-to-end via in-tempdir shim), and real-source-edit-with-red-suite (exit 2 + stderr payload assertion).
+- Extended `tests/cli-output.test.js` with three tests for `init --claude-code`: happy-path install, append-then-idempotent on existing `CLAUDE.md`, and composed `--agents --claude-code`.
+
 ## 0.1.15 - 2026-03-27
 
 - Added a direct in-sidebar `Quick Actions` group plus an `Artifact Files` drawer to the in-repo VS Code extension scaffold so core Themis commands and raw artifact navigation remain reachable even when the VS Code view toolbar overflows.

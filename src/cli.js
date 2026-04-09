@@ -24,11 +24,52 @@ async function main(argv) {
     const initFlags = parseInitFlags(argv.slice(1));
     const initResult = runInit(cwd, initFlags);
     console.log('Themis initialized. Next: npx themis generate <source-root> && npx themis test');
-    if (initFlags.agents) {
-      if (initResult && initResult.path && initResult.created) {
-        console.log(`Agents: created ${formatCliPath(cwd, initResult.path)} from the Themis downstream template.`);
+    if (initResult.autoDetected) {
+      const detected = [];
+      if (initResult.agents) detected.push('AGENTS.md');
+      if (initResult.claudeCode) detected.push('Claude Code');
+      if (initResult.cursor) detected.push('Cursor');
+      if (detected.length > 0) {
+        console.log(`Auto-detected: ${detected.join(', ')}`);
+      }
+    }
+    if (initFlags.agents || initResult.agents) {
+      const agents = initResult.agents;
+      if (agents && agents.created) {
+        console.log(`Agents: created ${formatCliPath(cwd, agents.path)} from the Themis downstream template.`);
       } else {
         console.log('Agents: skipped AGENTS.md scaffold because one already exists.');
+      }
+    }
+    if (initResult.cursor) {
+      const cur = initResult.cursor;
+      if (cur.created) {
+        console.log(`Cursor: created ${formatCliPath(cwd, cur.path)} from the Themis Cursor template.`);
+      } else if (cur.appended) {
+        console.log(`Cursor: appended Themis section to ${formatCliPath(cwd, cur.path)}.`);
+      } else {
+        console.log(`Cursor: skipped .cursorrules update (already mentions @vitronai/themis).`);
+      }
+    }
+    if (initResult.claudeCode) {
+      const cc = initResult.claudeCode;
+      if (cc.claudeMd.created) {
+        console.log(`Claude Code: created ${formatCliPath(cwd, cc.claudeMd.path)} from the Themis Claude template.`);
+      } else if (cc.claudeMd.appended) {
+        console.log(`Claude Code: appended Themis section to ${formatCliPath(cwd, cc.claudeMd.path)}.`);
+      } else {
+        console.log(`Claude Code: skipped CLAUDE.md update (already mentions @vitronai/themis).`);
+      }
+      if (cc.skill.created) {
+        console.log(`Claude Code: installed skill at ${formatCliPath(cwd, cc.skill.path)}.`);
+      } else {
+        console.log(`Claude Code: skipped skill (${formatCliPath(cwd, cc.skill.path)} already exists).`);
+      }
+      if (cc.commands.written.length > 0) {
+        console.log(`Claude Code: installed ${cc.commands.written.length} slash command(s) under ${formatCliPath(cwd, cc.commands.dir)}.`);
+      }
+      if (cc.commands.skipped.length > 0) {
+        console.log(`Claude Code: skipped ${cc.commands.skipped.length} existing slash command file(s).`);
       }
     }
     return;
@@ -541,13 +582,23 @@ function parseMigrateFlags(args) {
 
 function parseInitFlags(args) {
   const flags = {
-    agents: false
+    agents: false,
+    claudeCode: false,
+    cursor: false
   };
 
   for (let i = 0; i < args.length; i += 1) {
     const token = args[i];
     if (token === '--agents') {
       flags.agents = true;
+      continue;
+    }
+    if (token === '--claude-code' || token === '--claude') {
+      flags.claudeCode = true;
+      continue;
+    }
+    if (token === '--cursor') {
+      flags.cursor = true;
       continue;
     }
     if (token.startsWith('-')) {

@@ -7,26 +7,30 @@
   </a>
 </p>
 
-Themis is an intent-first unit test framework for AI agents in Node.js and TypeScript.
+**A Node.js and TypeScript unit test framework designed for AI coding agents.**
 
-It is built for agent workflows: deterministic reruns, machine-readable outputs, strict phase semantics, and a branded verdict loop for humans.
+Themis is a drop-in alternative to Jest and Vitest, built for the way code gets written today: humans and agents working the same edit-test-fix loop. Strict phase semantics keep generated tests legible, machine-readable failure output lets agents self-repair, and an incremental migration path means you don't rewrite your suite on day one.
 
-## AI Quickstart
+- **Faster than Jest and Vitest** — `68.59%` faster than Vitest and `130.26%` faster than Jest on the same React showcase benchmark ([proof](#performance-proof))
+- **Agent-native output** — `--agent` JSON with failure clusters and structured repair hints, ready to feed back into Claude Code, Cursor, Codex, or any agent loop
+- **One-command migration** — `npx themis migrate jest` or `npx themis migrate vitest` with codemods and a structured findings report
+- **Modern by default** — native `.js`, `.jsx`, `.ts`, `.tsx`, ESM, JSX, and React Testing Library, no config gymnastics
+- **Discoverable to agents** — ships an `AGENTS.md` template, a `themis.ai.json` manifest, and a [Tessl tile](tessl/tile.json) so AI assistants can find and adopt it without you copy-pasting docs
 
-If you are a human or AI agent adopting Themis in another repo, use:
+## Quickstart
 
 ```bash
 npm install -D @vitronai/themis@latest
 npx themis init --agents
-npx themis generate <source-root>
+npx themis generate src     # or `app` for Next App Router repos
 npx themis test
 ```
 
-Use `src` for conventional source trees and `app` for Next App Router repos.
+`init --agents` writes `themis.config.json`, updates `.gitignore`, and scaffolds a downstream `AGENTS.md` so the agents on your team know how to use it. See the [agent adoption guide](docs/agents-adoption.md) for the full setup, including migration from Jest or Vitest.
 
-- `npx themis init --agents` writes `themis.config.json`, updates `.gitignore`, and scaffolds a downstream `AGENTS.md` when one does not already exist.
+**Using Claude Code?** Run `npx themis init --claude-code` to install a `CLAUDE.md`, a Claude Code skill at `.claude/skills/themis/`, and slash commands (`/themis-test`, `/themis-generate`, `/themis-migrate`, `/themis-fix`) wired to the agent-readable test loop. See [Claude Code one-command setup](docs/agents-adoption.md#claude-code-one-command-setup).
+
 - machine-readable agent manifest: [`themis.ai.json`](themis.ai.json)
-- downstream adoption guide: [`docs/agents-adoption.md`](docs/agents-adoption.md)
 - copyable downstream rules file: [`templates/AGENTS.themis.md`](templates/AGENTS.themis.md)
 
 <p align="center">
@@ -35,7 +39,7 @@ Use `src` for conventional source trees and `app` for Next App Router repos.
 
 ## Contents
 
-- [AI Quickstart](#ai-quickstart)
+- [Quickstart](#quickstart)
 - [Adopt In Another Repo](#adopt-in-another-repo)
 - [Code Scan](#code-scan)
 - [Positioning](#positioning)
@@ -71,6 +75,18 @@ Use `src` for conventional source trees and `app` for Next App Router repos.
 On the current same-host React showcase benchmark sample, Themis measured `68.59%` faster than Vitest and `130.26%` faster than Jest on median wall-clock time for the same two-spec suite.
 
 The exact comparison artifact is emitted by CI as `.themis/benchmarks/showcase-comparison/perf-summary.json` and `.themis/benchmarks/showcase-comparison/perf-summary.md`. Treat those percentages as the current documented sample, not a universal constant for every environment.
+
+### First-Try Test Pass Rate
+
+The first-try benchmark measures how often Claude generates tests that pass on the first run — the metric that matters most for agent-driven development. For each of 5 fixture source files (pure functions, async services, React components, hooks), Claude generates tests using Themis, Vitest, and Jest, and each generated suite is run once without edits.
+
+```bash
+ANTHROPIC_API_KEY=sk-... npm run benchmark:first-try
+```
+
+Results are written to `.themis/benchmarks/first-try/first-try-results.json` and `.themis/benchmarks/first-try/first-try-results.md`. The generated test code is saved under `.themis/benchmarks/first-try/generated-tests/` for manual review.
+
+Themis's advantage here comes from its `CLAUDE.md` template and Claude Code skill, which give Claude structured guidance about phase semantics, import conventions, and common pitfalls — context that Jest and Vitest users do not ship out of the box.
 
 ## Modern JS/TS Support
 

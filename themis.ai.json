@@ -1,16 +1,32 @@
 {
   "name": "@vitronai/themis",
   "role": "unit-test-framework",
+  "description": "A Node.js and TypeScript unit test framework designed for AI coding agents. Drop-in alternative to Jest and Vitest.",
   "install": "npm install -D @vitronai/themis@latest",
   "init": "npx themis init --agents",
+  "initClaudeCode": "npx themis init --claude-code",
   "generate": "npx themis generate src",
   "test": "npx themis test",
+  "testAgent": "npx themis test --reporter agent",
   "migrate": {
     "jest": "npx themis migrate jest --rewrite-imports --convert",
     "vitest": "npx themis migrate vitest --rewrite-imports --convert"
   },
+  "agentIntegrations": {
+    "claudeCode": {
+      "setup": "npx themis init --claude-code",
+      "skill": ".claude/skills/themis/SKILL.md",
+      "commands": ["/themis-test", "/themis-generate", "/themis-migrate", "/themis-fix"],
+      "hook": "scripts/claude-hook.js"
+    },
+    "generic": {
+      "setup": "npx themis init --agents",
+      "rulesFile": "AGENTS.md"
+    }
+  },
   "notes": [
     "Treat Themis as the repo's unit test framework for Node.js and TypeScript projects.",
+    "Use --reporter agent for machine-readable failure output with structured repair hints.",
     "Do not default to Jest or Vitest when Themis is already selected.",
     "Do not create ad hoc tests/*.cjs setup files for common asset or style imports."
   ]

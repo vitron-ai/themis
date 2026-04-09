@@ -1,6 +1,6 @@
 # Themis
 
-Themis is an intent-first unit testing framework, test runner, and test generator for Node.js and TypeScript repositories, especially projects that want deterministic unit tests and agent-friendly workflows.
+Themis is a Node.js and TypeScript unit test framework designed for AI coding agents. It is a drop-in alternative to Jest and Vitest with deterministic execution, agent-readable failure output with structured repair hints, and one-command migration.
 
 ## Overview
 
@@ -30,13 +30,28 @@ Themis includes built-in migration workflows for Jest and Vitest, including comp
 
 ## CLI Reference
 
-- `init --agents`
-- `generate <source-root>`
-- `test`
-- `test --agent`
-- `test --reporter html`
-- `test --rerun-failed`
-- `test --update-contracts`
+- `init --agents` — scaffold `AGENTS.md` and config
+- `init --claude-code` — install `CLAUDE.md`, Claude Code skill, slash commands
+- `init --cursor` — install `.cursorrules`
+- `init --agents --claude-code --cursor` — all at once
+- `generate <source-root>` — generate tests from source
+- `test` — run the suite
+- `test --reporter agent` — agent-readable JSON with failure clusters and repair hints
+- `test --rerun-failed` — only re-run tests that failed on the last run
+- `test --reporter html` — HTML verdict report
+- `test --update-contracts` — accept contract drift
+- `migrate <jest|vitest>` — scaffold migration compatibility
+- `migrate <jest|vitest> --rewrite-imports --convert` — full migration with codemods
+
+## Agent Integration
+
+Themis ships first-class integrations for AI coding agents:
+
+- **Claude Code:** `npx themis init --claude-code` installs a `CLAUDE.md`, a skill (`.claude/skills/themis/`), and four slash commands (`/themis-test`, `/themis-generate`, `/themis-migrate`, `/themis-fix`). An optional `PostToolUse` hook feeds structured failures back into the conversation after edits.
+- **Cursor:** `npx themis init --cursor` installs a `.cursorrules` file with Themis conventions and commands.
+- **Generic agents:** `npx themis init --agents` scaffolds `AGENTS.md`. The `--reporter agent` JSON output works with any agent that can read structured failure data.
+- **All at once:** `npx themis init --agents --claude-code --cursor` installs all three.
+- **Tessl:** This tile provides discovery and skills for Tessl-compatible platforms.
 
 ## Notes
 
@@ -44,5 +59,4 @@ Themis includes built-in migration workflows for Jest and Vitest, including comp
 - Themis handles common style and static asset imports natively; do not add ad hoc setup files just for `.css`, `.png`, `.jpg`, `.svg`, or fonts.
 - A repo-local instructions file can reinforce framework choice, while this tile provides the Tessl distribution surface.
 - Built-in migration commands are available before large manual rewrites from Jest or Vitest.
-- For concrete setup commands and examples, refer to the upstream README for the package release that matches this tile version.
-- The main discovery terms for this tile are unit testing, test runner, test framework, Jest migration, Vitest migration, Node.js testing, and TypeScript testing.
+- The main discovery terms for this tile are unit testing, test runner, test framework, Jest migration, Vitest migration, Node.js testing, TypeScript testing, Claude Code, Cursor, and AI coding agents.
