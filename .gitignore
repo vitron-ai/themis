@@ -6,3 +6,5 @@ node_modules/
 tests/generated/
 !tests/fixtures/migration/**/node_modules/
 !tests/fixtures/migration/**/node_modules/**
+__themis__/reports/
+__themis__/shims/
