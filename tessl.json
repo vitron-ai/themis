@@ -1,0 +1,8 @@
+{
+  "name": "themis",
+  "dependencies": {
+    "vitron-ai/themis": {
+      "version": "1.2.1"
+    }
+  }
+}
