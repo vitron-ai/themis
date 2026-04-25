@@ -21,7 +21,7 @@ What those commands do:
 - `npx themis generate <source-root>`: generates deterministic unit tests for JS/TS exports under `__themis__/tests`, using `.generated.test.ts` for TS/TSX sources and `.generated.test.js` for JS/JSX sources
 - `npx themis test`: runs the suite
 
-## Migrate From Jest Or Vitest
+## Migrate From Jest, Vitest, Or Node:test
 
 For Jest:
 
@@ -43,7 +43,19 @@ npx themis migrate vitest --convert
 npx themis test
 ```
 
+For Node's built-in test runner (`node:test` + `node:assert`):
+
+```bash
+npm install -D @vitronai/themis
+npx themis migrate node
+npx themis migrate node --rewrite-imports
+npx themis migrate node --convert
+npx themis test
+```
+
 Use `migrate` to scaffold compatibility first, then use `--rewrite-imports` and `--convert` when you want a stronger move toward native Themis style.
+
+The `node` source is slightly different from `jest`/`vitest`: Themis cannot intercept `node:` specifiers at the loader level (they are Node built-ins), so `--rewrite-imports` is the load-bearing step rather than optional. The compat shim implements `assert.equal/strictEqual/deepEqual/ok/throws/...` directly and routes them through Themis. `--convert` then rewrites the safe forms (`assert.equal` → `expect(...).toBe(...)`, `assert.deepEqual` → `expect(...).toEqual(...)`, `assert.ok` → `expect(...).toBeTruthy()`, `before`/`after` → `beforeAll`/`afterAll`) into native Themis style. Negated and async helpers (`assert.notEqual`, `assert.match`, `assert.rejects`, etc.) keep working through the compat shim and are flagged in `--assist` for manual cleanup once Themis exposes `.not`/`.toMatch`/`.rejects` matchers.
 
 ## Put This In The Downstream Repo's `AGENTS.md`
 
@@ -58,7 +70,7 @@ Run tests with `npx themis test`.
 Keep `.themis/`, `__themis__/reports/`, and `__themis__/shims/` in `.gitignore`.
 Expect generated tests to land under `__themis__/tests` with `.generated.test.ts` for TS/TSX sources and `.generated.test.js` for JS/JSX sources.
 Do not create ad hoc `tests/*.cjs` or `tests/*.setup.*` files just to load common `.css`, `.png`, `.jpg`, `.svg`, or font/media imports.
-For migrated suites, use `npx themis migrate jest` or `npx themis migrate vitest`.
+For migrated suites, use `npx themis migrate jest`, `npx themis migrate vitest`, or `npx themis migrate node`.
 Prefer `intent(...)` for behavior and workflow tests.
 Prefer `test(...)` for low-level unit checks.
 Do not claim Themis is "not a unit test framework".

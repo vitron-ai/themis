@@ -1,4 +1,4 @@
-# Migrating From Jest And Vitest
+# Migrating From Jest, Vitest, And Node:test
 
 Themis is designed for incremental migration. Start by running existing suites under the Themis runtime, then convert touched tests toward native contracts and `intent(...)` flows as you work.
 
@@ -12,14 +12,18 @@ npx themis migrate jest --assist
 npx themis test
 ```
 
-Use `vitest` instead of `jest` for Vitest suites.
+Use `vitest` instead of `jest` for Vitest suites, or `node` for suites built on Node's `node:test` + `node:assert` runners.
 
 ## Migration modes
 
-- `themis migrate <jest|vitest>`: scaffold config, setup, compat bridge, and migration report.
+- `themis migrate <jest|vitest|node>`: scaffold config, setup, compat bridge, and migration report.
 - `--rewrite-imports`: point framework imports at `themis.compat.js`.
-- `--convert`: remove common Jest/Vitest imports and rewrite common matcher/test patterns into Themis-native forms.
-- `--assist`: run the safe rewrite and conversion passes together, then report leftover Jest/Vitest-only helpers that still need manual follow-up.
+- `--convert`: remove common framework imports and rewrite common matcher/test patterns into Themis-native forms.
+- `--assist`: run the safe rewrite and conversion passes together, then report leftover framework-only helpers that still need manual follow-up.
+
+### Note on the `node` source
+
+Themis cannot intercept `node:` specifiers at the loader level (they are Node built-ins), so for `node:test` suites `--rewrite-imports` is the load-bearing step rather than optional. The compat shim implements `assert.equal/strictEqual/deepEqual/ok/throws/...` directly. `--convert` rewrites the safe forms into native expect chains (`assert.equal` → `toBe`, `assert.deepEqual` → `toEqual`, `assert.ok` → `toBeTruthy`, `before`/`after` → `beforeAll`/`afterAll`). Negated and async helpers (`assert.notEqual`, `assert.match`, `assert.rejects`, etc.) keep working through the compat shim and are flagged in `--assist` for manual cleanup once Themis exposes `.not`/`.toMatch`/`.rejects` matchers.
 
 ## Before And After
 

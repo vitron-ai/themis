@@ -874,8 +874,8 @@ test('deterministic instability', () => {
 
         const compatSource = fs.readFileSync(path.join(tempDir, 'themis.compat.js'), 'utf8');
         expect(compatSource).toContain('module.exports');
-        expect(compatSource).toContain('jest: jestLike');
-        expect(compatSource).toContain('vi: jestLike');
+        expect(compatSource).toContain('module.exports.jest = jestLike');
+        expect(compatSource).toContain('module.exports.vi = jestLike');
 
         const testSource = fs.readFileSync(path.join(tempDir, 'tests', 'sample.test.jsx'), 'utf8');
         expect(testSource).toContain(`from '../themis.compat.js'`);
@@ -1038,6 +1038,130 @@ test('deterministic instability', () => {
         'package.json': `{\n  "name": "themis-migrate-assist-blocked",\n  "private": true,\n  "version": "0.0.0",\n  "scripts": {\n    "test": "jest"\n  }\n}\n`,
         'tests/sample.test.js': `const { describe, test, expect } = require('@jest/globals');\n\ndescribe('migration assistant blocked', () => {\n  test('needs manual follow-up', async () => {\n    const actual = jest.requireActual('../src/value');\n    await expect(Promise.resolve(actual.answer)).resolves.toBe(42);\n  });\n});\n`,
         'src/value.js': `module.exports = { answer: 42 };\n`
+      },
+      {
+        testRegex: '\\.(test|spec)\\.js$',
+        reporter: 'json',
+        environment: 'node',
+        setupFiles: [],
+        tsconfigPath: null
+      }
+    );
+  });
+
+  test('scaffolds a node:test migration bridge', async () => {
+    await withProjectFiles(
+      async ({ tempDir }) => {
+        const run = runCliCommand(tempDir, 'migrate', ['node']);
+        expect(run.status).toBe(0);
+        expect(run.output).toContain('Themis migration scaffold created for node.');
+        expect(run.output).toContain('Runtime compatibility for node:test relies on --rewrite-imports');
+
+        const setupSource = fs.readFileSync(path.join(tempDir, 'tests', 'setup.themis.js'), 'utf8');
+        expect(setupSource).toContain('Themis migration bridge for node suites.');
+        expect(setupSource).toContain('node:test users');
+
+        const compatSource = fs.readFileSync(path.join(tempDir, 'themis.compat.js'), 'utf8');
+        expect(compatSource).toContain('module.exports.assert = nodeAssertLike');
+
+        const report = JSON.parse(fs.readFileSync(path.join(tempDir, '.themis', 'migration', 'migration-report.json'), 'utf8'));
+        expect(report.source).toBe('node');
+        expect(report.summary.matchedFiles).toBe(1);
+        expect(report.summary.nodeTest).toBe(1);
+        expect(report.summary.nodeAssert).toBe(1);
+      },
+      {
+        'package.json': `{\n  "name": "themis-migrate-node-fixture",\n  "private": true,\n  "version": "0.0.0",\n  "scripts": {\n    "test": "node --test"\n  }\n}\n`,
+        'tests/sample.test.js': `import { describe, test } from 'node:test';\nimport assert from 'node:assert/strict';\n\ndescribe('node placeholder', () => {\n  test('runs', () => {\n    assert.equal(1, 1);\n  });\n});\n`
+      },
+      {
+        testRegex: '\\.(test|spec)\\.js$',
+        reporter: 'json',
+        environment: 'node',
+        setupFiles: [],
+        tsconfigPath: null
+      }
+    );
+  });
+
+  test('rewrites node:test imports and runs converted assertions through the compat shim', async () => {
+    await withProjectFiles(
+      async ({ tempDir }) => {
+        const run = runCliCommand(tempDir, 'migrate', ['node', '--rewrite-imports']);
+        expect(run.status).toBe(0);
+        expect(run.output).toContain('Imports: rewrote 1 file(s) to local Themis compatibility imports.');
+
+        const testSource = fs.readFileSync(path.join(tempDir, 'tests', 'sample.test.js'), 'utf8');
+        expect(testSource).toContain(`from '../themis.compat.js'`);
+        expect(testSource).toContain('import { assert }');
+        expect(testSource.includes('node:test')).toBe(false);
+        expect(testSource.includes('node:assert')).toBe(false);
+
+        const rerun = runCliCommand(tempDir, 'test', ['--json']);
+        expect(rerun.status).toBe(0);
+        const payload = JSON.parse(rerun.output);
+        expect(payload.summary.failed).toBe(0);
+        expect(payload.summary.passed).toBe(1);
+      },
+      {
+        'package.json': `{\n  "name": "themis-migrate-node-rewrite",\n  "private": true,\n  "version": "0.0.0"\n}\n`,
+        'tests/sample.test.js': `import { describe, test } from 'node:test';\nimport assert from 'node:assert/strict';\n\ndescribe('node rewrite', () => {\n  test('routes assert calls through compat', () => {\n    assert.equal(1 + 1, 2);\n    assert.deepEqual({ a: 1 }, { a: 1 });\n    assert.ok([1, 2, 3].includes(2));\n  });\n});\n`
+      },
+      {
+        testRegex: '\\.(test|spec)\\.js$',
+        reporter: 'json',
+        environment: 'node',
+        setupFiles: [],
+        tsconfigPath: null
+      }
+    );
+  });
+
+  test('converts safe node:assert calls into native expect() chains', async () => {
+    await withProjectFiles(
+      async ({ tempDir }) => {
+        const run = runCliCommand(tempDir, 'migrate', ['node', '--convert']);
+        expect(run.status).toBe(0);
+        expect(run.output).toContain('Codemods: converted 1 file(s) to Themis-native patterns.');
+
+        const testSource = fs.readFileSync(path.join(tempDir, 'tests', 'sample.test.js'), 'utf8');
+        expect(testSource.includes('node:test')).toBe(false);
+        expect(testSource.includes('node:assert')).toBe(false);
+        expect(testSource).toContain('expect(1 + 1).toBe(2)');
+        expect(testSource).toContain('expect({ a: 1 }).toEqual({ a: 1 })');
+        expect(testSource).toContain('.toBeTruthy()');
+        expect(testSource).toContain('beforeAll(');
+        expect(testSource.includes('before(')).toBe(false);
+      },
+      {
+        'package.json': `{\n  "name": "themis-migrate-node-convert",\n  "private": true,\n  "version": "0.0.0"\n}\n`,
+        'tests/sample.test.js': `import { describe, test, before } from 'node:test';\nimport assert from 'node:assert/strict';\n\nbefore(() => {});\n\ndescribe('node convert', () => {\n  test('rewrites equal/deepEqual/ok', () => {\n    assert.equal(1 + 1, 2);\n    assert.deepEqual({ a: 1 }, { a: 1 });\n    assert.ok(true);\n  });\n});\n`
+      },
+      {
+        testRegex: '\\.(test|spec)\\.js$',
+        reporter: 'json',
+        environment: 'node',
+        setupFiles: [],
+        tsconfigPath: null
+      }
+    );
+  });
+
+  test('flags deferred node:assert calls that Themis cannot inline yet', async () => {
+    await withProjectFiles(
+      async ({ tempDir }) => {
+        const run = runCliCommand(tempDir, 'migrate', ['node', '--assist']);
+        expect(run.status).toBe(0);
+        expect(run.output).toContain('Assistant: flagged');
+
+        const report = JSON.parse(fs.readFileSync(path.join(tempDir, '.themis', 'migration', 'migration-report.json'), 'utf8'));
+        const patterns = report.assistant.findings.map((entry) => entry.pattern).sort();
+        expect(patterns).toContain('node-assert-deferred');
+        expect(patterns).toContain('node-assert-residual');
+      },
+      {
+        'package.json': `{\n  "name": "themis-migrate-node-assist",\n  "private": true,\n  "version": "0.0.0"\n}\n`,
+        'tests/sample.test.js': `import { test } from 'node:test';\nimport assert from 'node:assert/strict';\n\ntest('uses unsupported helpers', () => {\n  assert.notEqual(1, 2);\n  assert.match('hello', /^h/);\n  assert.fail('manual');\n});\n`
       },
       {
         testRegex: '\\.(test|spec)\\.js$',

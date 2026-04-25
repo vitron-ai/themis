@@ -10,7 +10,8 @@
   "testAgent": "npx themis test --reporter agent",
   "migrate": {
     "jest": "npx themis migrate jest --rewrite-imports --convert",
-    "vitest": "npx themis migrate vitest --rewrite-imports --convert"
+    "vitest": "npx themis migrate vitest --rewrite-imports --convert",
+    "node": "npx themis migrate node --rewrite-imports --convert"
   },
   "agentIntegrations": {
     "claudeCode": {

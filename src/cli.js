@@ -147,7 +147,11 @@ async function main(argv) {
       }
       console.log(`Report: ${formatCliPath(cwd, result.reportPath)}`);
     }
-    console.log('Runtime compatibility is enabled for @jest/globals, vitest, and @testing-library/react imports.');
+    if (result.source === 'node') {
+      console.log('Runtime compatibility for node:test relies on --rewrite-imports; use --convert to rewrite mock.* call sites.');
+    } else {
+      console.log('Runtime compatibility is enabled for @jest/globals, vitest, and @testing-library/react imports.');
+    }
     console.log('Next: run npx themis test or npm run test:themis');
     return;
   }
@@ -814,7 +818,7 @@ function printUsage() {
   console.log('  generate [path]         Scan source files and generate Themis contract tests');
   console.log('                         Options: [--json] [--plan] [--output path] [--files a,b] [--match-source regex] [--match-export regex] [--scenario name] [--min-confidence level] [--require-confidence level] [--include regex] [--exclude regex] [--review] [--update] [--clean] [--changed] [--force] [--strict] [--write-hints] [--fail-on-skips] [--fail-on-conflicts]');
   console.log('  scan [path]             Alias for generate');
-  console.log('  migrate <jest|vitest> [--rewrite-imports] [--convert] [--assist]   Scaffold an incremental migration bridge for existing suites');
+  console.log('  migrate <jest|vitest|node> [--rewrite-imports] [--convert] [--assist]   Scaffold an incremental migration bridge for existing suites');
   console.log('  test [--json] [--agent] [--next] [--reporter spec|next|json|agent|html] [--workers N] [--stability N] [--environment node|jsdom] [--isolation worker|in-process] [--cache] [--update-contracts] [--fix] [-w|--watch] [--html-output path] [--match regex] [--rerun-failed] [--no-memes] [--lexicon classic|themis]');
 }
 

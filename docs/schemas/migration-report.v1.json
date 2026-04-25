@@ -12,7 +12,7 @@
     },
     "source": {
       "type": "string",
-      "enum": ["jest", "vitest"]
+      "enum": ["jest", "vitest", "node"]
     },
     "createdAt": {
       "type": "string"
@@ -35,6 +35,8 @@
         "jestGlobals",
         "vitest",
         "testingLibraryReact",
+        "nodeTest",
+        "nodeAssert",
         "rewrittenFiles",
         "rewrittenImports",
         "convertedFiles",
@@ -50,6 +52,8 @@
         "jestGlobals": { "type": "number" },
         "vitest": { "type": "number" },
         "testingLibraryReact": { "type": "number" },
+        "nodeTest": { "type": "number" },
+        "nodeAssert": { "type": "number" },
         "rewrittenFiles": { "type": "number" },
         "rewrittenImports": { "type": "number" },
         "convertedFiles": { "type": "number" },

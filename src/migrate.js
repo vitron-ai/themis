@@ -4,7 +4,7 @@ const { DEFAULT_CONFIG, loadConfig } = require('./config');
 const { ARTIFACT_RELATIVE_PATHS } = require('./artifact-paths');
 const { ensureGitignoreEntries } = require('./gitignore');
 
-const SUPPORTED_MIGRATION_SOURCES = new Set(['jest', 'vitest']);
+const SUPPORTED_MIGRATION_SOURCES = new Set(['jest', 'vitest', 'node']);
 const THEMIS_SETUP_FILE = path.join('tests', 'setup.themis.js');
 const THEMIS_COMPAT_FILE = 'themis.compat.js';
 const MIGRATION_REPORT_FILE = ARTIFACT_RELATIVE_PATHS.migrationReport;
@@ -15,7 +15,7 @@ const MIGRATION_ASSIST_PATTERNS = Object.freeze([
     id: 'remaining-framework-import',
     category: 'remaining-framework-import',
     severity: 'warning',
-    pattern: /(?:import\s+[^;]*?from\s+['"](?:@jest\/globals|vitest|@testing-library\/react)['"]|import\s*\(\s*['"](?:@jest\/globals|vitest|@testing-library\/react)['"]\s*\)|require\(\s*['"](?:@jest\/globals|vitest|@testing-library\/react)['"]\s*\))/,
+    pattern: /(?:import\s+[^;]*?from\s+['"](?:@jest\/globals|vitest|@testing-library\/react|node:test|node:assert(?:\/strict)?)['"]|import\s*\(\s*['"](?:@jest\/globals|vitest|@testing-library\/react|node:test|node:assert(?:\/strict)?)['"]\s*\)|require\(\s*['"](?:@jest\/globals|vitest|@testing-library\/react|node:test|node:assert(?:\/strict)?)['"]\s*\))/,
     message: 'Framework-specific imports are still present after migration scaffolding.',
     suggestion: 'Rewrite or remove remaining framework imports so the suite only depends on Themis-compatible entry points.'
   },
@@ -26,6 +26,30 @@ const MIGRATION_ASSIST_PATTERNS = Object.freeze([
     pattern: /\b(?:jest|vi)\.(?:mocked|doMock|dontMock|setMock|requireActual|requireMock|createMockFromModule|isolateModules|isolateModulesAsync|unstable_mockModule|importActual|importMock)\s*\(/,
     message: 'Unsupported Jest/Vitest helper detected.',
     suggestion: 'Replace the helper with an explicit Themis mock, fixture, or project-local test utility before relying on the migrated suite.'
+  },
+  {
+    id: 'node-test-context',
+    category: 'unsupported-helper',
+    severity: 'warning',
+    pattern: /\bt\.(?:mock|diagnostic|signal|name|fullName|filePath|skip|todo|runOnly)\b/,
+    message: 'Node test context (t.mock, t.diagnostic, t.skip, etc.) is not supported by Themis.',
+    suggestion: 'Drop the test-context parameter and replace t.mock with module-level mocks, t.diagnostic with console output, and t.skip with test.skip().'
+  },
+  {
+    id: 'node-assert-residual',
+    category: 'unsupported-helper',
+    severity: 'warning',
+    pattern: /\bassert\.(?:fail|partialDeepStrictEqual|ifError|CallTracker)\b/,
+    message: 'Node assert helper has no automatic Themis equivalent.',
+    suggestion: 'Replace assert.fail/ifError/CallTracker with explicit expect() assertions before relying on the migrated suite.'
+  },
+  {
+    id: 'node-assert-deferred',
+    category: 'async-matcher-chain',
+    severity: 'warning',
+    pattern: /\bassert\.(?:notEqual|notStrictEqual|notDeepEqual|notDeepStrictEqual|match|doesNotMatch|doesNotThrow|rejects|doesNotReject)\b/,
+    message: 'Node assert call still routes through the compat shim; Themis lacks the matcher needed to inline it.',
+    suggestion: 'Leave as-is for now. When Themis adds .not / .toMatch / .rejects matchers, rewrite to native expect() chains.'
   },
   {
     id: 'async-matcher-chain',
@@ -48,7 +72,7 @@ const MIGRATION_ASSIST_PATTERNS = Object.freeze([
 function runMigrate(cwd, framework, options = {}) {
   const source = String(framework || '').trim().toLowerCase();
   if (!SUPPORTED_MIGRATION_SOURCES.has(source)) {
-    throw new Error(`Unsupported migrate source: ${String(framework)}. Use "jest" or "vitest".`);
+    throw new Error(`Unsupported migrate source: ${String(framework)}. Use "jest", "vitest", or "node".`);
   }
 
   const projectRoot = path.resolve(cwd || process.cwd());
@@ -132,10 +156,11 @@ function runMigrate(cwd, framework, options = {}) {
 }
 
 function buildMigrationSetupSource(source) {
+  const noteForNode = source === 'node'
+    ? '// node:test users: this scaffold relies on --rewrite-imports (and --convert\n// for assert.* calls). The Themis runtime cannot intercept "node:" specifiers\n// because they are Node built-ins, so the rewrite step is required, not optional.\n'
+    : '// Themis runtime supports imports from "@jest/globals", "vitest",\n// and "@testing-library/react" directly, so this file can stay minimal.\n';
   return `// Themis migration bridge for ${source} suites.
-// Themis runtime supports imports from "@jest/globals", "vitest",
-// and "@testing-library/react" directly, so this file can stay minimal.
-
+${noteForNode}
 afterEach(() => {
   restoreAllMocks();
   cleanup();
@@ -144,22 +169,16 @@ afterEach(() => {
 }
 
 function buildMigrationCompatSource() {
-  return `const themisCompat = {
-  describe,
-  test,
-  it: test,
-  expect,
-  beforeAll,
-  beforeEach,
-  afterEach,
-  afterAll,
-  render,
-  screen,
-  fireEvent,
-  waitFor,
-  cleanup,
-  act: async (callback) => (typeof callback === 'function' ? callback() : undefined)
-};
+  // Note: every export must be assigned with a literal `module.exports.X = ...`
+  // line so cjs-module-lexer can detect it for ESM-style named imports
+  // (`import { describe } from '../themis.compat.js'`). Object spreads or
+  // dynamic Object.assign would hide these from the static lexer and break
+  // named imports under Node's require-of-ESM bridge.
+  //
+  // node:assert helpers throw directly rather than delegating to expect(...)
+  // chains so they don't depend on matchers that Themis currently lacks
+  // (.not, .toMatch, .rejects).
+  return `const util = require('util');
 
 const jestLike = {
   fn,
@@ -175,11 +194,102 @@ const jestLike = {
   runAllTimers
 };
 
-module.exports = {
-  ...themisCompat,
-  jest: jestLike,
-  vi: jestLike
+function fmt(value) {
+  try { return util.inspect(value, { depth: 4, breakLength: 80 }); } catch { return String(value); }
+}
+
+const nodeAssertLike = {
+  equal: (actual, expected) => {
+    if (!Object.is(actual, expected)) throw new Error('Expected ' + fmt(actual) + ' to equal ' + fmt(expected));
+  },
+  strictEqual: (actual, expected) => {
+    if (!Object.is(actual, expected)) throw new Error('Expected ' + fmt(actual) + ' to strictly equal ' + fmt(expected));
+  },
+  notEqual: (actual, expected) => {
+    if (Object.is(actual, expected)) throw new Error('Expected ' + fmt(actual) + ' to not equal ' + fmt(expected));
+  },
+  notStrictEqual: (actual, expected) => {
+    if (Object.is(actual, expected)) throw new Error('Expected ' + fmt(actual) + ' to not strictly equal ' + fmt(expected));
+  },
+  deepEqual: (actual, expected) => {
+    if (!util.isDeepStrictEqual(actual, expected)) throw new Error('Expected ' + fmt(actual) + ' to deeply equal ' + fmt(expected));
+  },
+  deepStrictEqual: (actual, expected) => {
+    if (!util.isDeepStrictEqual(actual, expected)) throw new Error('Expected ' + fmt(actual) + ' to deeply strict-equal ' + fmt(expected));
+  },
+  notDeepEqual: (actual, expected) => {
+    if (util.isDeepStrictEqual(actual, expected)) throw new Error('Expected ' + fmt(actual) + ' to not deeply equal ' + fmt(expected));
+  },
+  notDeepStrictEqual: (actual, expected) => {
+    if (util.isDeepStrictEqual(actual, expected)) throw new Error('Expected ' + fmt(actual) + ' to not deeply strict-equal ' + fmt(expected));
+  },
+  ok: (value) => {
+    if (!value) throw new Error('Expected truthy value, received ' + fmt(value));
+  },
+  match: (value, regex) => {
+    if (!regex.test(value)) throw new Error('Expected ' + fmt(value) + ' to match ' + String(regex));
+  },
+  doesNotMatch: (value, regex) => {
+    if (regex.test(value)) throw new Error('Expected ' + fmt(value) + ' to not match ' + String(regex));
+  },
+  throws: (block, expected) => {
+    let thrown = null;
+    try { block(); } catch (e) { thrown = e; }
+    if (!thrown) throw new Error('Expected function to throw');
+    if (expected instanceof RegExp && !expected.test(String(thrown.message || thrown))) {
+      throw new Error('Expected thrown message to match ' + String(expected));
+    }
+  },
+  doesNotThrow: (block) => {
+    try { block(); } catch (e) { throw new Error('Expected function not to throw, threw: ' + (e && e.message ? e.message : String(e))); }
+  },
+  rejects: async (block, expected) => {
+    const promise = typeof block === 'function' ? block() : block;
+    let thrown = null;
+    try { await promise; } catch (e) { thrown = e; }
+    if (!thrown) throw new Error('Expected promise to reject');
+    if (expected instanceof RegExp && !expected.test(String(thrown.message || thrown))) {
+      throw new Error('Expected rejection message to match ' + String(expected));
+    }
+  },
+  doesNotReject: async (block) => {
+    const promise = typeof block === 'function' ? block() : block;
+    try { await promise; } catch (e) { throw new Error('Expected promise not to reject, rejected: ' + (e && e.message ? e.message : String(e))); }
+  }
 };
+nodeAssertLike.strict = nodeAssertLike;
+
+module.exports.describe = describe;
+module.exports.test = test;
+module.exports.it = test;
+module.exports.expect = expect;
+module.exports.beforeAll = beforeAll;
+module.exports.beforeEach = beforeEach;
+module.exports.afterEach = afterEach;
+module.exports.afterAll = afterAll;
+module.exports.before = beforeAll;
+module.exports.after = afterAll;
+module.exports.render = render;
+module.exports.screen = screen;
+module.exports.fireEvent = fireEvent;
+module.exports.waitFor = waitFor;
+module.exports.cleanup = cleanup;
+module.exports.act = async (callback) => (typeof callback === 'function' ? callback() : undefined);
+module.exports.fn = fn;
+module.exports.spyOn = spyOn;
+module.exports.mock = mock;
+module.exports.unmock = unmock;
+module.exports.clearAllMocks = clearAllMocks;
+module.exports.resetAllMocks = resetAllMocks;
+module.exports.restoreAllMocks = restoreAllMocks;
+module.exports.useFakeTimers = useFakeTimers;
+module.exports.useRealTimers = useRealTimers;
+module.exports.advanceTimersByTime = advanceTimersByTime;
+module.exports.runAllTimers = runAllTimers;
+module.exports.jest = jestLike;
+module.exports.vi = jestLike;
+module.exports.assert = nodeAssertLike;
+module.exports.strict = nodeAssertLike;
 `;
 }
 
@@ -232,6 +342,8 @@ function buildMigrationReport(
       jestGlobals: matches.filter((entry) => entry.imports.includes('@jest/globals')).length,
       vitest: matches.filter((entry) => entry.imports.includes('vitest')).length,
       testingLibraryReact: matches.filter((entry) => entry.imports.includes('@testing-library/react')).length,
+      nodeTest: matches.filter((entry) => entry.imports.includes('node:test')).length,
+      nodeAssert: matches.filter((entry) => entry.imports.includes('node:assert') || entry.imports.includes('node:assert/strict')).length,
       rewrittenFiles: Array.isArray(rewriteSummary.rewrittenFiles) ? rewriteSummary.rewrittenFiles.length : 0,
       rewrittenImports: Number(rewriteSummary.rewrittenImports || 0),
       convertedFiles: Array.isArray(conversionSummary.convertedFiles) ? conversionSummary.convertedFiles.length : 0,
@@ -374,6 +486,36 @@ function convertMigrationSourceText(sourceText) {
       return '';
     }
   );
+  source = source.replace(
+    /^\s*import\s+(?:[A-Za-z_$][\w$]*\s*,\s*)?\{[^}]*\}\s+from\s+['"]node:test['"];?\s*\n?/gm,
+    () => { removedImports += 1; return ''; }
+  );
+  source = source.replace(
+    /^\s*import\s+[A-Za-z_$][\w$]*\s+from\s+['"]node:test['"];?\s*\n?/gm,
+    () => { removedImports += 1; return ''; }
+  );
+  source = source.replace(
+    /^\s*import\s+(?:[A-Za-z_$][\w$]*\s*,\s*)?\{[^}]*\}\s+from\s+['"]node:assert(?:\/strict)?['"];?\s*\n?/gm,
+    () => { removedImports += 1; return ''; }
+  );
+  source = source.replace(
+    /^\s*import\s+[A-Za-z_$][\w$]*\s+from\s+['"]node:assert(?:\/strict)?['"];?\s*\n?/gm,
+    () => { removedImports += 1; return ''; }
+  );
+  source = source.replace(
+    /^\s*const\s+\{[^}]*\}\s*=\s*require\(\s*['"]node:test['"]\s*\);?\s*\n?/gm,
+    () => { removedImports += 1; return ''; }
+  );
+  source = source.replace(
+    /^\s*const\s+[A-Za-z_$][\w$]*\s*=\s*require\(\s*['"]node:test['"]\s*\);?\s*\n?/gm,
+    () => { removedImports += 1; return ''; }
+  );
+  source = source.replace(
+    /^\s*const\s+(?:\{[^}]*\}|[A-Za-z_$][\w$]*)\s*=\s*require\(\s*['"]node:assert(?:\/strict)?['"]\s*\);?\s*\n?/gm,
+    () => { removedImports += 1; return ''; }
+  );
+
+  source = convertNodeAssertCalls(source, (n) => { convertedAssertions += n; });
 
   const replacements = [
     { pattern: /\bit\s*\(/g, replacement: 'test(' },
@@ -400,7 +542,17 @@ function convertMigrationSourceText(sourceText) {
     { pattern: /\b(?:jest|vi)\.useRealTimers\s*\(/g, replacement: 'useRealTimers(' },
     { pattern: /\b(?:jest|vi)\.advanceTimersByTime\s*\(/g, replacement: 'advanceTimersByTime(' },
     { pattern: /\b(?:jest|vi)\.runAllTimers\s*\(/g, replacement: 'runAllTimers(' },
-    { pattern: /\b(?:jest|vi)\.resetModules\s*\(/g, replacement: 'resetModules(' }
+    { pattern: /\b(?:jest|vi)\.resetModules\s*\(/g, replacement: 'resetModules(' },
+    { pattern: /(?<![.\w])before\s*\(/g, replacement: 'beforeAll(' },
+    { pattern: /(?<![.\w])after\s*\(/g, replacement: 'afterAll(' },
+    { pattern: /\bmock\.method\s*\(/g, replacement: 'spyOn(' },
+    { pattern: /\bmock\.fn\s*\(/g, replacement: 'fn(' },
+    { pattern: /\bmock\.reset\s*\(/g, replacement: 'resetAllMocks(' },
+    { pattern: /\bmock\.restoreAll\s*\(/g, replacement: 'restoreAllMocks(' },
+    { pattern: /\bmock\.timers\.enable\s*\(/g, replacement: 'useFakeTimers(' },
+    { pattern: /\bmock\.timers\.reset\s*\(/g, replacement: 'useRealTimers(' },
+    { pattern: /\bmock\.timers\.tick\s*\(/g, replacement: 'advanceTimersByTime(' },
+    { pattern: /\bmock\.timers\.runAll\s*\(/g, replacement: 'runAllTimers(' }
   ];
 
   for (const entry of replacements) {
@@ -442,16 +594,57 @@ function rewriteMigrationImports(projectRoot, matches, compatPath) {
 }
 
 function rewriteMigrationSourceText(sourceText, compatSpecifier) {
-  const patterns = [
-    /(['"])@jest\/globals\1/g,
-    /(['"])vitest\1/g,
-    /(['"])@testing-library\/react\1/g
-  ];
-
   let rewrites = 0;
   let nextSource = sourceText;
-  for (const pattern of patterns) {
-    nextSource = nextSource.replace(pattern, (match, quote) => {
+
+  // node:test default and combined imports must be rewritten to named form
+  // because the compat module's CJS exports are a namespace object, not a
+  // callable test() function.
+  nextSource = nextSource.replace(
+    /import\s+([A-Za-z_$][\w$]*)\s*,\s*\{([^}]*)\}\s+from\s+['"]node:test['"]/g,
+    (_m, defaultName, named) => { rewrites += 1; return `import { ${defaultName}, ${named.trim()} } from '${compatSpecifier}'`; }
+  );
+  nextSource = nextSource.replace(
+    /import\s+([A-Za-z_$][\w$]*)\s+from\s+['"]node:test['"]/g,
+    (_m, defaultName) => { rewrites += 1; return `import { ${defaultName} } from '${compatSpecifier}'`; }
+  );
+
+  // node:assert default imports rewrite to a named `assert` import.
+  // `import { strict as assert } from 'node:assert'` collapses to the same.
+  nextSource = nextSource.replace(
+    /import\s+\{\s*strict\s+as\s+([A-Za-z_$][\w$]*)\s*\}\s+from\s+['"]node:assert['"]/g,
+    (_m, name) => { rewrites += 1; return `import { ${name === 'assert' ? 'assert' : `assert as ${name}`} } from '${compatSpecifier}'`; }
+  );
+  nextSource = nextSource.replace(
+    /import\s+([A-Za-z_$][\w$]*)\s+from\s+['"]node:assert(?:\/strict)?['"]/g,
+    (_m, name) => { rewrites += 1; return `import { ${name === 'assert' ? 'assert' : `assert as ${name}`} } from '${compatSpecifier}'`; }
+  );
+
+  // CommonJS equivalents.
+  nextSource = nextSource.replace(
+    /const\s+([A-Za-z_$][\w$]*)\s*=\s*require\(\s*['"]node:assert(?:\/strict)?['"]\s*\)/g,
+    (_m, name) => { rewrites += 1; return name === 'assert'
+      ? `const { assert } = require('${compatSpecifier}')`
+      : `const { assert: ${name} } = require('${compatSpecifier}')`; }
+  );
+  nextSource = nextSource.replace(
+    /const\s+([A-Za-z_$][\w$]*)\s*=\s*require\(\s*['"]node:test['"]\s*\)/g,
+    (_m, name) => { rewrites += 1; return name === 'test'
+      ? `const { test } = require('${compatSpecifier}')`
+      : `const { test: ${name} } = require('${compatSpecifier}')`; }
+  );
+
+  // Remaining specifier-only rewrites for named-import shapes.
+  const specifiers = [
+    /(['"])@jest\/globals\1/g,
+    /(['"])vitest\1/g,
+    /(['"])@testing-library\/react\1/g,
+    /(['"])node:test\1/g,
+    /(['"])node:assert\/strict\1/g,
+    /(['"])node:assert\1/g
+  ];
+  for (const pattern of specifiers) {
+    nextSource = nextSource.replace(pattern, (_match, quote) => {
       rewrites += 1;
       return `${quote}${compatSpecifier}${quote}`;
     });
@@ -498,6 +691,14 @@ function detectMigrationImports(sourceText) {
   if (hasModuleReference(sourceText, '@testing-library/react')) {
     matches.push('@testing-library/react');
   }
+  if (hasModuleReference(sourceText, 'node:test')) {
+    matches.push('node:test');
+  }
+  if (hasModuleReference(sourceText, 'node:assert/strict')) {
+    matches.push('node:assert/strict');
+  } else if (hasModuleReference(sourceText, 'node:assert')) {
+    matches.push('node:assert');
+  }
   return matches;
 }
 
@@ -512,6 +713,200 @@ function toPortableRelativeSpecifier(relativePath) {
     return normalized;
   }
   return `./${normalized}`;
+}
+
+// ---------------------------------------------------------------------------
+// node:assert call-site rewrites
+//
+// Each rewrite parses arguments at depth=1 with awareness of strings, template
+// literals, and regex literals so we don't mis-split inside an arg. Calls that
+// can't be parsed cleanly are left intact and surface as `--assist` findings.
+// ---------------------------------------------------------------------------
+
+// Only conversions that produce code working under current Themis matchers
+// land here. Negated forms (notEqual, doesNotMatch, doesNotThrow), regex
+// matches, and async rejection helpers stay as `assert.X` calls; the compat
+// shim implements them, and `--assist` flags them for manual cleanup once
+// Themis adds .not / .toMatch / .rejects.
+const NODE_ASSERT_TWO_ARG = {
+  equal: (a, b) => `expect(${a}).toBe(${b})`,
+  strictEqual: (a, b) => `expect(${a}).toBe(${b})`,
+  deepEqual: (a, b) => `expect(${a}).toEqual(${b})`,
+  deepStrictEqual: (a, b) => `expect(${a}).toEqual(${b})`
+};
+
+const NODE_ASSERT_ONE_OR_TWO_ARG = {
+  throws: (args) => args.length === 1
+    ? `expect(${args[0]}).toThrow()`
+    : `expect(${args[0]}).toThrow(${args[1]})`
+};
+
+const NODE_ASSERT_ONE_ARG = {
+  ok: (a) => `expect(${a}).toBeTruthy()`
+};
+
+function convertNodeAssertCalls(source, incrementCounter) {
+  let result = source;
+  for (const method of Object.keys(NODE_ASSERT_TWO_ARG)) {
+    result = transformAssertCall(result, method, (args) => {
+      if (args.length < 2 || args.length > 3) return null;
+      return NODE_ASSERT_TWO_ARG[method](args[0], args[1]);
+    }, incrementCounter);
+  }
+  for (const method of Object.keys(NODE_ASSERT_ONE_OR_TWO_ARG)) {
+    result = transformAssertCall(result, method, (args) => {
+      if (args.length < 1 || args.length > 3) return null;
+      return NODE_ASSERT_ONE_OR_TWO_ARG[method](args);
+    }, incrementCounter);
+  }
+  for (const method of Object.keys(NODE_ASSERT_ONE_ARG)) {
+    result = transformAssertCall(result, method, (args) => {
+      if (args.length < 1 || args.length > 2) return null;
+      return NODE_ASSERT_ONE_ARG[method](args[0]);
+    }, incrementCounter);
+  }
+  return result;
+}
+
+function transformAssertCall(source, methodName, transform, incrementCounter) {
+  const opener = new RegExp(`\\bassert\\.${methodName}\\s*\\(`, 'g');
+  let result = '';
+  let cursor = 0;
+  let match;
+  while ((match = opener.exec(source)) !== null) {
+    const callStart = match.index;
+    const argsStart = opener.lastIndex;
+    const parsed = readCallArgs(source, argsStart);
+    if (!parsed) continue;
+    const replacement = transform(parsed.args);
+    if (replacement === null) continue;
+    result += source.slice(cursor, callStart) + replacement;
+    cursor = parsed.end;
+    opener.lastIndex = parsed.end;
+    incrementCounter(1);
+  }
+  result += source.slice(cursor);
+  return result;
+}
+
+// Walks `source` from `start` (just past an opening `(`) and returns the
+// top-level argument list. Handles single/double/template strings, regex
+// literals, and line/block comments. Returns `null` if the call is malformed
+// (unbalanced parens, etc.) so the caller can leave the original text alone.
+function readCallArgs(source, start) {
+  const args = [];
+  let depth = 1;
+  let argStart = start;
+  let i = start;
+  while (i < source.length) {
+    const ch = source[i];
+    if (ch === "'" || ch === '"') { i = skipString(source, i, ch); continue; }
+    if (ch === '`') { i = skipTemplateLiteral(source, i); continue; }
+    if (ch === '/' && source[i + 1] === '/') { i = skipLineComment(source, i); continue; }
+    if (ch === '/' && source[i + 1] === '*') { i = skipBlockComment(source, i); continue; }
+    if (ch === '/' && isRegexLiteralStart(source, i)) { i = skipRegexLiteral(source, i); continue; }
+    if (ch === '(' || ch === '[' || ch === '{') { depth += 1; i += 1; continue; }
+    if (ch === ')' || ch === ']' || ch === '}') {
+      depth -= 1;
+      if (depth === 0) {
+        const tail = source.slice(argStart, i).trim();
+        if (tail.length > 0 || args.length > 0) args.push(tail);
+        return { args, end: i + 1 };
+      }
+      i += 1; continue;
+    }
+    if (ch === ',' && depth === 1) {
+      args.push(source.slice(argStart, i).trim());
+      argStart = i + 1;
+      i += 1; continue;
+    }
+    i += 1;
+  }
+  return null;
+}
+
+function skipString(source, start, quote) {
+  let i = start + 1;
+  while (i < source.length) {
+    const ch = source[i];
+    if (ch === '\\') { i += 2; continue; }
+    if (ch === quote) return i + 1;
+    if (ch === '\n') return i + 1;
+    i += 1;
+  }
+  return i;
+}
+
+function skipTemplateLiteral(source, start) {
+  let i = start + 1;
+  while (i < source.length) {
+    const ch = source[i];
+    if (ch === '\\') { i += 2; continue; }
+    if (ch === '`') return i + 1;
+    if (ch === '$' && source[i + 1] === '{') {
+      i = skipTemplateExpression(source, i + 2);
+      continue;
+    }
+    i += 1;
+  }
+  return i;
+}
+
+function skipTemplateExpression(source, start) {
+  let depth = 1;
+  let i = start;
+  while (i < source.length) {
+    const ch = source[i];
+    if (ch === "'" || ch === '"') { i = skipString(source, i, ch); continue; }
+    if (ch === '`') { i = skipTemplateLiteral(source, i); continue; }
+    if (ch === '{') { depth += 1; i += 1; continue; }
+    if (ch === '}') { depth -= 1; if (depth === 0) return i + 1; i += 1; continue; }
+    i += 1;
+  }
+  return i;
+}
+
+function skipLineComment(source, start) {
+  let i = start + 2;
+  while (i < source.length && source[i] !== '\n') i += 1;
+  return i;
+}
+
+function skipBlockComment(source, start) {
+  let i = start + 2;
+  while (i < source.length) {
+    if (source[i] === '*' && source[i + 1] === '/') return i + 2;
+    i += 1;
+  }
+  return i;
+}
+
+function isRegexLiteralStart(source, index) {
+  for (let j = index - 1; j >= 0; j -= 1) {
+    const c = source[j];
+    if (c === ' ' || c === '\t' || c === '\n' || c === '\r') continue;
+    return /[(,=&|!?:;[{<>+\-*%^~]/.test(c);
+  }
+  return true;
+}
+
+function skipRegexLiteral(source, start) {
+  let i = start + 1;
+  let inClass = false;
+  while (i < source.length) {
+    const ch = source[i];
+    if (ch === '\\') { i += 2; continue; }
+    if (ch === '[') { inClass = true; i += 1; continue; }
+    if (ch === ']') { inClass = false; i += 1; continue; }
+    if (ch === '/' && !inClass) {
+      i += 1;
+      while (i < source.length && /[a-z]/i.test(source[i])) i += 1;
+      return i;
+    }
+    if (ch === '\n') return start + 1;
+    i += 1;
+  }
+  return start + 1;
 }
 
 module.exports = {

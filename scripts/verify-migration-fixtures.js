@@ -54,6 +54,10 @@ const FIXTURES = [
   {
     name: 'vitest-rtl-provider',
     source: 'vitest'
+  },
+  {
+    name: 'node-basic',
+    source: 'node'
   }
 ];
 
