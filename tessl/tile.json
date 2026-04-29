@@ -1,6 +1,6 @@
 {
   "name": "vitron-ai/themis",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "summary": "Reference tile for Themis, a Node.js and TypeScript unit test framework designed for AI coding agents. Covers unit-test authoring, Jest/Vitest migration, agent-readable failure output with repair hints, and first-class integrations for Claude Code, Cursor, and generic agents.",
   "private": false,
   "docs": "docs/index.md",
