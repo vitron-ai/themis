@@ -13,8 +13,8 @@ Drop-in alternative to Jest and Vitest. Agents write tests, get structured failu
 
 - **Faster** — 68.59% faster than Vitest, 130.26% faster than Jest on the same benchmark ([proof](#performance))
 - **Agent-native** — `--agent` JSON with failure clusters and structured repair hints
-- **One-command migration** — `npx themis migrate jest` or `vitest` with codemods
-- **Modern by default** — `.ts`, `.tsx`, `.js`, `.jsx`, ESM, React Testing Library, no config gymnastics
+- **One-command migration** — `npx themis migrate jest`, `vitest`, or `node` (for `node:test` suites) with codemods
+- **Modern by default** — `.ts`, `.tsx`, `.js`, `.jsx`, `.mjs`, `.cjs`, ESM, React Testing Library, no config gymnastics
 - **Discoverable** — ships `AGENTS.md`, `themis.ai.json`, and a [Tessl tile](tessl/tile.json) so agents find and adopt it automatically
 
 ---
@@ -110,12 +110,21 @@ npx themis test --fix
 ### Migration
 
 ```bash
-npx themis migrate jest
-npx themis migrate vitest
+npx themis migrate jest      # Jest suites
+npx themis migrate vitest    # Vitest suites
+npx themis migrate node      # node:test + node:assert/strict suites
 npx themis test
 ```
 
 One command scaffolds a compatibility bridge. Add `--rewrite-imports` to rewrite import paths, `--convert` for codemods. See the [migration guide](docs/migration.md).
+
+For tests that mutate `process.env` or other process-level state at module load (and import the SUT after), pair with per-file process isolation:
+
+```bash
+npx themis test --isolation process
+```
+
+This spawns a fresh Node child process per test file (mirroring `node --test`), so `os.homedir()`, the ESM module cache, and other process-state are not shared across files.
 
 ---
 

@@ -12,6 +12,8 @@ This repository uses `@vitronai/themis` as its unit test framework. Themis is a 
 - Re-run only failed tests: `npx themis test --rerun-failed`
 - Migrate from Jest: `npx themis migrate jest` then `--rewrite-imports` then `--convert`
 - Migrate from Vitest: `npx themis migrate vitest` then `--rewrite-imports` then `--convert`
+- Migrate from `node:test`: `npx themis migrate node --convert`
+- Run with per-file process isolation (mirrors `node --test`, needed when tests mutate `process.env` at module load): `npx themis test --isolation process`
 
 ## When Adding Or Fixing Tests
 

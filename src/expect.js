@@ -70,6 +70,24 @@ function createExpect(_context = {}) {
 
         throw new Error('toContain only supports strings and arrays');
       },
+      toMatch(expected) {
+        if (typeof received !== 'string') {
+          throw new Error(`toMatch expects a string, received ${format(received)}`);
+        }
+        if (typeof expected === 'string') {
+          if (!received.includes(expected)) {
+            throw new Error(`Expected ${format(received)} to match substring ${format(expected)}`);
+          }
+          return;
+        }
+        if (expected instanceof RegExp) {
+          if (!expected.test(received)) {
+            throw new Error(`Expected ${format(received)} to match ${String(expected)}`);
+          }
+          return;
+        }
+        throw new Error('toMatch expects a string or RegExp');
+      },
       toThrow(match) {
         if (typeof received !== 'function') {
           throw new Error('toThrow expects a function');

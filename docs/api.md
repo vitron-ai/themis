@@ -28,7 +28,7 @@ For machine-readable agent adoption metadata, see [`themis.ai.json`](../themis.a
 themis test [options]
 themis init [--agents]
 themis generate [path]
-themis migrate <jest|vitest>
+themis migrate <jest|vitest|node>
 ```
 
 ## `themis init`
@@ -203,7 +203,7 @@ Migration options:
 | `--reporter spec\|next\|json\|agent\|html` | string | Explicit reporter override. |
 | `--workers <N>` | positive integer | Override worker count. Invalid values fail fast. |
 | `--environment node\|jsdom` | string | Override the configured test environment. |
-| `--isolation worker\|in-process` | string | Select worker isolation or a zero IPC in-process execution mode. |
+| `--isolation worker\|in-process\|process` | string | Select isolation model. `worker` (default) = worker thread per file. `in-process` = sequential in the parent (fastest reruns; shares ESM cache + process state across files). `process` = `child_process.fork` per file, mirroring `node --test` (use when tests mutate `process.env`/`process.cwd()` at module load). |
 | `--cache` | flag | Enable file-level result caching for in-process local loops. |
 | `--update-contracts` | flag | Accept updated `captureContract(...)` baselines for the selected tests. |
 | `-w`, `--watch` | flag | Rerun the selected suite when watched project files change. |
@@ -219,7 +219,7 @@ Migration compatibility:
 - imports from `@jest/globals` are supported at runtime
 - imports from `vitest` are supported at runtime
 - imports from `@testing-library/react` are supported via Themis `render`, `screen`, `fireEvent`, `waitFor`, `cleanup`, and `act`
-- `themis migrate <jest|vitest>` also emits `.themis/migration/migration-report.json` with detected files, migration mode details, assistant findings, and recommended next actions
+- `themis migrate <jest|vitest|node>` also emits `.themis/migration/migration-report.json` with detected files, migration mode details, assistant findings, and recommended next actions
 
 Additional option:
 
@@ -229,6 +229,7 @@ Execution note:
 
 - `--watch --isolation in-process --cache` is the fastest local rerun mode
 - `--isolation worker` remains the safer mode for CI and global-heavy suites
+- `--isolation process` is required for tests that mutate `process.env`/`process.cwd()` at module load (matches `node --test`'s isolation model)
 - `--watch` is intended for short edit-run-review loops for both humans and AI agents
 
 Snapshot note:

@@ -36,7 +36,7 @@ function createSuite(name, parent = null) {
   };
 }
 
-function collectAndRun(filePath, options = {}) {
+async function collectAndRun(filePath, options = {}) {
   const root = createSuite('__root__', null);
   let currentSuite = root;
   const projectRoot = path.resolve(options.cwd || process.cwd());
@@ -92,9 +92,9 @@ function collectAndRun(filePath, options = {}) {
   let loadError = null;
   try {
     for (const setupFile of setupFiles) {
-      moduleLoader.loadFile(setupFile);
+      await moduleLoader.loadFile(setupFile);
     }
-    moduleLoader.loadFile(filePath);
+    await moduleLoader.loadFile(filePath);
   } catch (error) {
     loadError = normalizeError(error);
   }

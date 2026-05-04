@@ -4,6 +4,28 @@ All notable changes to this project are documented in this file.
 
 ## Unreleased
 
+## 1.3.0 - 2026-05-03
+
+### Added
+
+- **`themis migrate node` codemod.** New third migration source converts test files written with `node:test` + `node:assert/strict` (default-import or named-import shapes) to Themis-native primitives. Handles `assert.equal`/`strictEqual` → `expect().toBe()`, `deepEqual`/`deepStrictEqual` → `toEqual()`, `ok` → `toBeTruthy()`, `match(str, /re/)` → `toMatch()`, `rejects(...)` → async try/catch wrapper, and `test.after`/`test.afterEach` → `afterAll`/`afterEach`. Also strips the optional 3rd-arg options object from `test(name, options, fn)` calls. Uses a balanced-paren scanner with regex-literal awareness so escaped slashes inside regex args don't trip the parser.
+- **`toMatch(string | RegExp)` matcher** in core `expect`. Jest-compatible. Matches strings against a substring or regex; throws if `received` is not a string.
+- **`--isolation process` mode.** Spawns a fresh Node child process (`child_process.fork`) per test file, mirroring `node --test`'s isolation model. Use this when tests mutate `process.env`, `process.cwd()`, or other process-level state at module-load time and depend on the SUT picking up those mutations — the worker-thread model freezes `os.homedir()` and shares the ESM module cache across files in `in-process` mode.
+- **`npm run verify:dogfood`** — runs the migrator + Themis test pass against `alethia-mcp`'s `bridge-tests/*.mjs` (set `ALETHIA_MCP_REPO` to override path). Currently 57/57 green.
+- ESM runtime support (`.mjs`, `.cjs`, `.js` in `type:module` packages) via dynamic `import()` in `src/module-loader.js`. Backed by 5 fixtures in `tests/fixtures/esm/` and `npm run proof:esm`. Mock-via-`mock(...)` is not supported for ESM imports (CJS only); document if encountered.
+- `node:test` / `node:assert` residual-import detection in `MIGRATION_ASSIST_PATTERNS` so post-migration leftovers surface as warnings.
+
+### Changed
+
+- Default `testRegex` now matches `.mjs` and `.cjs` test files in addition to `.js/.jsx/.ts/.tsx`.
+- Migration report `summary` gains `nodeTest` and `nodeAssert` counters; `source` enum extended to `['jest', 'vitest', 'node']`. Schema bumped in-place under `themis.migration.report.v1`.
+
+### Notes
+
+- `themis migrate node` silently drops `assert.equal`'s optional 3rd-arg message string (same posture as the existing jest/vitest codemods). Failure messages still surface via Themis assertion output.
+- TS files inside `type:module` packages still transpile to CJS and crash in ESM scope — out of scope for this release; defer until a partner pulls.
+
+
 ## 1.2.1 - 2026-04-09
 
 - Added `init --cursor` flag to install a `.cursorrules` file with Themis conventions. Composable with `--agents` and `--claude-code`.

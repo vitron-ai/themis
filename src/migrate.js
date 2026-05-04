@@ -4,7 +4,7 @@ const { DEFAULT_CONFIG, loadConfig } = require('./config');
 const { ARTIFACT_RELATIVE_PATHS } = require('./artifact-paths');
 const { ensureGitignoreEntries } = require('./gitignore');
 
-const SUPPORTED_MIGRATION_SOURCES = new Set(['jest', 'vitest']);
+const SUPPORTED_MIGRATION_SOURCES = new Set(['jest', 'vitest', 'node']);
 const THEMIS_SETUP_FILE = path.join('tests', 'setup.themis.js');
 const THEMIS_COMPAT_FILE = 'themis.compat.js';
 const MIGRATION_REPORT_FILE = ARTIFACT_RELATIVE_PATHS.migrationReport;
@@ -18,6 +18,14 @@ const MIGRATION_ASSIST_PATTERNS = Object.freeze([
     pattern: /(?:import\s+[^;]*?from\s+['"](?:@jest\/globals|vitest|@testing-library\/react)['"]|import\s*\(\s*['"](?:@jest\/globals|vitest|@testing-library\/react)['"]\s*\)|require\(\s*['"](?:@jest\/globals|vitest|@testing-library\/react)['"]\s*\))/,
     message: 'Framework-specific imports are still present after migration scaffolding.',
     suggestion: 'Rewrite or remove remaining framework imports so the suite only depends on Themis-compatible entry points.'
+  },
+  {
+    id: 'remaining-node-test-import',
+    category: 'remaining-framework-import',
+    severity: 'warning',
+    pattern: /(?:import\s+[^;]*?from\s+['"]node:(?:test|assert(?:\/strict)?)['"]|import\s*\(\s*['"]node:(?:test|assert(?:\/strict)?)['"]\s*\)|require\(\s*['"]node:(?:test|assert(?:\/strict)?)['"]\s*\))/,
+    message: 'node:test or node:assert imports remain after migration; rerun with --convert or rewrite manually.',
+    suggestion: 'Themis provides test/expect/afterAll/afterEach as globals. Drop node:test and node:assert imports and use the Themis equivalents.'
   },
   {
     id: 'unsupported-helper',
@@ -48,7 +56,7 @@ const MIGRATION_ASSIST_PATTERNS = Object.freeze([
 function runMigrate(cwd, framework, options = {}) {
   const source = String(framework || '').trim().toLowerCase();
   if (!SUPPORTED_MIGRATION_SOURCES.has(source)) {
-    throw new Error(`Unsupported migrate source: ${String(framework)}. Use "jest" or "vitest".`);
+    throw new Error(`Unsupported migrate source: ${String(framework)}. Use "jest", "vitest", or "node".`);
   }
 
   const projectRoot = path.resolve(cwd || process.cwd());
@@ -60,7 +68,7 @@ function runMigrate(cwd, framework, options = {}) {
 
   const existingConfig = fs.existsSync(configPath) ? loadConfig(projectRoot) : { ...DEFAULT_CONFIG, setupFiles: [], testIgnore: [] };
   const nextSetupFiles = Array.isArray(existingConfig.setupFiles) ? [...existingConfig.setupFiles] : [];
-  if (!nextSetupFiles.includes(THEMIS_SETUP_FILE)) {
+  if (source !== 'node' && !nextSetupFiles.includes(THEMIS_SETUP_FILE)) {
     nextSetupFiles.push(THEMIS_SETUP_FILE);
   }
 
@@ -69,13 +77,15 @@ function runMigrate(cwd, framework, options = {}) {
     setupFiles: nextSetupFiles
   };
 
-  fs.mkdirSync(path.dirname(setupPath), { recursive: true });
-  if (!fs.existsSync(setupPath)) {
-    fs.writeFileSync(setupPath, buildMigrationSetupSource(source), 'utf8');
-  }
+  if (source !== 'node') {
+    fs.mkdirSync(path.dirname(setupPath), { recursive: true });
+    if (!fs.existsSync(setupPath)) {
+      fs.writeFileSync(setupPath, buildMigrationSetupSource(source), 'utf8');
+    }
 
-  if (!fs.existsSync(compatPath)) {
-    fs.writeFileSync(compatPath, buildMigrationCompatSource(), 'utf8');
+    if (!fs.existsSync(compatPath)) {
+      fs.writeFileSync(compatPath, buildMigrationCompatSource(), 'utf8');
+    }
   }
 
   fs.writeFileSync(configPath, `${JSON.stringify(nextConfig, null, 2)}\n`, 'utf8');
@@ -98,7 +108,7 @@ function runMigrate(cwd, framework, options = {}) {
     ? rewriteMigrationImports(projectRoot, scan.matches, compatPath)
     : { rewrittenFiles: [], rewrittenImports: 0 };
   const conversionSummary = options.convert
-    ? convertMigrationFiles(projectRoot, scan.matches)
+    ? convertMigrationFiles(projectRoot, scan.matches, source)
     : { convertedFiles: [], convertedAssertions: 0, removedImports: 0 };
   const assistSummary = analyzeMigrationAssist(projectRoot, scan.matches, {
     enabled: Boolean(options.assist)
@@ -232,6 +242,8 @@ function buildMigrationReport(
       jestGlobals: matches.filter((entry) => entry.imports.includes('@jest/globals')).length,
       vitest: matches.filter((entry) => entry.imports.includes('vitest')).length,
       testingLibraryReact: matches.filter((entry) => entry.imports.includes('@testing-library/react')).length,
+      nodeTest: matches.filter((entry) => entry.imports.includes('node:test')).length,
+      nodeAssert: matches.filter((entry) => entry.imports.includes('node:assert')).length,
       rewrittenFiles: Array.isArray(rewriteSummary.rewrittenFiles) ? rewriteSummary.rewrittenFiles.length : 0,
       rewrittenImports: Number(rewriteSummary.rewrittenImports || 0),
       convertedFiles: Array.isArray(conversionSummary.convertedFiles) ? conversionSummary.convertedFiles.length : 0,
@@ -324,7 +336,7 @@ function normalizeAssistSummary(summary, enabled) {
   };
 }
 
-function convertMigrationFiles(projectRoot, matches) {
+function convertMigrationFiles(projectRoot, matches, source) {
   const convertedFiles = [];
   let convertedAssertions = 0;
   let removedImports = 0;
@@ -332,7 +344,9 @@ function convertMigrationFiles(projectRoot, matches) {
   for (const match of matches) {
     const absoluteFile = path.join(projectRoot, match.file);
     const original = fs.readFileSync(absoluteFile, 'utf8');
-    const converted = convertMigrationSourceText(original);
+    const converted = source === 'node'
+      ? convertNodeTestSourceText(original)
+      : convertMigrationSourceText(original);
     if (converted.source !== original) {
       fs.writeFileSync(absoluteFile, converted.source, 'utf8');
       convertedFiles.push(match.file);
@@ -419,6 +433,363 @@ function convertMigrationSourceText(sourceText) {
   };
 }
 
+function convertNodeTestSourceText(sourceText) {
+  let source = sourceText;
+  let removedImports = 0;
+  let convertedAssertions = 0;
+
+  source = source.replace(
+    /^\s*import\s+test(?:\s*,\s*\{[^}]*\})?\s+from\s+['"]node:test['"];?\s*\n?/gm,
+    () => {
+      removedImports += 1;
+      return '';
+    }
+  );
+
+  source = source.replace(
+    /^\s*import\s+\{[^}]*\}\s+from\s+['"]node:test['"];?\s*\n?/gm,
+    () => {
+      removedImports += 1;
+      return '';
+    }
+  );
+
+  source = source.replace(
+    /^\s*import\s+assert(?:\s*,\s*\{[^}]*\})?\s+from\s+['"]node:assert(?:\/strict)?['"];?\s*\n?/gm,
+    () => {
+      removedImports += 1;
+      return '';
+    }
+  );
+
+  source = source.replace(
+    /^\s*import\s+\{[^}]*\}\s+from\s+['"]node:assert(?:\/strict)?['"];?\s*\n?/gm,
+    () => {
+      removedImports += 1;
+      return '';
+    }
+  );
+
+  const renames = [
+    { pattern: /\btest\.afterEach\s*\(/g, replacement: 'afterEach(' },
+    { pattern: /\btest\.after\s*\(/g, replacement: 'afterAll(' },
+    { pattern: /\btest\.beforeEach\s*\(/g, replacement: 'beforeEach(' },
+    { pattern: /\btest\.before\s*\(/g, replacement: 'beforeAll(' }
+  ];
+  for (const entry of renames) {
+    source = source.replace(entry.pattern, () => {
+      convertedAssertions += 1;
+      return entry.replacement;
+    });
+  }
+
+  const testResult = stripNodeTestOptions(source);
+  source = testResult.source;
+  convertedAssertions += testResult.convertedAssertions;
+
+  const assertResult = rewriteAssertCalls(source);
+  source = assertResult.source;
+  convertedAssertions += assertResult.convertedAssertions;
+
+  source = source.replace(/\n{3,}/g, '\n\n');
+
+  return {
+    source,
+    convertedAssertions,
+    removedImports
+  };
+}
+
+const NODE_ASSERT_REWRITERS = {
+  equal: (args) => `expect(${args[0]}).toBe(${args[1]})`,
+  strictEqual: (args) => `expect(${args[0]}).toBe(${args[1]})`,
+  deepEqual: (args) => `expect(${args[0]}).toEqual(${args[1]})`,
+  deepStrictEqual: (args) => `expect(${args[0]}).toEqual(${args[1]})`,
+  ok: (args) => `expect(${args[0]}).toBeTruthy()`,
+  match: (args) => `expect(${args[0]}).toMatch(${args[1]})`,
+  rejects: (args) => {
+    const subject = args[0];
+    const matcher = args[1];
+    const subjectExpr = `typeof (${subject}) === 'function' ? (${subject})() : (${subject})`;
+    const matcherLine = matcher
+      ? `; expect(String(__themisError && __themisError.message || __themisError)).toMatch(${matcher})`
+      : '';
+    return `(async () => { let __themisError = null; try { await (${subjectExpr}); } catch (__e) { __themisError = __e; } expect(__themisError).toBeTruthy()${matcherLine}; })()`;
+  }
+};
+
+function stripNodeTestOptions(source) {
+  let out = '';
+  let i = 0;
+  let convertedAssertions = 0;
+  const callRegex = /\btest\s*\(/;
+
+  while (i < source.length) {
+    const remaining = source.slice(i);
+    const match = callRegex.exec(remaining);
+    if (!match) {
+      out += remaining;
+      break;
+    }
+
+    const callStart = i + match.index;
+    out += source.slice(i, callStart);
+
+    const prevChar = callStart === 0 ? '' : source[callStart - 1];
+    if (prevChar && /[A-Za-z0-9_$.]/.test(prevChar)) {
+      out += match[0];
+      i = callStart + match[0].length;
+      continue;
+    }
+
+    const openParen = callStart + match[0].length - 1;
+    const closeParen = findCallEnd(source, openParen);
+    if (closeParen === -1) {
+      out += match[0];
+      i = openParen + 1;
+      continue;
+    }
+
+    const body = source.slice(openParen + 1, closeParen);
+    const args = splitTopLevelArgs(body);
+    if (args.length === 3 && args[1].startsWith('{')) {
+      out += `test(${args[0]}, ${args[2]})`;
+      convertedAssertions += 1;
+      i = closeParen + 1;
+      continue;
+    }
+
+    out += source.slice(callStart, closeParen + 1);
+    i = closeParen + 1;
+  }
+
+  return { source: out, convertedAssertions };
+}
+
+function rewriteAssertCalls(source) {
+  let out = '';
+  let i = 0;
+  let convertedAssertions = 0;
+  const callRegex = /assert\.([a-zA-Z]+)\s*\(/;
+
+  while (i < source.length) {
+    const remaining = source.slice(i);
+    const match = callRegex.exec(remaining);
+    if (!match) {
+      out += remaining;
+      break;
+    }
+
+    const callStart = i + match.index;
+    out += source.slice(i, callStart);
+
+    const prevChar = callStart === 0 ? '' : source[callStart - 1];
+    if (prevChar && /[A-Za-z0-9_$]/.test(prevChar)) {
+      out += match[0];
+      i = callStart + match[0].length;
+      continue;
+    }
+
+    const helper = match[1];
+    const rewriter = NODE_ASSERT_REWRITERS[helper];
+    const openParen = callStart + match[0].length - 1;
+
+    if (!rewriter) {
+      out += match[0];
+      i = openParen + 1;
+      continue;
+    }
+
+    const closeParen = findCallEnd(source, openParen);
+    if (closeParen === -1) {
+      out += match[0];
+      i = openParen + 1;
+      continue;
+    }
+
+    const body = source.slice(openParen + 1, closeParen);
+    const args = splitTopLevelArgs(body);
+    if (args.length < 1) {
+      out += match[0] + body + ')';
+      i = closeParen + 1;
+      continue;
+    }
+
+    out += rewriter(args);
+    convertedAssertions += 1;
+    i = closeParen + 1;
+  }
+
+  return { source: out, convertedAssertions };
+}
+
+const REGEX_START_PREV_CHARS = new Set([
+  '(', ',', ';', '{', '}', '[', '=', '!', '&', '|', '+', '-', '*', '/', '%',
+  '<', '>', '?', ':', '^', '~', '\n'
+]);
+
+function shouldStartRegex(source, slashIndex) {
+  for (let k = slashIndex - 1; k >= 0; k -= 1) {
+    const c = source[k];
+    if (c === ' ' || c === '\t') continue;
+    if (c === '\n') return true;
+    if (REGEX_START_PREV_CHARS.has(c)) return true;
+    const wordEnd = k;
+    let wordStart = k;
+    while (wordStart > 0 && /[A-Za-z0-9_$]/.test(source[wordStart - 1])) {
+      wordStart -= 1;
+    }
+    const word = source.slice(wordStart, wordEnd + 1);
+    if (/^(return|typeof|in|of|instanceof|new|throw|delete|void|yield|await|do|else)$/.test(word)) {
+      return true;
+    }
+    return false;
+  }
+  return true;
+}
+
+function findCallEnd(source, openIndex) {
+  let depth = 0;
+  let i = openIndex;
+  let mode = 'code';
+  while (i < source.length) {
+    const ch = source[i];
+    const next = source[i + 1];
+    if (mode === 'code') {
+      if (ch === '/' && next === '/') { mode = 'lc'; i += 2; continue; }
+      if (ch === '/' && next === '*') { mode = 'bc'; i += 2; continue; }
+      if (ch === '/' && shouldStartRegex(source, i)) { mode = 're'; i += 1; continue; }
+      if (ch === "'") { mode = 'sq'; i += 1; continue; }
+      if (ch === '"') { mode = 'dq'; i += 1; continue; }
+      if (ch === '`') { mode = 'tpl'; i += 1; continue; }
+      if (ch === '(') { depth += 1; i += 1; continue; }
+      if (ch === ')') {
+        depth -= 1;
+        if (depth === 0) return i;
+        i += 1; continue;
+      }
+      i += 1; continue;
+    }
+    if (mode === 'sq') {
+      if (ch === '\\') { i += 2; continue; }
+      if (ch === "'") { mode = 'code'; }
+      i += 1; continue;
+    }
+    if (mode === 'dq') {
+      if (ch === '\\') { i += 2; continue; }
+      if (ch === '"') { mode = 'code'; }
+      i += 1; continue;
+    }
+    if (mode === 'tpl') {
+      if (ch === '\\') { i += 2; continue; }
+      if (ch === '`') { mode = 'code'; }
+      i += 1; continue;
+    }
+    if (mode === 're') {
+      if (ch === '\\') { i += 2; continue; }
+      if (ch === '[') { mode = 'rec'; i += 1; continue; }
+      if (ch === '/') {
+        mode = 'code';
+        i += 1;
+        while (i < source.length && /[a-z]/.test(source[i])) i += 1;
+        continue;
+      }
+      i += 1; continue;
+    }
+    if (mode === 'rec') {
+      if (ch === '\\') { i += 2; continue; }
+      if (ch === ']') { mode = 're'; }
+      i += 1; continue;
+    }
+    if (mode === 'lc') {
+      if (ch === '\n') { mode = 'code'; }
+      i += 1; continue;
+    }
+    if (mode === 'bc') {
+      if (ch === '*' && next === '/') { mode = 'code'; i += 2; continue; }
+      i += 1; continue;
+    }
+  }
+  return -1;
+}
+
+function splitTopLevelArgs(body) {
+  const args = [];
+  let depth = 0;
+  let bracket = 0;
+  let brace = 0;
+  let mode = 'code';
+  let start = 0;
+  for (let i = 0; i < body.length; i += 1) {
+    const ch = body[i];
+    const next = body[i + 1];
+    if (mode === 'code') {
+      if (ch === '/' && next === '/') { mode = 'lc'; i += 1; continue; }
+      if (ch === '/' && next === '*') { mode = 'bc'; i += 1; continue; }
+      if (ch === '/' && shouldStartRegex(body, i)) { mode = 're'; continue; }
+      if (ch === "'") { mode = 'sq'; continue; }
+      if (ch === '"') { mode = 'dq'; continue; }
+      if (ch === '`') { mode = 'tpl'; continue; }
+      if (ch === '(') { depth += 1; continue; }
+      if (ch === ')') { depth -= 1; continue; }
+      if (ch === '[') { bracket += 1; continue; }
+      if (ch === ']') { bracket -= 1; continue; }
+      if (ch === '{') { brace += 1; continue; }
+      if (ch === '}') { brace -= 1; continue; }
+      if (ch === ',' && depth === 0 && bracket === 0 && brace === 0) {
+        args.push(body.slice(start, i));
+        start = i + 1;
+      }
+      continue;
+    }
+    if (mode === 'sq') {
+      if (ch === '\\') { i += 1; continue; }
+      if (ch === "'") { mode = 'code'; }
+      continue;
+    }
+    if (mode === 'dq') {
+      if (ch === '\\') { i += 1; continue; }
+      if (ch === '"') { mode = 'code'; }
+      continue;
+    }
+    if (mode === 'tpl') {
+      if (ch === '\\') { i += 1; continue; }
+      if (ch === '`') { mode = 'code'; }
+      continue;
+    }
+    if (mode === 're') {
+      if (ch === '\\') { i += 1; continue; }
+      if (ch === '[') { mode = 'rec'; continue; }
+      if (ch === '/') {
+        mode = 'code';
+        let k = i + 1;
+        while (k < body.length && /[a-z]/.test(body[k])) k += 1;
+        i = k - 1;
+        continue;
+      }
+      continue;
+    }
+    if (mode === 'rec') {
+      if (ch === '\\') { i += 1; continue; }
+      if (ch === ']') { mode = 're'; }
+      continue;
+    }
+    if (mode === 'lc') {
+      if (ch === '\n') { mode = 'code'; }
+      continue;
+    }
+    if (mode === 'bc') {
+      if (ch === '*' && next === '/') { mode = 'code'; i += 1; }
+      continue;
+    }
+  }
+  const tail = body.slice(start);
+  if (tail.trim().length > 0 || args.length > 0) {
+    args.push(tail);
+  }
+  return args.map((arg) => arg.trim()).filter((arg) => arg.length > 0);
+}
+
 function rewriteMigrationImports(projectRoot, matches, compatPath) {
   const rewrittenFiles = [];
   let rewrittenImports = 0;
@@ -497,6 +868,12 @@ function detectMigrationImports(sourceText) {
   }
   if (hasModuleReference(sourceText, '@testing-library/react')) {
     matches.push('@testing-library/react');
+  }
+  if (hasModuleReference(sourceText, 'node:test')) {
+    matches.push('node:test');
+  }
+  if (hasModuleReference(sourceText, 'node:assert/strict') || hasModuleReference(sourceText, 'node:assert')) {
+    matches.push('node:assert');
   }
   return matches;
 }

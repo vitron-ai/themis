@@ -5,7 +5,7 @@ const os = require('os');
 const DEFAULT_CONFIG = {
   testDir: 'tests',
   generatedTestsDir: path.join('__themis__', 'tests'),
-  testRegex: '\\.(test|spec)\\.(js|jsx|ts|tsx)$',
+  testRegex: '\\.(test|spec)\\.(js|jsx|ts|tsx|mjs|cjs)$',
   maxWorkers: Math.max(1, os.cpus().length - 1),
   reporter: 'next',
   environment: 'node',

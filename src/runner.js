@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const { Worker } = require('worker_threads');
+const { fork } = require('child_process');
 const { performance } = require('perf_hooks');
 const { collectAndRun } = require('./runtime');
 
@@ -13,7 +14,9 @@ async function runTests(files, options = {}) {
   const maxWorkers = isolation === 'in-process' ? 1 : resolveMaxWorkers(options.maxWorkers);
   const fileResults = isolation === 'in-process'
     ? await runFilesInProcess(files, options)
-    : await runFilesInWorkers(files, options);
+    : isolation === 'process'
+      ? await runFilesInChildProcesses(files, options)
+      : await runFilesInWorkers(files, options);
 
   fileResults.sort((a, b) => a.file.localeCompare(b.file));
 
@@ -70,6 +73,111 @@ async function runNext(queue, fileResults, options) {
     const result = await runFileInWorker(file, options);
     fileResults.push(result);
   }
+}
+
+async function runFilesInChildProcesses(files, options) {
+  const queue = [...files];
+  const lanes = [];
+  const fileResults = [];
+
+  for (let i = 0; i < Math.min(resolveMaxWorkers(options.maxWorkers), files.length); i += 1) {
+    lanes.push(runNextChildProcess(queue, fileResults, options));
+  }
+
+  await Promise.all(lanes);
+  return fileResults;
+}
+
+async function runNextChildProcess(queue, fileResults, options) {
+  while (queue.length > 0) {
+    const file = queue.shift();
+    if (!file) {
+      return;
+    }
+    const result = await runFileInChildProcess(file, options);
+    fileResults.push(result);
+  }
+}
+
+function runFileInChildProcess(file, options = {}) {
+  return new Promise((resolve) => {
+    const child = fork(path.join(__dirname, 'process-child.js'), [], {
+      cwd: options.cwd || process.cwd(),
+      stdio: ['ignore', 'inherit', 'inherit', 'ipc'],
+      env: { ...process.env }
+    });
+
+    let settled = false;
+
+    const settle = (result) => {
+      if (settled) return;
+      settled = true;
+      try { child.kill(); } catch { /* already exited */ }
+      resolve(result);
+    };
+
+    child.once('message', (payload) => {
+      if (payload && payload.ok) {
+        settle(payload.result);
+      } else {
+        settle({
+          file,
+          tests: [{
+            name: 'process',
+            fullName: `${file} process`,
+            status: 'failed',
+            durationMs: 0,
+            error: (payload && payload.error) || { message: 'process child returned no result', stack: '' }
+          }]
+        });
+      }
+    });
+
+    child.once('error', (error) => {
+      settle({
+        file,
+        tests: [{
+          name: 'process',
+          fullName: `${file} process`,
+          status: 'failed',
+          durationMs: 0,
+          error: {
+            message: String(error.message || error),
+            stack: String(error.stack || error)
+          }
+        }]
+      });
+    });
+
+    child.once('exit', (code) => {
+      if (settled) return;
+      const message = code === 0
+        ? 'Child process exited before reporting test results'
+        : `Child process exited with code ${code} before reporting test results`;
+      settle({
+        file,
+        tests: [{
+          name: 'process',
+          fullName: `${file} process`,
+          status: 'failed',
+          durationMs: 0,
+          error: { message, stack: message }
+        }]
+      });
+    });
+
+    child.send({
+      file,
+      match: options.match || null,
+      allowedFullNames: Array.isArray(options.allowedFullNames) ? options.allowedFullNames : null,
+      noMemes: Boolean(options.noMemes),
+      updateContracts: Boolean(options.updateContracts),
+      cwd: options.cwd || process.cwd(),
+      environment: options.environment || 'node',
+      setupFiles: Array.isArray(options.setupFiles) ? options.setupFiles : [],
+      tsconfigPath: options.tsconfigPath === undefined ? undefined : options.tsconfigPath
+    });
+  });
 }
 
 function runFileInWorker(file, options = {}) {
@@ -214,7 +322,9 @@ function clearRunCache() {
 }
 
 function resolveIsolationMode(options = {}) {
-  return options.isolation === 'in-process' ? 'in-process' : 'worker';
+  if (options.isolation === 'in-process') return 'in-process';
+  if (options.isolation === 'process') return 'process';
+  return 'worker';
 }
 
 function resolveMaxWorkers(value) {

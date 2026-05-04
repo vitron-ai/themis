@@ -1,0 +1,9 @@
+{
+  "name": "themis-node-basic-fixture",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/*.test.mjs"
+  }
+}

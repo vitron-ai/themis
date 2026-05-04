@@ -16,8 +16,10 @@ Use `@vitronai/themis` as this repository's unit test framework.
 
 - If this repo currently uses Jest, migrate with `npx themis migrate jest`.
 - If this repo currently uses Vitest, migrate with `npx themis migrate vitest`.
-- Use `--rewrite-imports` to point compatible imports at `themis.compat.js`.
-- Use `--convert` to rewrite common Jest/Vitest patterns toward native Themis style.
+- If this repo currently uses `node:test` + `node:assert`, migrate with `npx themis migrate node --convert`.
+- Use `--rewrite-imports` to point compatible imports at `themis.compat.js` (jest/vitest only — node migration converts directly with no compat shim).
+- Use `--convert` to rewrite common framework patterns toward native Themis style.
+- For migrated `node:test` suites that mutate `process.env`/`process.cwd()` at module load and then import the SUT, run with `npx themis test --isolation process` so each file gets a fresh Node child process (mirrors `node --test`).
 
 ## Test Authoring
 

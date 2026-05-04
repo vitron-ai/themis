@@ -1,8 +1,11 @@
 const fs = require('fs');
 const path = require('path');
 const Module = require('module');
+const { pathToFileURL } = require('url');
 
 const SUPPORTED_SOURCE_EXTENSIONS = ['.js', '.jsx', '.ts', '.tsx'];
+const ESM_LOAD_EXTENSIONS = new Set(['.mjs']);
+const SUPPORTED_TEST_EXTENSIONS = ['.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs'];
 const RESOLVABLE_EXTENSIONS = ['.ts', '.tsx', '.js', '.jsx', '.json'];
 const STYLE_IMPORT_EXTENSIONS = new Set(['.css', '.scss', '.sass', '.less', '.styl', '.pcss']);
 const ASSET_IMPORT_EXTENSIONS = new Set([
@@ -145,11 +148,17 @@ function createModuleLoader(options = {}) {
   };
 
   return {
-    loadFile(filePath) {
+    async loadFile(filePath) {
       const resolvedPath = path.resolve(filePath);
       const realPath = safeRealpath(resolvedPath);
       delete require.cache[resolvedPath];
       delete require.cache[realPath];
+
+      if (shouldLoadAsEsm(realPath, projectRoot, packageTypeCache)) {
+        const url = `${pathToFileURL(realPath).href}?themis=${Date.now()}`;
+        return import(url);
+      }
+
       return require(realPath);
     },
     restore() {
@@ -279,6 +288,20 @@ function shouldTranspileFile(filename, projectRoot, packageTypeCache) {
   const extension = path.extname(filename).toLowerCase();
 
   if (extension === '.ts' || extension === '.tsx' || extension === '.jsx') {
+    return true;
+  }
+
+  if (extension !== '.js') {
+    return false;
+  }
+
+  return findNearestPackageType(filename, projectRoot, packageTypeCache) === 'module';
+}
+
+function shouldLoadAsEsm(filename, projectRoot, packageTypeCache) {
+  const extension = path.extname(filename).toLowerCase();
+
+  if (ESM_LOAD_EXTENSIONS.has(extension)) {
     return true;
   }
 
@@ -539,7 +562,7 @@ function shouldRejectUnsupportedProjectImport(resolvedRequest, projectRoot) {
     return false;
   }
 
-  return !SUPPORTED_SOURCE_EXTENSIONS.includes(extension)
+  return !SUPPORTED_TEST_EXTENSIONS.includes(extension)
     && extension !== '.json'
     && !STYLE_IMPORT_EXTENSIONS.has(extension)
     && !ASSET_IMPORT_EXTENSIONS.has(extension);

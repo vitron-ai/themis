@@ -1,0 +1,7 @@
+{
+  "testDir": "tests",
+  "testRegex": "\\.(test|spec)\\.(js)$",
+  "maxWorkers": 1,
+  "reporter": "json",
+  "tsconfigPath": null
+}

@@ -1,4 +1,4 @@
-# Migrating From Jest And Vitest
+# Migrating From Jest, Vitest, And node:test
 
 Themis is designed for incremental migration. Start by running existing suites under the Themis runtime, then convert touched tests toward native contracts and `intent(...)` flows as you work.
 
@@ -12,14 +12,42 @@ npx themis migrate jest --assist
 npx themis test
 ```
 
-Use `vitest` instead of `jest` for Vitest suites.
+Use `vitest` for Vitest suites or `node` for `node:test` suites in place of `jest`.
 
 ## Migration modes
 
-- `themis migrate <jest|vitest>`: scaffold config, setup, compat bridge, and migration report.
-- `--rewrite-imports`: point framework imports at `themis.compat.js`.
-- `--convert`: remove common Jest/Vitest imports and rewrite common matcher/test patterns into Themis-native forms.
-- `--assist`: run the safe rewrite and conversion passes together, then report leftover Jest/Vitest-only helpers that still need manual follow-up.
+- `themis migrate <jest|vitest|node>`: scaffold config and migration report. For `jest`/`vitest`, also writes a setup file and a compat bridge; `node` skips both (Themis provides the same globals natively).
+- `--rewrite-imports`: point framework imports at `themis.compat.js` (jest/vitest only — `node` source has no compat shim, conversion is direct).
+- `--convert`: remove common framework imports and rewrite matcher/test patterns into Themis-native forms.
+- `--assist`: run the safe rewrite and conversion passes together, then report leftover framework-specific helpers that still need manual follow-up.
+
+## node:test specifics
+
+`themis migrate node` handles the following transforms:
+
+| Input (node:test + node:assert/strict) | Output (Themis) |
+| --- | --- |
+| `import test from 'node:test'` | dropped (`test` is a Themis global) |
+| `import assert from 'node:assert/strict'` | dropped (`expect` replaces all asserts) |
+| `assert.equal(a, b)` / `strictEqual` | `expect(a).toBe(b)` |
+| `assert.deepEqual(a, b)` / `deepStrictEqual` | `expect(a).toEqual(b)` |
+| `assert.ok(v)` | `expect(v).toBeTruthy()` |
+| `assert.match(s, /re/)` | `expect(s).toMatch(/re/)` |
+| `await assert.rejects(fn, /re/)` | async try/catch wrapper + `toMatch` on the error message |
+| `test.after(fn)` / `test.afterEach(fn)` | `afterAll(fn)` / `afterEach(fn)` |
+| `test(name, { timeout }, fn)` | `test(name, fn)` (options arg silently dropped) |
+
+Not supported in this pass: `t.test()` subtests, `t.context`, `test.only`, `describe`/`it` exported from `node:test` (use Themis globals instead), `assert.throws`/`notEqual`/`fail`/`doesNotReject`, source-map line preservation. The optional 3rd-arg message string on `assert.equal`-family calls is silently dropped.
+
+## Process-state isolation
+
+`node:test` runs each test file in its own child process. If your suite mutates `process.env`, `process.cwd()`, or other process-level state at module load (e.g. `process.env.HOME = mkdtempSync(...)` before `await import('../dist/index.js')`), pair `themis test` with per-file process isolation:
+
+```bash
+npx themis test --isolation process
+```
+
+This spawns a fresh Node child process per test file via `child_process.fork`, mirroring `node --test`'s isolation model. The default `worker` mode shares process-state (especially `os.homedir()` cached at worker startup) across files and will surface as cross-file leakage for state-mutating tests.
 
 ## Before And After
 

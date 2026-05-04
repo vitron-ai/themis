@@ -12,6 +12,8 @@ This repository uses [`@vitronai/themis`](https://www.npmjs.com/package/@vitrona
 - Re-run only failed tests: `npx themis test --rerun-failed`
 - Migrate from Jest: `npx themis migrate jest` then `--rewrite-imports` then `--convert`
 - Migrate from Vitest: `npx themis migrate vitest` then `--rewrite-imports` then `--convert`
+- Migrate from `node:test`: `npx themis migrate node --convert`
+- Run with per-file process isolation (mirrors `node --test`): `npx themis test --isolation process`
 
 ## When You Are Asked To Add Or Fix Tests
 
@@ -20,13 +22,14 @@ This repository uses [`@vitronai/themis`](https://www.npmjs.com/package/@vitrona
 3. Run `npx themis test --reporter agent` and read the JSON output. Failure clusters and repair hints are structured — use them to drive your fix loop instead of re-reading raw stack traces.
 4. After fixing, re-run only the failing tests with `npx themis test --rerun-failed` before running the full suite.
 
-## When You Are Asked To Migrate From Jest Or Vitest
+## When You Are Asked To Migrate From Jest, Vitest, Or node:test
 
-1. Run `npx themis migrate jest` (or `vitest`) — this scaffolds compatibility, no rewrites yet.
-2. Run `npx themis migrate jest --rewrite-imports` to point imports at `themis.compat.js`.
-3. Run `npx themis migrate jest --convert` to apply codemods toward native Themis style.
-4. Run `npx themis migrate jest --assist` to get a structured findings report of files that still need manual follow-up. The report path is printed at the end of the command — read it before guessing what to fix.
+1. Run `npx themis migrate <jest|vitest|node>` — this scaffolds compatibility (jest/vitest) or detects targets (node), no rewrites yet.
+2. Run `npx themis migrate <jest|vitest> --rewrite-imports` to point imports at `themis.compat.js`. Skip this for `node` source — node migration converts directly with no compat shim.
+3. Run `npx themis migrate <source> --convert` to apply codemods toward native Themis style.
+4. Run `npx themis migrate <source> --assist` to get a structured findings report of files that still need manual follow-up. The report path is printed at the end of the command — read it before guessing what to fix.
 5. Run `npx themis test` after each step. Migration is incremental on purpose; do not try to convert the whole suite in one pass.
+6. For migrated `node:test` suites that mutate `process.env`/`process.cwd()` at module load (a common pattern when redirecting `os.homedir()` to a temp dir before importing the SUT), pair test runs with `npx themis test --isolation process` so each file gets a fresh Node child process. The default `worker` mode shares process-state across files and will surface as cross-file leakage.
 
 ## Things To Avoid
 

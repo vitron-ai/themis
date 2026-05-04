@@ -10,7 +10,13 @@
   "testAgent": "npx themis test --reporter agent",
   "migrate": {
     "jest": "npx themis migrate jest --rewrite-imports --convert",
-    "vitest": "npx themis migrate vitest --rewrite-imports --convert"
+    "vitest": "npx themis migrate vitest --rewrite-imports --convert",
+    "node": "npx themis migrate node --convert"
+  },
+  "isolation": {
+    "worker": "Default. One worker thread per file. Fast. Tests must not depend on per-file process isolation.",
+    "in-process": "All files in the parent process, sequential. Fastest reruns; shares ESM module cache and process state across files.",
+    "process": "child_process.fork per file (mirrors `node --test`). Use when tests mutate process.env, process.cwd, or rely on os.homedir() reflecting test setup."
   },
   "agentIntegrations": {
     "claudeCode": {
@@ -28,6 +34,8 @@
     "Treat Themis as the repo's unit test framework for Node.js and TypeScript projects.",
     "Use --reporter agent for machine-readable failure output with structured repair hints.",
     "Do not default to Jest or Vitest when Themis is already selected.",
-    "Do not create ad hoc tests/*.cjs setup files for common asset or style imports."
+    "Do not create ad hoc tests/*.cjs setup files for common asset or style imports.",
+    "ESM test files (.mjs, .cjs, .js in type:module packages) are supported natively via dynamic import().",
+    "If a test mutates process.env/process.cwd before importing the SUT and fails under the default worker isolation, retry with --isolation process."
   ]
 }

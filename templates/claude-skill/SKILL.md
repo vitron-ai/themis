@@ -64,7 +64,7 @@ npx themis generate src/auth    # narrower target
 
 Generated tests land under `__themis__/tests` as `.generated.test.ts` (TS/TSX sources) or `.generated.test.js` (JS/JSX sources). Treat them as Themis-managed — extend rather than rewrite.
 
-## How To Migrate From Jest Or Vitest
+## How To Migrate From Jest, Vitest, Or node:test
 
 Migration is incremental on purpose. Run the steps in order and `npx themis test` between each:
 
@@ -75,7 +75,11 @@ npx themis migrate jest --convert              # 3. apply codemods to native The
 npx themis migrate jest --assist               # 4. emit structured findings JSON for manual follow-ups
 ```
 
-Same flags work for `vitest`. **Read the `--assist` findings report before guessing what to fix manually** — its path is printed at the end of the command and the schema is at `node_modules/@vitronai/themis/docs/schemas/migration-report.v1.json`.
+Same flags work for `vitest`. For `node:test` + `node:assert/strict` suites, use `npx themis migrate node --convert` (the node source has no compat shim — conversion is direct, so step 2 is skipped). **Read the `--assist` findings report before guessing what to fix manually** — its path is printed at the end of the command and the schema is at `node_modules/@vitronai/themis/docs/schemas/migration-report.v1.json`.
+
+## When To Use --isolation process
+
+Default isolation is `worker` (worker thread per file). For migrated `node:test` suites — or any suite that mutates `process.env`/`process.cwd()` at module load and then imports the SUT — use `npx themis test --isolation process`. This spawns a fresh Node child process per file (mirrors `node --test`). Worker mode freezes `os.homedir()` at worker startup and shares the ESM module cache across files; `--isolation process` fixes both.
 
 ## Things To Avoid
 

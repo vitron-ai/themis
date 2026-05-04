@@ -1,6 +1,6 @@
 {
   "name": "@vitronai/themis",
-  "version": "1.2.2",
+  "version": "1.3.0",
   "description": "A Node.js and TypeScript unit test framework designed for AI coding agents. Drop-in alternative to Jest and Vitest with machine-readable failure output, structured repair hints, and one-command migration.",
   "license": "MIT",
   "author": "Vitron AI",
@@ -97,6 +97,8 @@
     "benchmark:first-try": "node scripts/benchmark-first-try.js",
     "benchmark:gate": "node scripts/benchmark-gate.js",
     "proof:migration": "node scripts/verify-migration-fixtures.js",
+    "proof:esm": "node scripts/verify-esm-fixtures.js",
+    "verify:dogfood": "node scripts/verify-alethia-bridge-dogfood.js",
     "pack:check": "npm pack --dry-run",
     "prepublishOnly": "npm run lint && npm test && npm run typecheck"
   },

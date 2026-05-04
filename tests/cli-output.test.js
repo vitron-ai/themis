@@ -789,7 +789,7 @@ test('deterministic instability', () => {
       async ({ tempDir }) => {
         const run = runCli(tempDir, ['--json', '--isolation', 'fork']);
         expect(run.status).toBe(1);
-        expect(run.output).toContain('Unsupported --isolation value: fork. Use one of: worker, in-process.');
+        expect(run.output).toContain('Unsupported --isolation value: fork. Use one of: worker, in-process, process.');
       },
       {
         'tests/sample.test.js': `test('direct contract fixture', () => {\n  expect(true).toBe(true);\n});\n`
