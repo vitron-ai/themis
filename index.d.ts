@@ -567,7 +567,39 @@ export interface ExpectMatchers<TReceived = unknown> {
   toHaveTextContent(expected: string): void;
   toHaveAttribute(name: string, expectedValue?: string): void;
   toBeInTheDocument(): void;
+  toThrow(expected: ExpectErrorClass): void;
+  toStrictEqual(expected: unknown): void;
+  toBeGreaterThan(expected: number | bigint): void;
+  toBeGreaterThanOrEqual(expected: number | bigint): void;
+  toBeLessThan(expected: number | bigint): void;
+  toBeLessThanOrEqual(expected: number | bigint): void;
+  toBeCloseTo(expected: number, numDigits?: number): void;
+  toBeInstanceOf(expected: ExpectErrorClass): void;
+  toHaveProperty(keyPath: string | ReadonlyArray<string | number>, value?: unknown): void;
+  readonly not: ExpectNegatedMatchers<TReceived>;
+  readonly resolves: ExpectAsyncMatchers<Awaited<TReceived>>;
+  readonly rejects: ExpectAsyncMatchers<unknown>;
 }
+
+/** Any class or constructor, for `toThrow(ErrorClass)` and `toBeInstanceOf(Class)`. */
+export type ExpectErrorClass = abstract new (...args: never[]) => unknown;
+
+export type ExpectMatcherName = Exclude<keyof ExpectMatchers, 'not' | 'resolves' | 'rejects'>;
+
+export type ExpectNegatedMatchers<TReceived = unknown> = Pick<ExpectMatchers<TReceived>, ExpectMatcherName>;
+
+// toThrow is overloaded, and `infer` only sees the last overload, so it is spelled out.
+type ExpectAsyncMatcherMethods<TReceived> = {
+  [K in Exclude<ExpectMatcherName, 'toThrow'>]: ExpectMatchers<TReceived>[K] extends (...args: infer TArgs) => void
+    ? (...args: TArgs) => Promise<void>
+    : never;
+} & {
+  toThrow(match?: string | RegExp | ExpectErrorClass): Promise<void>;
+};
+
+export type ExpectAsyncMatchers<TReceived = unknown> = ExpectAsyncMatcherMethods<TReceived> & {
+  readonly not: ExpectAsyncMatcherMethods<TReceived>;
+};
 
 export type Expect = <TReceived = unknown>(received: TReceived) => ExpectMatchers<TReceived>;
 export const expect: Expect;

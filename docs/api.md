@@ -502,6 +502,19 @@ Built-in matcher API:
 - `toHaveBeenCalled()`
 - `toHaveBeenCalledTimes(expected)`
 - `toHaveBeenCalledWith(...args)`
+- `toStrictEqual(expected)`
+- `toBeGreaterThan(n)`, `toBeGreaterThanOrEqual(n)`, `toBeLessThan(n)`, `toBeLessThanOrEqual(n)`: numbers or bigints
+- `toBeCloseTo(n, numDigits = 2)`: passes when the difference is under `10 ** -numDigits / 2`, as in Jest
+- `toBeInstanceOf(Class)`
+- `toHaveProperty(keyPath, value?)`: `keyPath` is `'a.b[0].c'` or an array such as `['a', 'b', 0, 'c']` (use the array form for keys containing dots); `value` is compared with deep equality
+- `toThrow` also accepts an error class: `toThrow(TypeError)`
+
+Modifiers:
+
+- `expect(x).not.<matcher>(...)` inverts any matcher. Misuse, such as `toContain` on a number, still fails: it throws a `TypeError` rather than counting as a failed assertion.
+- `await expect(promise).resolves.<matcher>(...)` and `await expect(promise).rejects.<matcher>(...)` run the matcher against the settled value. Both also accept a function that returns a promise, and both support `.not`.
+- `.rejects.toThrow(match?)` checks the rejection reason, as in Jest.
+- `expect(asyncFn).toThrow()` fails with a pointer to `.rejects` instead of leaving the rejection unhandled.
 
 Machine-facing note:
 
