@@ -4,14 +4,16 @@ const os = require('os');
 
 const DEFAULT_CONFIG = {
   testDir: 'tests',
-  generatedTestsDir: path.join('__themis__', 'tests'),
+  // Forward slashes on every OS: this object is written to themis.config.json, which is
+  // committed and shared across platforms. Node resolves '/' on Windows too.
+  generatedTestsDir: '__themis__/tests',
   testRegex: '\\.(test|spec)\\.(js|jsx|ts|tsx|mjs|cjs)$',
   maxWorkers: Math.max(1, os.cpus().length - 1),
   reporter: 'next',
   environment: 'node',
   setupFiles: [],
   tsconfigPath: 'tsconfig.json',
-  htmlReportPath: path.join('__themis__', 'reports', 'report.html'),
+  htmlReportPath: '__themis__/reports/report.html',
   testIgnore: []
 };
 
@@ -68,9 +70,20 @@ function normalizeConfig(config) {
 
   return {
     ...config,
-    setupFiles: [...config.setupFiles],
+    testDir: toPortablePath(config.testDir),
+    generatedTestsDir: toPortablePath(config.generatedTestsDir),
+    htmlReportPath: toPortablePath(config.htmlReportPath),
+    tsconfigPath: config.tsconfigPath === null ? null : toPortablePath(config.tsconfigPath),
+    setupFiles: config.setupFiles.map(toPortablePath),
     testIgnore: [...config.testIgnore]
   };
+}
+
+// Configs written by `themis init` on Windows up to 1.3.0 contain backslash separators,
+// which Linux and macOS read as part of a single file name. Paths only; regex fields keep
+// their backslashes.
+function toPortablePath(value) {
+  return typeof value === 'string' ? value.replace(/\\/g, '/') : value;
 }
 
 module.exports = {
