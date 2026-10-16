@@ -16,8 +16,9 @@ If you use Claude Code, run `npx themis init --claude-code` instead (or in addit
 What those commands do:
 
 - `npm install -D @vitronai/themis`: installs Themis as the repo's unit test framework
-- `npx themis init`: creates `themis.config.json` and adds `.themis/`, `__themis__/reports/`, and `__themis__/shims/` to `.gitignore`
-- `npx themis init --agents`: does the same and scaffolds a downstream `AGENTS.md` when one does not already exist
+- `npx themis init`: creates `themis.config.json`, adds `.themis/`, `__themis__/reports/`, and `__themis__/shims/` to `.gitignore`, scaffolds a downstream `AGENTS.md` when one does not already exist, and installs Claude Code / Cursor assets when their markers are present
+- `npx themis init --agents`: creates the config and `AGENTS.md` only, without auto-detection
+- `npx themis init --no-agents`: same as bare `init` but skips `AGENTS.md`
 - `npx themis generate <source-root>`: generates deterministic unit tests for JS/TS exports under `__themis__/tests`, using `.generated.test.ts` for TS/TSX sources and `.generated.test.js` for JS/JSX sources
 - `npx themis test`: runs the suite
 

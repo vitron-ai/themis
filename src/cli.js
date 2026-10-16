@@ -587,6 +587,7 @@ function parseMigrateFlags(args) {
 function parseInitFlags(args) {
   const flags = {
     agents: false,
+    noAgents: false,
     claudeCode: false,
     cursor: false
   };
@@ -595,6 +596,10 @@ function parseInitFlags(args) {
     const token = args[i];
     if (token === '--agents') {
       flags.agents = true;
+      continue;
+    }
+    if (token === '--no-agents') {
+      flags.noAgents = true;
       continue;
     }
     if (token === '--claude-code' || token === '--claude') {
@@ -608,6 +613,10 @@ function parseInitFlags(args) {
     if (token.startsWith('-')) {
       throw new Error(`Unsupported init option: ${token}`);
     }
+  }
+
+  if (flags.agents && flags.noAgents) {
+    throw new Error('Use either --agents or --no-agents, not both');
   }
 
   return flags;
@@ -814,7 +823,7 @@ function resolveStabilityRuns(value) {
 function printUsage() {
   console.log('Usage: themis <command> [options]');
   console.log('Commands:');
-  console.log('  init [--agents]         Create themis.config.json, gitignore framework paths, and optionally scaffold AGENTS.md');
+  console.log('  init [--agents|--no-agents] [--claude-code] [--cursor]   Create themis.config.json and gitignore framework paths. Bare init also scaffolds AGENTS.md and auto-detects Claude Code / Cursor; --no-agents skips AGENTS.md');
   console.log('  generate [path]         Scan source files and generate Themis contract tests');
   console.log('                         Options: [--json] [--plan] [--output path] [--files a,b] [--match-source regex] [--match-export regex] [--scenario name] [--min-confidence level] [--require-confidence level] [--include regex] [--exclude regex] [--review] [--update] [--clean] [--changed] [--force] [--strict] [--write-hints] [--fail-on-skips] [--fail-on-conflicts]');
   console.log('  scan [path]             Alias for generate');

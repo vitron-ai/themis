@@ -653,6 +653,51 @@ test('deterministic instability', () => {
     }
   });
 
+  test('bare init --no-agents skips AGENTS.md but still auto-detects agent markers', async () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'themis-cli-init-no-agents-'));
+
+    try {
+      fs.mkdirSync(path.join(tempDir, '.claude'), { recursive: true });
+
+      const run = runCliCommand(tempDir, 'init', ['--no-agents']);
+      expect(run.status).toBe(0);
+      expect(run.output).toContain('Auto-detected: Claude Code');
+      expect(run.output).toContain('Claude Code: created CLAUDE.md');
+      expect(run.output.includes('Agents:')).toBe(false);
+      expect(fs.existsSync(path.join(tempDir, 'AGENTS.md'))).toBe(false);
+      expect(fs.existsSync(path.join(tempDir, 'themis.config.json'))).toBe(true);
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  test('bare init --no-agents with no markers writes only config and gitignore', async () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'themis-cli-init-no-agents-bare-'));
+
+    try {
+      const run = runCliCommand(tempDir, 'init', ['--no-agents']);
+      expect(run.status).toBe(0);
+      expect(run.output.includes('Auto-detected')).toBe(false);
+      expect(fs.existsSync(path.join(tempDir, 'AGENTS.md'))).toBe(false);
+      expect(fs.readFileSync(path.join(tempDir, '.gitignore'), 'utf8')).toContain('.themis/');
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  test('init rejects --agents together with --no-agents', async () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'themis-cli-init-agents-conflict-'));
+
+    try {
+      const run = runCliCommand(tempDir, 'init', ['--agents', '--no-agents']);
+      expect(run.status).toBe(1);
+      expect(run.output).toContain('Use either --agents or --no-agents, not both');
+      expect(fs.existsSync(path.join(tempDir, 'themis.config.json'))).toBe(false);
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
   test('supports --fix for stale generated suites and keeps json output machine-readable', async () => {
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'themis-cli-fix-'));
 

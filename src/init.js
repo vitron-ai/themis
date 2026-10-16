@@ -15,7 +15,10 @@ function runInit(cwd, options = {}) {
   ensureGitignoreEntries(cwd, ['.themis/', '__themis__/reports/', '__themis__/shims/']);
 
   const hasExplicitFlags = options.agents || options.claudeCode || options.cursor;
-  const detected = hasExplicitFlags ? options : detectAgents(cwd, options);
+  const detected = hasExplicitFlags ? { ...options } : detectAgents(cwd, options);
+  if (options.noAgents) {
+    detected.agents = false;
+  }
 
   const result = {};
 

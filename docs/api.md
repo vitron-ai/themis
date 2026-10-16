@@ -26,7 +26,7 @@ For machine-readable agent adoption metadata, see [`themis.ai.json`](../themis.a
 
 ```bash
 themis test [options]
-themis init [--agents]
+themis init [--agents|--no-agents] [--claude-code] [--cursor]
 themis generate [path]
 themis migrate <jest|vitest|node>
 ```
@@ -37,7 +37,9 @@ Creates:
 
 - `themis.config.json` with default settings
 - adds `.themis/`, `__themis__/reports/`, and `__themis__/shims/` to `.gitignore`
-- with `--agents`, also writes a downstream `AGENTS.md` from the bundled Themis template when one does not already exist
+- a downstream `AGENTS.md` from the bundled Themis template when one does not already exist. Bare `init` writes it by default; pass `--no-agents` to skip it
+- bare `init` also auto-detects Claude Code (`.claude/` or `CLAUDE.md`) and Cursor (`.cursorrules` or `.cursor/`) and installs their assets
+- explicit `--agents`, `--claude-code`, or `--cursor` flags turn off auto-detection and install only what is named
 
 ## `themis test`
 
