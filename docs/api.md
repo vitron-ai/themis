@@ -1,6 +1,6 @@
 # Themis API Reference
 
-This document defines the public API surface for Themis `0.1.0`.
+This document defines the public API surface for Themis.
 
 ## Start Here
 
@@ -497,6 +497,7 @@ Built-in matcher API:
 - `toBeNull()`
 - `toHaveLength(expected)`
 - `toContain(item)`
+- `toMatch(expected)`: `expected` is a substring or `RegExp`; `received` must be a string
 - `toThrow(match?)`
 - `toHaveBeenCalled()`
 - `toHaveBeenCalledTimes(expected)`

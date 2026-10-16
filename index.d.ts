@@ -559,6 +559,7 @@ export interface ExpectMatchers<TReceived = unknown> {
   toBeNull(): void;
   toHaveLength(expected: number): void;
   toContain(item: unknown): void;
+  toMatch(expected: string | RegExp): void;
   toThrow(match?: string | RegExp): void;
   toHaveBeenCalled(): void;
   toHaveBeenCalledTimes(expected: number): void;
