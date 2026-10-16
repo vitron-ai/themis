@@ -489,7 +489,7 @@ Built-in matcher API:
 
 - `toBe(expected)`
 - `toEqual(expected)`
-- `toMatchObject(expected)`
+- `toMatchObject(expected)`: plain objects match on the expected keys only, recursively; arrays must have the same length, with each element matched the same way; other values (`Date`, `RegExp`, `Map`, `Set`, primitives) must be deeply equal
 - `toBeTruthy()`
 - `toBeFalsy()`
 - `toBeDefined()`

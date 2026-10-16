@@ -169,34 +169,43 @@ function assertMockFunction(received, matcherName) {
   }
 }
 
+// Jest semantics: plain objects match on the expected keys only, arrays must have the same
+// length with each element matched by the same rules, and anything else (primitives, Date,
+// RegExp, Map, Set, class instances) must be deeply equal.
 function matchesObjectShape(received, expected) {
-  if (!received || typeof received !== 'object' || Array.isArray(received)) {
+  if (!expected || typeof expected !== 'object') {
     return false;
   }
+  return matchesSubset(received, expected);
+}
 
-  if (!expected || typeof expected !== 'object' || Array.isArray(expected)) {
+function matchesSubset(received, expected) {
+  if (Array.isArray(expected)) {
+    return (
+      Array.isArray(received) &&
+      received.length === expected.length &&
+      expected.every((item, index) => matchesSubset(received[index], item))
+    );
+  }
+
+  if (isPlainObject(expected)) {
+    if (!received || typeof received !== 'object' || Array.isArray(received)) {
+      return false;
+    }
+    return Object.entries(expected).every(
+      ([key, value]) => Object.prototype.hasOwnProperty.call(received, key) && matchesSubset(received[key], value)
+    );
+  }
+
+  return util.isDeepStrictEqual(received, expected);
+}
+
+function isPlainObject(value) {
+  if (!value || typeof value !== 'object') {
     return false;
   }
-
-  for (const [key, value] of Object.entries(expected)) {
-    if (!Object.prototype.hasOwnProperty.call(received, key)) {
-      return false;
-    }
-
-    const receivedValue = received[key];
-    if (value && typeof value === 'object' && !Array.isArray(value)) {
-      if (!matchesObjectShape(receivedValue, value)) {
-        return false;
-      }
-      continue;
-    }
-
-    if (!util.isDeepStrictEqual(receivedValue, value)) {
-      return false;
-    }
-  }
-
-  return true;
+  const proto = Object.getPrototypeOf(value);
+  return proto === Object.prototype || proto === null;
 }
 
 function format(value) {
